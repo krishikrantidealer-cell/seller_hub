@@ -664,8 +664,8 @@ class _SellerLoginPageState extends State<SellerLoginPage> with TickerProviderSt
                       painter: ThemeRipplePainter(
                         progress: _rippleAnimation.value,
                         origin: _rippleOrigin,
-                        targetColor: isDark ? const Color(0xFF0A0F1D) : const Color(0xFFF8FAFC),
-                        waveColor: const Color(0xFF059669),
+                        targetColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        waveColor: const Color(0xFF10B981),
                       ),
                     ),
                   ),

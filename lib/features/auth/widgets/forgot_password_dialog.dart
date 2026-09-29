@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ForgotPasswordDialog extends StatefulWidget {
   const ForgotPasswordDialog({super.key});
@@ -38,29 +38,24 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Dialog(
-      backgroundColor: isDark ? AppTheme.darkCardBg : AppTheme.lightCardBg,
+      backgroundColor: isDark ? const Color(0xFF161E2E) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder,
+          color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
         ),
       ),
       child: SelectionArea(
         child: Container(
           width: 440,
           padding: const EdgeInsets.all(28),
-          child: _isSent ? _buildSuccessView(context) : _buildFormView(context),
+          child: _isSent ? _buildSuccessView(context, isDark) : _buildFormView(context, isDark),
         ),
       ),
     );
   }
 
-  Widget _buildFormView(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
-    final textMuted = isDark ? AppTheme.darkTextMuted : AppTheme.lightTextMuted;
-
+  Widget _buildFormView(BuildContext context, bool isDark) {
     return Form(
       key: _formKey,
       child: Column(
@@ -73,17 +68,21 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isDark ? AppTheme.darkAccentBg : AppTheme.lightAccentBg,
+                  color: isDark ? const Color(0xFF064E3B) : const Color(0xFFE6F4EA),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.lock_reset_rounded,
-                  color: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
+                  color: Color(0xFF059669),
                   size: 24,
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.close, size: 20, color: textSecondary),
+                icon: Icon(
+                  Icons.close,
+                  size: 20,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -91,29 +90,45 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
           const SizedBox(height: 16),
           Text(
             'Reset your password',
-            style: TextStyle(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: textPrimary,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
             ),
           ),
           const SizedBox(height: 6),
           Text(
             'Enter your registered email address or phone number and we will send you a password recovery link.',
-            style: TextStyle(fontSize: 13.5, color: textSecondary, height: 1.4),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              height: 1.45,
+            ),
           ),
           const SizedBox(height: 20),
           Text(
             'Registered Email or Phone',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textPrimary),
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+            ),
             decoration: InputDecoration(
-              hintText: 'e.g. dealer@agrobusiness.com or 9876543210',
-              prefixIcon: Icon(Icons.mail_outline_rounded, size: 20, color: textMuted),
+              hintText: 'e.g. seller@agribegri.com or 9876543210',
+              prefixIcon: Icon(
+                Icons.mail_outline_rounded,
+                size: 18,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
@@ -125,18 +140,27 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
+            height: 48,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _handleReset,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
               child: _isLoading
-                  ? SizedBox(
+                  ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Send Reset Instructions'),
+                  : Text(
+                      'Send Reset Instructions',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -144,39 +168,55 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
     );
   }
 
-  Widget _buildSuccessView(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
-
+  Widget _buildSuccessView(BuildContext context, bool isDark) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark ? AppTheme.darkAccentBg : AppTheme.lightAccentBg,
+            color: isDark ? const Color(0xFF064E3B) : const Color(0xFFE6F4EA),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.mark_email_read_rounded, color: AppTheme.success, size: 36),
+          child: const Icon(Icons.mark_email_read_rounded, color: Color(0xFF10B981), size: 36),
         ),
         const SizedBox(height: 16),
         Text(
           'Recovery link sent!',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: textPrimary),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          ),
         ),
         const SizedBox(height: 8),
         Text(
           'We have sent password reset instructions to ${_emailController.text}. Please check your inbox and spam folders.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13.5, color: textSecondary, height: 1.4),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            height: 1.45,
+          ),
         ),
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
+          height: 48,
           child: ElevatedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Back to Login'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              'Back to Login',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ),
       ],

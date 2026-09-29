@@ -131,43 +131,71 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AnimatedSize(
-      duration: const Duration(milliseconds: 380),
+      duration: const Duration(milliseconds: 360),
       curve: Curves.easeInOutCubic,
       alignment: Alignment.topCenter,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 320),
-        switchInCurve: Curves.easeOutQuart,
-        switchOutCurve: Curves.easeInQuad,
-        transitionBuilder: (child, animation) {
-          final isPhoneView = child.key == const ValueKey('phone_input_view');
-          final offsetAnimation = Tween<Offset>(
-            begin: Offset(isPhoneView ? -0.03 : 0.03, 0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutQuart));
-          final scaleAnimation = Tween<double>(
-            begin: 0.985,
-            end: 1.0,
-          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutQuart));
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: offsetAnimation,
-              child: ScaleTransition(
-                scale: scaleAnimation,
-                child: child,
+      child: ClipRect(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 320),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            final isIncoming = child.key == (_isOtpSent
+                ? const ValueKey('otp_verify_view')
+                : const ValueKey('phone_input_view'));
+
+            // Directional slide: OTP verify (right, +0.15), Phone input (left, -0.15)
+            final double slideOffset = _isOtpSent ? 0.15 : -0.15;
+            final inTween = Tween<Offset>(
+              begin: Offset(slideOffset, 0),
+              end: Offset.zero,
+            );
+            final outTween = Tween<Offset>(
+              begin: Offset(-slideOffset, 0),
+              end: Offset.zero,
+            );
+
+            final offsetAnimation = (isIncoming ? inTween : outTween).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: isIncoming ? Curves.easeOutCubic : Curves.easeInCubic,
               ),
-            ),
-          );
-        },
-        child: !_isOtpSent
-            ? KeyedSubtree(
-                key: const ValueKey('phone_input_view'),
-                child: _buildPhoneInputView(context, isDark),
-              )
-            : KeyedSubtree(
-                key: const ValueKey('otp_verify_view'),
-                child: _buildOtpVerificationView(context, isDark),
+            );
+
+            final scaleAnimation = Tween<double>(
+              begin: 0.965,
+              end: 1.0,
+            ).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
               ),
+            );
+
+            return FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeInOut,
+              ),
+              child: SlideTransition(
+                position: offsetAnimation,
+                child: ScaleTransition(
+                  scale: scaleAnimation,
+                  child: child,
+                ),
+              ),
+            );
+          },
+          child: !_isOtpSent
+              ? KeyedSubtree(
+                  key: const ValueKey('phone_input_view'),
+                  child: _buildPhoneInputView(context, isDark),
+                )
+              : KeyedSubtree(
+                  key: const ValueKey('otp_verify_view'),
+                  child: _buildOtpVerificationView(context, isDark),
+                ),
+        ),
       ),
     );
   }

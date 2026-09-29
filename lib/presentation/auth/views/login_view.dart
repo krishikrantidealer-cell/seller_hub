@@ -600,45 +600,73 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
 
                                 const SizedBox(height: 22),
 
-                                // Animated Content Container with Dynamic Height
+                                // Animated Content Container with Dynamic Height & Directional Sliding
                                 AnimatedSize(
-                                  duration: const Duration(milliseconds: 380),
+                                  duration: const Duration(milliseconds: 360),
                                   curve: Curves.easeInOutCubic,
                                   alignment: Alignment.topCenter,
-                                  child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 320),
-                                    switchInCurve: Curves.easeOutQuart,
-                                    switchOutCurve: Curves.easeInQuad,
-                                    transitionBuilder: (child, animation) {
-                                      final isPassword = child.key == const ValueKey('password_form');
-                                      final offsetAnimation = Tween<Offset>(
-                                        begin: Offset(isPassword ? -0.03 : 0.03, 0),
-                                        end: Offset.zero,
-                                      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutQuart));
-                                      final scaleAnimation = Tween<double>(
-                                        begin: 0.985,
-                                        end: 1.0,
-                                      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutQuart));
-                                      return FadeTransition(
-                                        opacity: animation,
-                                        child: SlideTransition(
-                                          position: offsetAnimation,
-                                          child: ScaleTransition(
-                                            scale: scaleAnimation,
-                                            child: child,
+                                  child: ClipRect(
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(milliseconds: 320),
+                                      switchInCurve: Curves.easeOutCubic,
+                                      switchOutCurve: Curves.easeInCubic,
+                                      transitionBuilder: (child, animation) {
+                                        final isIncoming = child.key == (_authMethodIndex == 0
+                                            ? const ValueKey('password_form')
+                                            : const ValueKey('otp_form'));
+
+                                        // Directional slide: OTP (right, +0.15), Password (left, -0.15)
+                                        final double slideOffset = _authMethodIndex == 1 ? 0.15 : -0.15;
+                                        final inTween = Tween<Offset>(
+                                          begin: Offset(slideOffset, 0),
+                                          end: Offset.zero,
+                                        );
+                                        final outTween = Tween<Offset>(
+                                          begin: Offset(-slideOffset, 0),
+                                          end: Offset.zero,
+                                        );
+
+                                        final offsetAnimation = (isIncoming ? inTween : outTween).animate(
+                                          CurvedAnimation(
+                                            parent: animation,
+                                            curve: isIncoming ? Curves.easeOutCubic : Curves.easeInCubic,
                                           ),
-                                        ),
-                                      );
-                                    },
-                                    child: _authMethodIndex == 0
-                                        ? KeyedSubtree(
-                                            key: const ValueKey('password_form'),
-                                            child: _buildPasswordForm(isDark),
-                                          )
-                                        : KeyedSubtree(
-                                            key: const ValueKey('otp_form'),
-                                            child: OtpLoginForm(onLoginSuccess: _onLoginSuccess),
+                                        );
+
+                                        final scaleAnimation = Tween<double>(
+                                          begin: 0.965,
+                                          end: 1.0,
+                                        ).animate(
+                                          CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.easeOutCubic,
                                           ),
+                                        );
+
+                                        return FadeTransition(
+                                          opacity: CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.easeInOut,
+                                          ),
+                                          child: SlideTransition(
+                                            position: offsetAnimation,
+                                            child: ScaleTransition(
+                                              scale: scaleAnimation,
+                                              child: child,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: _authMethodIndex == 0
+                                          ? KeyedSubtree(
+                                              key: const ValueKey('password_form'),
+                                              child: _buildPasswordForm(isDark),
+                                            )
+                                          : KeyedSubtree(
+                                              key: const ValueKey('otp_form'),
+                                              child: OtpLoginForm(onLoginSuccess: _onLoginSuccess),
+                                            ),
+                                    ),
                                   ),
                                 ),
 

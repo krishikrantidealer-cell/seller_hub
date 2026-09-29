@@ -36,6 +36,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
   bool _isCapsLockOn = false;
   int _authMethodIndex = 0; // 0 = Password, 1 = Mobile OTP
   Offset _rippleOrigin = const Offset(1200, 40);
+  bool? _rippleTargetIsDark;
 
   @override
   void initState() {
@@ -91,6 +92,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
   }
 
   void _toggleTheme(bool currentIsDark) {
+    final targetIsDark = !currentIsDark;
     final renderBox = _themeButtonKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox != null) {
       final size = renderBox.size;
@@ -99,6 +101,11 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
       );
       setState(() {
         _rippleOrigin = globalPos;
+        _rippleTargetIsDark = targetIsDark;
+      });
+    } else {
+      setState(() {
+        _rippleTargetIsDark = targetIsDark;
       });
     }
     _rippleController.forward(from: 0.0);
@@ -743,8 +750,10 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                             painter: ThemeRipplePainter(
                               progress: _rippleAnimation.value,
                               origin: _rippleOrigin,
-                              targetColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                              isDark: isDark,
+                              targetColor: (_rippleTargetIsDark ?? isDark)
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFF8FAFC),
+                              isDark: _rippleTargetIsDark ?? isDark,
                               customWaveColor: const Color(0xFF10B981),
                             ),
                           ),

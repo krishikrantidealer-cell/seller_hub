@@ -772,6 +772,25 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                   size: 18,
                   color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                 ),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF161E2E) : const Color(0xFFF1F5F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF059669), width: 1.6),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
               onSubmitted: (_) => _passwordFocus.requestFocus(),
             ),
@@ -826,6 +845,25 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                   ),
                   onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                 ),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF161E2E) : const Color(0xFFF1F5F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF059669), width: 1.6),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
               onSubmitted: (_) => _submitLogin(),
             ),

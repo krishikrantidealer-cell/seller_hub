@@ -30,94 +30,72 @@ class ThemeRipplePainter extends CustomPainter {
 
     final currentRadius = maxRadius * progress;
     final fadeOut = (1.0 - progress).clamp(0.0, 1.0);
-    // Smooth bell curve for ambient aura
-    final smoothFade = math.sin(progress * math.pi);
-
-    final normX = (size.width > 0 ? (origin.dx / size.width) * 2 - 1 : 0.0).clamp(-1.0, 1.0);
-    final normY = (size.height > 0 ? (origin.dy / size.height) * 2 - 1 : 0.0).clamp(-1.0, 1.0);
-    final double maxDim = math.max(size.width, size.height);
-    final radRatio = (currentRadius / (maxDim > 0 ? maxDim : 1)).clamp(0.01, 2.2);
 
     if (isDark) {
       // ==========================================
-      // 🌙 ENTERING DARK MODE: DEEP BLACK OBSIDIAN GRADIENT SWEEP
+      // 🌙 ENTERING DARK MODE: LOCALIZED BLACK GRADIENT WAVE BORDER
       // ==========================================
-      const pureBlack = Color(0xFF000000);
-      const midnightBlack = Color(0xFF020617);
-      const deepSlate = Color(0xFF0A0F1D);
       const slateEdge = Color(0xFF334155);
 
-      // 1. Fluid Expanding Deep Black Gradient Curtain
-      final washPaint = Paint()
-        ..shader = RadialGradient(
-          center: Alignment(normX, normY),
-          radius: radRatio * 1.05,
-          colors: [
-            pureBlack.withValues(alpha: (0.94 * smoothFade).clamp(0.0, 1.0)),
-            midnightBlack.withValues(alpha: (0.82 * smoothFade).clamp(0.0, 1.0)),
-            deepSlate.withValues(alpha: (0.45 * smoothFade).clamp(0.0, 1.0)),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.40, 0.75, 1.0],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), washPaint);
-
-      // 2. Subtle Dark Starlight Origin Bloom (first 25% of transition)
-      final sparkProgress = (progress / 0.25).clamp(0.0, 1.0);
+      // 1. Subtle Dark Origin Spark (first 20% of transition)
+      final sparkProgress = (progress / 0.20).clamp(0.0, 1.0);
       if (sparkProgress < 1.0) {
         final sparkFade = math.sin(sparkProgress * math.pi);
         final sparkPaint = Paint()
-          ..color = slateEdge.withValues(alpha: (0.40 * sparkFade).clamp(0.0, 1.0))
+          ..color = slateEdge.withValues(alpha: (0.35 * sparkFade).clamp(0.0, 1.0))
           ..style = PaintingStyle.fill;
-        canvas.drawCircle(origin, 28 * sparkProgress + 2, sparkPaint);
+        canvas.drawCircle(origin, 20 * sparkProgress + 2, sparkPaint);
       }
 
-      // 3. Crisp, Minimalist Slate-Black Wavefront Edge
+      // 2. Localized Black Gradient Aura along Wave Border
+      if (currentRadius > 6) {
+        final bandWidth = (26.0 * fadeOut + 6.0);
+        final auraPaint = Paint()
+          ..color = Colors.black.withValues(alpha: (0.42 * fadeOut).clamp(0.0, 1.0))
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = bandWidth
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, bandWidth * 0.45);
+        canvas.drawCircle(origin, currentRadius, auraPaint);
+      }
+
+      // 3. Crisp Slate-Black Wavefront Border Line
       final rimPaint = Paint()
-        ..color = slateEdge.withValues(alpha: (0.60 * fadeOut * fadeOut).clamp(0.0, 1.0))
+        ..color = slateEdge.withValues(alpha: (0.65 * fadeOut * fadeOut).clamp(0.0, 1.0))
         ..style = PaintingStyle.stroke
         ..strokeWidth = (1.8 * fadeOut + 0.6);
       canvas.drawCircle(origin, currentRadius, rimPaint);
 
     } else {
       // ==========================================
-      // ☀️ ENTERING LIGHT MODE: WARM SUN COLOR GRADIENT SWEEP
+      // ☀️ ENTERING LIGHT MODE: LOCALIZED WARM SUN GRADIENT WAVE BORDER
       // ==========================================
-      const sunBeamWhite = Color(0xFFFFFBEB);
-      const sunLightAmber = Color(0xFFFEF3C7);
-      const solarGold = Color(0xFFFDE68A);
-      const warmAmberGlow = Color(0xFFFBBF24);
       const sunbeamEdge = Color(0xFFF59E0B);
+      const sunGoldAura = Color(0xFFFBBF24);
 
-      // 1. Fluid Expanding Warm Sun Color Gradient Curtain
-      final washPaint = Paint()
-        ..shader = RadialGradient(
-          center: Alignment(normX, normY),
-          radius: radRatio * 1.05,
-          colors: [
-            sunBeamWhite.withValues(alpha: (0.92 * smoothFade).clamp(0.0, 1.0)),
-            sunLightAmber.withValues(alpha: (0.75 * smoothFade).clamp(0.0, 1.0)),
-            solarGold.withValues(alpha: (0.45 * smoothFade).clamp(0.0, 1.0)),
-            warmAmberGlow.withValues(alpha: (0.18 * smoothFade).clamp(0.0, 1.0)),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.35, 0.65, 0.88, 1.0],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), washPaint);
-
-      // 2. Warm Sun Flare Origin Bloom (first 25% of transition)
-      final sparkProgress = (progress / 0.25).clamp(0.0, 1.0);
+      // 1. Subtle Warm Sun Origin Spark (first 20% of transition)
+      final sparkProgress = (progress / 0.20).clamp(0.0, 1.0);
       if (sparkProgress < 1.0) {
         final sparkFade = math.sin(sparkProgress * math.pi);
         final sparkPaint = Paint()
-          ..color = warmAmberGlow.withValues(alpha: (0.55 * sparkFade).clamp(0.0, 1.0))
+          ..color = sunGoldAura.withValues(alpha: (0.45 * sparkFade).clamp(0.0, 1.0))
           ..style = PaintingStyle.fill;
-        canvas.drawCircle(origin, 28 * sparkProgress + 2, sparkPaint);
+        canvas.drawCircle(origin, 20 * sparkProgress + 2, sparkPaint);
       }
 
-      // 3. Crisp, Golden Sunbeam Wavefront Edge
+      // 2. Localized Warm Sun Color Gradient Aura along Wave Border
+      if (currentRadius > 6) {
+        final bandWidth = (26.0 * fadeOut + 6.0);
+        final auraPaint = Paint()
+          ..color = sunGoldAura.withValues(alpha: (0.35 * fadeOut).clamp(0.0, 1.0))
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = bandWidth
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, bandWidth * 0.45);
+        canvas.drawCircle(origin, currentRadius, auraPaint);
+      }
+
+      // 3. Crisp Golden Sunbeam Wavefront Border Line
       final rimPaint = Paint()
-        ..color = sunbeamEdge.withValues(alpha: (0.55 * fadeOut * fadeOut).clamp(0.0, 1.0))
+        ..color = sunbeamEdge.withValues(alpha: (0.65 * fadeOut * fadeOut).clamp(0.0, 1.0))
         ..style = PaintingStyle.stroke
         ..strokeWidth = (1.8 * fadeOut + 0.6);
       canvas.drawCircle(origin, currentRadius, rimPaint);

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../main.dart';
 import '../../theme/app_theme.dart';
 import 'widgets/branding_banner.dart';
 import 'widgets/otp_login_form.dart';
 import 'widgets/password_login_form.dart';
-import 'widgets/theme_toggle_button.dart';
+import 'widgets/theme_ripple_painter.dart';
 
 class SellerLoginPage extends StatefulWidget {
   const SellerLoginPage({super.key});
@@ -12,19 +13,53 @@ class SellerLoginPage extends StatefulWidget {
   State<SellerLoginPage> createState() => _SellerLoginPageState();
 }
 
-class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProviderStateMixin {
+class _SellerLoginPageState extends State<SellerLoginPage> with TickerProviderStateMixin {
   late TabController _tabController;
+  late AnimationController _rippleController;
+  late Animation<double> _rippleAnimation;
+
+  final GlobalKey _desktopThemeKey = GlobalKey();
+  final GlobalKey _mobileThemeKey = GlobalKey();
+  Offset _rippleOrigin = const Offset(0, 0);
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+
+    _rippleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+
+    _rippleAnimation = CurvedAnimation(
+      parent: _rippleController,
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _rippleController.dispose();
     super.dispose();
+  }
+
+  void _toggleTheme(GlobalKey buttonKey) {
+    final renderBox = buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      final size = renderBox.size;
+      final globalPos = renderBox.localToGlobal(
+        Offset(size.width / 2, size.height / 2),
+      );
+      setState(() {
+        _rippleOrigin = globalPos;
+      });
+    }
+
+    final isDark = themeModeNotifier.value == ThemeMode.dark;
+    _rippleController.forward(from: 0.0);
+    themeModeNotifier.value = isDark ? ThemeMode.light : ThemeMode.dark;
   }
 
   void _onLoginSuccess() {
@@ -71,8 +106,8 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isDesktop = screenWidth >= 1024;
+    final screenSize = MediaQuery.of(context).size;
+    final isDesktop = screenSize.width >= 1024;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceBg = isDark ? AppTheme.darkSurfaceBg : AppTheme.lightSurfaceBg;
 
@@ -94,7 +129,9 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
                       // Right Authentication Form Area
                       Expanded(
                         flex: 6,
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOutCubic,
                           color: surfaceBg,
                           child: Center(
                             child: SingleChildScrollView(
@@ -109,7 +146,9 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
                       ),
                     ],
                   )
-                : Container(
+                : AnimatedContainer(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeInOutCubic,
                     color: surfaceBg,
                     child: SafeArea(
                       child: Center(
@@ -134,12 +173,105 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
 
             // Top-right Theme Toggle on Desktop
             if (isDesktop)
-              const Positioned(
-                top: 20,
-                right: 24,
-                child: ThemeToggleButton(),
+              Positioned(
+                top: 22,
+                right: 26,
+                child: _buildThemeToggleButton(
+                  context: context,
+                  key: _desktopThemeKey,
+                  isDark: isDark,
+                  onTap: () => _toggleTheme(_desktopThemeKey),
+                ),
               ),
+
+            // Luminous Theme Ripple Wave Overlay
+            AnimatedBuilder(
+              animation: _rippleAnimation,
+              builder: (context, _) {
+                if (_rippleAnimation.value <= 0.0 || _rippleAnimation.value >= 1.0) {
+                  return const SizedBox.shrink();
+                }
+                return Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      size: screenSize,
+                      painter: ThemeRipplePainter(
+                        progress: _rippleAnimation.value,
+                        origin: _rippleOrigin,
+                        targetColor: isDark ? AppTheme.darkSurfaceBg : AppTheme.lightSurfaceBg,
+                        waveColor: isDark ? AppTheme.primary : AppTheme.accent,
+                        isDark: isDark,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeToggleButton({
+    required BuildContext context,
+    required Key key,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return AnimatedContainer(
+      key: key,
+      duration: const Duration(milliseconds: 350),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkCardBg : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder,
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  transitionBuilder: (child, anim) => RotationTransition(
+                    turns: anim,
+                    child: FadeTransition(opacity: anim, child: child),
+                  ),
+                  child: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    key: ValueKey(isDark),
+                    size: 19,
+                    color: isDark ? const Color(0xFFFBBF24) : AppTheme.primaryDeep,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isDark ? 'Light' : 'Dark',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -189,7 +321,12 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
             ),
           ],
         ),
-        const ThemeToggleButton(),
+        _buildThemeToggleButton(
+          context: context,
+          key: _mobileThemeKey,
+          isDark: isDark,
+          onTap: () => _toggleTheme(_mobileThemeKey),
+        ),
       ],
     );
   }
@@ -204,7 +341,9 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
     final activeTabBg = isDark ? const Color(0xFF243048) : Colors.white;
     final primaryColor = isDark ? AppTheme.primaryLight : AppTheme.primaryDeep;
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOutCubic,
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: cardBg,

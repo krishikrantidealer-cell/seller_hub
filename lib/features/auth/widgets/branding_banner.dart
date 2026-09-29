@@ -6,15 +6,25 @@ class BrandingBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOutCubic,
       padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFF042F24), // Ultra Deep Emerald
-            Color(0xFF094D36),
-            Color(0xFF0F5A40),
-          ],
+          colors: isDark
+              ? const [
+                  Color(0xFF041E17), // Midnight Deep Emerald
+                  Color(0xFF062D22),
+                  Color(0xFF093C2E),
+                ]
+              : const [
+                  Color(0xFF042F24), // Forest Deep Emerald
+                  Color(0xFF094D36),
+                  Color(0xFF0F5A40),
+                ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

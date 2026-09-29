@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'features/auth/seller_login_page.dart';
-import 'theme/app_theme.dart';
-
-final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.light);
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
+import 'logic/auth/auth_bloc.dart';
+import 'logic/theme/theme_bloc.dart';
+import 'logic/theme/theme_state.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,18 +16,29 @@ class SellerHubApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeModeNotifier,
-      builder: (context, currentMode, _) {
-        return MaterialApp(
-          title: 'Seller Hub — Agri-Commerce Portal',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: currentMode,
-          home: const SellerLoginPage(),
-        );
-      },
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<ThemeBloc>(create: (_) => ThemeBloc()),
+        BlocProvider<AuthBloc>(create: (_) => AuthBloc()),
+      ],
+      child: BlocBuilder<ThemeBloc, ThemeState>(
+        builder: (context, themeState) {
+          return MaterialApp.router(
+            title: '${themeState.brandName} — Enterprise Agri-Commerce',
+            debugShowCheckedModeBanner: false,
+            routerConfig: AppRouter.router,
+            theme: AppTheme.createTheme(
+              palette: themeState.currentPalette,
+              isDark: false,
+            ),
+            darkTheme: AppTheme.createTheme(
+              palette: themeState.currentPalette,
+              isDark: true,
+            ),
+            themeMode: themeState.isDark ? ThemeMode.dark : ThemeMode.light,
+          );
+        },
+      ),
     );
   }
 }

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../logic/auth/auth_bloc.dart';
+import '../../../logic/auth/auth_event.dart';
 
 class OtpLoginForm extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -60,7 +63,8 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
     }
 
     setState(() => _isLoading = true);
-    Future.delayed(const Duration(milliseconds: 900), () {
+    context.read<AuthBloc>().add(OtpRequested(phone));
+    Future.delayed(const Duration(milliseconds: 600), () {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -81,7 +85,11 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
     }
 
     setState(() => _isLoading = true);
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    context.read<AuthBloc>().add(OtpSubmitted(
+      phoneNumber: _phoneController.text.trim(),
+      otp: otp,
+    ));
+    Future.delayed(const Duration(milliseconds: 700), () {
       if (!mounted) return;
       setState(() => _isLoading = false);
       widget.onLoginSuccess();
@@ -151,9 +159,9 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                 color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
               ),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFF059669), width: 1.6),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10)),
+              borderSide: BorderSide(color: Color(0xFF059669), width: 1.6),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           ),
@@ -297,6 +305,7 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                     ),
                   ),
                   focusedBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(8)),
                     borderSide: BorderSide(color: Color(0xFF059669), width: 1.6),
                   ),
                 ),

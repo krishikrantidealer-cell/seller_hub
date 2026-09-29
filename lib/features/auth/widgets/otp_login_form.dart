@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class OtpLoginForm extends StatefulWidget {
   final VoidCallback onLoginSuccess;
@@ -90,36 +90,33 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (!_isOtpSent) {
-      return _buildPhoneInputView(context);
+      return _buildPhoneInputView(context, isDark);
     }
-    return _buildOtpVerificationView(context);
+    return _buildOtpVerificationView(context, isDark);
   }
 
-  Widget _buildPhoneInputView(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
-
+  Widget _buildPhoneInputView(BuildContext context, bool isDark) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
           'Mobile Number',
-          style: TextStyle(
-            fontSize: 13.5,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.5,
             fontWeight: FontWeight.w700,
-            color: textPrimary,
+            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
           ),
         ),
-        const SizedBox(height: 6),
-        TextFormField(
+        const SizedBox(height: 8),
+        TextField(
           controller: _phoneController,
           keyboardType: TextInputType.phone,
-          style: TextStyle(
-            color: textPrimary,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
@@ -133,46 +130,71 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
               width: 75,
               child: Text(
                 '+91  |',
-                style: TextStyle(
+                style: GoogleFonts.plusJakartaSans(
                   fontWeight: FontWeight.w800,
-                  color: textPrimary,
-                  fontSize: 14.5,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  fontSize: 14,
                 ),
               ),
             ),
+            filled: true,
+            fillColor: isDark ? const Color(0xFF161E2E) : const Color(0xFFF1F5F9),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF059669), width: 1.6),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'We will send a 6-digit one-time verification code to this number.',
-          style: TextStyle(
-            fontSize: 13,
-            color: textSecondary,
-            fontWeight: FontWeight.w500,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.5,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
           ),
         ),
         const SizedBox(height: 24),
         SizedBox(
-          width: double.infinity,
           height: 48,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _sendOtp,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
             child: _isLoading
-                ? SizedBox(
-                    height: 20,
+                ? const SizedBox(
                     width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      color: Colors.white,
                     ),
                   )
-                : const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Get OTP'),
-                      SizedBox(width: 8),
-                      Icon(Icons.sms_outlined, size: 18),
-                    ],
+                : Text(
+                    'Get OTP Code',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
                   ),
           ),
         ),
@@ -180,15 +202,9 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
     );
   }
 
-  Widget _buildOtpVerificationView(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
-    final border = isDark ? AppTheme.darkBorder : AppTheme.lightBorder;
-    final brandColor = isDark ? AppTheme.primary : AppTheme.primaryDeep;
-
+  Widget _buildOtpVerificationView(BuildContext context, bool isDark) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -198,19 +214,18 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
               children: [
                 Text(
                   'Enter 6-Digit OTP',
-                  style: TextStyle(
-                    fontSize: 13.5,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    color: textPrimary,
+                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Sent to +91 ${_phoneController.text}',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: textSecondary,
-                    fontWeight: FontWeight.w600,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                   ),
                 ),
               ],
@@ -220,12 +235,12 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                 setState(() => _isOtpSent = false);
               },
               icon: const Icon(Icons.edit_outlined, size: 14),
-              label: const Text(
+              label: Text(
                 'Change',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700),
               ),
               style: TextButton.styleFrom(
-                foregroundColor: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
+                foregroundColor: const Color(0xFF059669),
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(50, 30),
               ),
@@ -240,16 +255,16 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
           children: List.generate(6, (index) {
             return SizedBox(
               width: 46,
-              height: 52,
+              height: 50,
               child: TextFormField(
                 controller: _otpControllers[index],
                 focusNode: _focusNodes[index],
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 20,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: textPrimary,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
                 ),
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
@@ -267,9 +282,22 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                 },
                 decoration: InputDecoration(
                   contentPadding: EdgeInsets.zero,
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF161E2E) : const Color(0xFFF1F5F9),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: border, width: 1.4),
+                    borderSide: BorderSide(
+                      color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(
+                      color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF059669), width: 1.6),
                   ),
                 ),
               ),
@@ -286,10 +314,9 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
               _timerSeconds > 0
                   ? 'Resend OTP in 00:${_timerSeconds.toString().padLeft(2, '0')}'
                   : 'Didn\'t receive OTP?',
-              style: TextStyle(
-                fontSize: 13,
-                color: textSecondary,
-                fontWeight: FontWeight.w500,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
             ),
             if (_timerSeconds == 0)
@@ -301,39 +328,46 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                 ),
                 child: Text(
                   'Resend Code',
-                  style: TextStyle(
-                    fontSize: 13,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w800,
-                    color: brandColor,
+                    color: const Color(0xFF059669),
                   ),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 22),
 
         // Verify & Login Button
         SizedBox(
-          width: double.infinity,
           height: 48,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _verifyOtp,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
             child: _isLoading
-                ? SizedBox(
-                    height: 20,
+                ? const SizedBox(
                     width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      color: Colors.white,
                     ),
                   )
-                : const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Verify & Continue'),
-                      SizedBox(width: 8),
-                      Icon(Icons.check_circle_outline_rounded, size: 18),
-                    ],
+                : Text(
+                    'Verify & Continue',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
                   ),
           ),
         ),

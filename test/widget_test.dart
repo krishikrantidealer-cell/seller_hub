@@ -9,7 +9,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SellerLoginPage), findsOneWidget);
-    expect(find.text('Welcome back, Partner'), findsOneWidget);
+    expect(find.text('Sign in to Seller Hub'), findsOneWidget);
     expect(find.widgetWithText(Tab, 'Password'), findsOneWidget);
     expect(find.widgetWithText(Tab, 'Mobile OTP'), findsOneWidget);
   });

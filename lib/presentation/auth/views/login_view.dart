@@ -46,7 +46,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
 
     _rippleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 950),
+      duration: const Duration(milliseconds: 480),
     );
     _rippleAnimation = CurvedAnimation(
       parent: _rippleController,
@@ -210,7 +210,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                         flex: 5,
                         child: RepaintBoundary(
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 950),
+                            duration: const Duration(milliseconds: 480),
                             curve: Curves.easeInOutCubic,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(

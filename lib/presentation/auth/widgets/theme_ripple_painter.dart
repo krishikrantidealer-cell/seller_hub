@@ -40,80 +40,84 @@ class ThemeRipplePainter extends CustomPainter {
 
     if (isDark) {
       // ==========================================
-      // 🌙 ENTERING DARK MODE: MINIMALIST NOCTURNAL SLATE SWEEP
-      // Professional, clean monochromatic shadow curtain with refined slate rim
+      // 🌙 ENTERING DARK MODE: DEEP BLACK OBSIDIAN GRADIENT SWEEP
       // ==========================================
-      const darkBackdrop = Color(0xFF0A0F1D);
-      const deepMidnight = Color(0xFF020617);
-      const slateEdge = Color(0xFF475569);
+      const pureBlack = Color(0xFF000000);
+      const midnightBlack = Color(0xFF020617);
+      const deepSlate = Color(0xFF0A0F1D);
+      const slateEdge = Color(0xFF334155);
 
-      // 1. Fluid Expanding Deep Slate Shadow Curtain
+      // 1. Fluid Expanding Deep Black Gradient Curtain
       final washPaint = Paint()
         ..shader = RadialGradient(
           center: Alignment(normX, normY),
           radius: radRatio * 1.05,
           colors: [
-            darkBackdrop.withValues(alpha: (0.85 * smoothFade).clamp(0.0, 1.0)),
-            deepMidnight.withValues(alpha: (0.65 * smoothFade).clamp(0.0, 1.0)),
+            pureBlack.withValues(alpha: (0.94 * smoothFade).clamp(0.0, 1.0)),
+            midnightBlack.withValues(alpha: (0.82 * smoothFade).clamp(0.0, 1.0)),
+            deepSlate.withValues(alpha: (0.45 * smoothFade).clamp(0.0, 1.0)),
             Colors.transparent,
           ],
-          stops: const [0.0, 0.70, 1.0],
+          stops: const [0.0, 0.40, 0.75, 1.0],
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
       canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), washPaint);
 
-      // 2. Subtle Monochrome Origin Bloom (first 25% of transition)
+      // 2. Subtle Dark Starlight Origin Bloom (first 25% of transition)
       final sparkProgress = (progress / 0.25).clamp(0.0, 1.0);
       if (sparkProgress < 1.0) {
         final sparkFade = math.sin(sparkProgress * math.pi);
         final sparkPaint = Paint()
-          ..color = const Color(0xFF94A3B8).withValues(alpha: (0.35 * sparkFade).clamp(0.0, 1.0))
+          ..color = slateEdge.withValues(alpha: (0.40 * sparkFade).clamp(0.0, 1.0))
           ..style = PaintingStyle.fill;
         canvas.drawCircle(origin, 28 * sparkProgress + 2, sparkPaint);
       }
 
-      // 3. Crisp, Minimalist Slate Wavefront Edge
+      // 3. Crisp, Minimalist Slate-Black Wavefront Edge
       final rimPaint = Paint()
-        ..color = slateEdge.withValues(alpha: (0.50 * fadeOut * fadeOut).clamp(0.0, 1.0))
+        ..color = slateEdge.withValues(alpha: (0.60 * fadeOut * fadeOut).clamp(0.0, 1.0))
         ..style = PaintingStyle.stroke
         ..strokeWidth = (1.8 * fadeOut + 0.6);
       canvas.drawCircle(origin, currentRadius, rimPaint);
 
     } else {
       // ==========================================
-      // ☀️ ENTERING LIGHT MODE: CRISP ALABASTER DAYLIGHT SWEEP
-      // Professional, clean alabaster daylight curtain with refined silver rim
+      // ☀️ ENTERING LIGHT MODE: WARM SUN COLOR GRADIENT SWEEP
       // ==========================================
-      const lightBackdrop = Color(0xFFF8FAFC);
-      const softSlate = Color(0xFFF1F5F9);
-      const silverEdge = Color(0xFFCBD5E1);
+      const sunBeamWhite = Color(0xFFFFFBEB);
+      const sunLightAmber = Color(0xFFFEF3C7);
+      const solarGold = Color(0xFFFDE68A);
+      const warmAmberGlow = Color(0xFFFBBF24);
+      const sunbeamEdge = Color(0xFFF59E0B);
 
-      // 1. Fluid Expanding Crisp Alabaster Curtain
+      // 1. Fluid Expanding Warm Sun Color Gradient Curtain
       final washPaint = Paint()
         ..shader = RadialGradient(
           center: Alignment(normX, normY),
           radius: radRatio * 1.05,
           colors: [
-            lightBackdrop.withValues(alpha: (0.85 * smoothFade).clamp(0.0, 1.0)),
-            softSlate.withValues(alpha: (0.60 * smoothFade).clamp(0.0, 1.0)),
+            sunBeamWhite.withValues(alpha: (0.92 * smoothFade).clamp(0.0, 1.0)),
+            sunLightAmber.withValues(alpha: (0.75 * smoothFade).clamp(0.0, 1.0)),
+            solarGold.withValues(alpha: (0.45 * smoothFade).clamp(0.0, 1.0)),
+            warmAmberGlow.withValues(alpha: (0.18 * smoothFade).clamp(0.0, 1.0)),
             Colors.transparent,
           ],
-          stops: const [0.0, 0.70, 1.0],
+          stops: const [0.0, 0.35, 0.65, 0.88, 1.0],
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
       canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), washPaint);
 
-      // 2. Subtle Monochrome Origin Bloom (first 25% of transition)
+      // 2. Warm Sun Flare Origin Bloom (first 25% of transition)
       final sparkProgress = (progress / 0.25).clamp(0.0, 1.0);
       if (sparkProgress < 1.0) {
         final sparkFade = math.sin(sparkProgress * math.pi);
         final sparkPaint = Paint()
-          ..color = Colors.white.withValues(alpha: (0.50 * sparkFade).clamp(0.0, 1.0))
+          ..color = warmAmberGlow.withValues(alpha: (0.55 * sparkFade).clamp(0.0, 1.0))
           ..style = PaintingStyle.fill;
         canvas.drawCircle(origin, 28 * sparkProgress + 2, sparkPaint);
       }
 
-      // 3. Crisp, Minimalist Silver Wavefront Edge
+      // 3. Crisp, Golden Sunbeam Wavefront Edge
       final rimPaint = Paint()
-        ..color = silverEdge.withValues(alpha: (0.60 * fadeOut * fadeOut).clamp(0.0, 1.0))
+        ..color = sunbeamEdge.withValues(alpha: (0.55 * fadeOut * fadeOut).clamp(0.0, 1.0))
         ..style = PaintingStyle.stroke
         ..strokeWidth = (1.8 * fadeOut + 0.6);
       canvas.drawCircle(origin, currentRadius, rimPaint);

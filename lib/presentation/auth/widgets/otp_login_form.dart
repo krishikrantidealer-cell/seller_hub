@@ -99,10 +99,39 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (!_isOtpSent) {
-      return _buildPhoneInputView(context, isDark);
-    }
-    return _buildOtpVerificationView(context, isDark);
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 280),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          final isPhoneView = child.key == const ValueKey('phone_input_view');
+          final offsetAnimation = Tween<Offset>(
+            begin: Offset(isPhoneView ? -0.04 : 0.04, 0),
+            end: Offset.zero,
+          ).animate(animation);
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: offsetAnimation,
+              child: child,
+            ),
+          );
+        },
+        child: !_isOtpSent
+            ? KeyedSubtree(
+                key: const ValueKey('phone_input_view'),
+                child: _buildPhoneInputView(context, isDark),
+              )
+            : KeyedSubtree(
+                key: const ValueKey('otp_verify_view'),
+                child: _buildOtpVerificationView(context, isDark),
+              ),
+      ),
+    );
   }
 
   Widget _buildPhoneInputView(BuildContext context, bool isDark) {

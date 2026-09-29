@@ -34,6 +34,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
   bool _obscurePassword = true;
   bool _rememberMe = true;
   bool _isCapsLockOn = false;
+  int _authMethodIndex = 0; // 0 = Password, 1 = Mobile OTP
   Offset _rippleOrigin = const Offset(1200, 40);
 
   @override
@@ -469,79 +470,168 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
 
                                 const SizedBox(height: 24),
 
-                                // Dual Authentication Tabs
-                                DefaultTabController(
-                                  length: 2,
-                                  child: Builder(
-                                    builder: (context) {
-                                      return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                // Dual Authentication Custom Animated Segmented Switcher
+                                Container(
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF161E2E) : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.all(4),
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final tabWidth = (constraints.maxWidth) / 2;
+                                      return Stack(
                                         children: [
-                                          Container(
-                                            height: 44,
-                                            decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF161E2E) : const Color(0xFFF1F5F9),
-                                              borderRadius: BorderRadius.circular(10),
-                                              border: Border.all(
-                                                color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
-                                              ),
-                                            ),
-                                            padding: const EdgeInsets.all(3),
-                                            child: TabBar(
-                                              indicatorSize: TabBarIndicatorSize.tab,
-                                              dividerColor: Colors.transparent,
-                                              indicator: BoxDecoration(
+                                          // Animated Sliding Active Pill Indicator
+                                          AnimatedPositioned(
+                                            duration: const Duration(milliseconds: 250),
+                                            curve: Curves.easeOutCubic,
+                                            left: _authMethodIndex == 0 ? 0 : tabWidth,
+                                            top: 0,
+                                            bottom: 0,
+                                            width: tabWidth,
+                                            child: Container(
+                                              decoration: BoxDecoration(
                                                 color: isDark ? const Color(0xFF1F2937) : Colors.white,
                                                 borderRadius: BorderRadius.circular(8),
                                                 boxShadow: [
                                                   BoxShadow(
-                                                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-                                                    blurRadius: 4,
-                                                    offset: const Offset(0, 1),
+                                                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                                                    blurRadius: 5,
+                                                    offset: const Offset(0, 1.5),
                                                   ),
                                                 ],
                                               ),
-                                              labelColor: const Color(0xFF059669),
-                                              unselectedLabelColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                              labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 13),
-                                              unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13),
-                                              tabs: const [
-                                                Tab(
-                                                  child: Row(
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    children: [
-                                                      Icon(Icons.lock_outline_rounded, size: 16),
-                                                      SizedBox(width: 6),
-                                                      Text('Password'),
-                                                    ],
-                                                  ),
-                                                ),
-                                                Tab(
-                                                  child: Row(
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    children: [
-                                                      Icon(Icons.phone_android_rounded, size: 16),
-                                                      SizedBox(width: 6),
-                                                      Text('Mobile OTP'),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
                                             ),
                                           ),
-                                          const SizedBox(height: 22),
-                                          SizedBox(
-                                            height: 300,
-                                            child: TabBarView(
-                                              children: [
-                                                _buildPasswordForm(isDark),
-                                                OtpLoginForm(onLoginSuccess: _onLoginSuccess),
-                                              ],
-                                            ),
+
+                                          // Two Interactive Tab Buttons
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: InkWell(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  onTap: () {
+                                                    if (_authMethodIndex != 0) {
+                                                      setState(() => _authMethodIndex = 0);
+                                                    }
+                                                  },
+                                                  child: Center(
+                                                    child: Row(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      children: [
+                                                        AnimatedSwitcher(
+                                                          duration: const Duration(milliseconds: 200),
+                                                          child: Icon(
+                                                            Icons.lock_outline_rounded,
+                                                            key: ValueKey<bool>(_authMethodIndex == 0),
+                                                            size: 16,
+                                                            color: _authMethodIndex == 0
+                                                                ? const Color(0xFF059669)
+                                                                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 8),
+                                                        Text(
+                                                          'Password',
+                                                          style: GoogleFonts.plusJakartaSans(
+                                                            fontWeight: _authMethodIndex == 0 ? FontWeight.w800 : FontWeight.w600,
+                                                            fontSize: 13,
+                                                            color: _authMethodIndex == 0
+                                                                ? const Color(0xFF059669)
+                                                                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: InkWell(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  onTap: () {
+                                                    if (_authMethodIndex != 1) {
+                                                      setState(() => _authMethodIndex = 1);
+                                                    }
+                                                  },
+                                                  child: Center(
+                                                    child: Row(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      children: [
+                                                        AnimatedSwitcher(
+                                                          duration: const Duration(milliseconds: 200),
+                                                          child: Icon(
+                                                            Icons.phone_android_rounded,
+                                                            key: ValueKey<bool>(_authMethodIndex == 1),
+                                                            size: 16,
+                                                            color: _authMethodIndex == 1
+                                                                ? const Color(0xFF059669)
+                                                                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 8),
+                                                        Text(
+                                                          'Mobile OTP',
+                                                          style: GoogleFonts.plusJakartaSans(
+                                                            fontWeight: _authMethodIndex == 1 ? FontWeight.w800 : FontWeight.w600,
+                                                            fontSize: 13,
+                                                            color: _authMethodIndex == 1
+                                                                ? const Color(0xFF059669)
+                                                                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       );
                                     },
+                                  ),
+                                ),
+
+                                const SizedBox(height: 22),
+
+                                // Animated Content Container with Dynamic Height
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOutCubic,
+                                  alignment: Alignment.topCenter,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 280),
+                                    switchInCurve: Curves.easeOutCubic,
+                                    switchOutCurve: Curves.easeInCubic,
+                                    transitionBuilder: (child, animation) {
+                                      final isPassword = child.key == const ValueKey('password_form');
+                                      final offsetAnimation = Tween<Offset>(
+                                        begin: Offset(isPassword ? -0.04 : 0.04, 0),
+                                        end: Offset.zero,
+                                      ).animate(animation);
+                                      return FadeTransition(
+                                        opacity: animation,
+                                        child: SlideTransition(
+                                          position: offsetAnimation,
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                    child: _authMethodIndex == 0
+                                        ? KeyedSubtree(
+                                            key: const ValueKey('password_form'),
+                                            child: _buildPasswordForm(isDark),
+                                          )
+                                        : KeyedSubtree(
+                                            key: const ValueKey('otp_form'),
+                                            child: OtpLoginForm(onLoginSuccess: _onLoginSuccess),
+                                          ),
                                   ),
                                 ),
 

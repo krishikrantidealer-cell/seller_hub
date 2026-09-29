@@ -27,7 +27,6 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
 
   bool _isOtpSent = false;
   bool _isLoading = false;
-  bool _sendViaWhatsApp = true;
   int _timerSeconds = 30;
   Timer? _timer;
 
@@ -285,42 +284,6 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           ),
           onSubmitted: (_) => _sendOtp(),
-        ),
-
-        const SizedBox(height: 12),
-
-        // WhatsApp OTP option checkbox
-        InkWell(
-          borderRadius: BorderRadius.circular(6),
-          onTap: () => setState(() => _sendViaWhatsApp = !_sendViaWhatsApp),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: Checkbox(
-                    value: _sendViaWhatsApp,
-                    activeColor: const Color(0xFF059669),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    onChanged: (val) => setState(() => _sendViaWhatsApp = val ?? true),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Send backup OTP via WhatsApp Business',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
 
         const SizedBox(height: 20),

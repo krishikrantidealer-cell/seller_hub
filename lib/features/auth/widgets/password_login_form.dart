@@ -48,6 +48,12 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+    final textMuted = isDark ? AppTheme.darkTextMuted : AppTheme.lightTextMuted;
+    final brandColor = isDark ? AppTheme.primary : AppTheme.primaryDeep;
+
     return Form(
       key: _formKey,
       child: Column(
@@ -57,9 +63,9 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.error.withValues(alpha: 0.08),
+                color: AppTheme.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.error.withValues(alpha: 0.2)),
+                border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -78,21 +84,21 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
           ],
 
           // Email / GSTIN / Phone field
-          const Text(
+          Text(
             'Email, Phone or GSTIN',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
+              color: textPrimary,
             ),
           ),
           const SizedBox(height: 6),
           TextFormField(
             controller: _identifierController,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Enter registered email, phone or GSTIN',
-              prefixIcon: Icon(Icons.person_outline_rounded, size: 20, color: AppTheme.textMuted),
+              prefixIcon: Icon(Icons.person_outline_rounded, size: 20, color: textMuted),
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
@@ -104,12 +110,12 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
           const SizedBox(height: 18),
 
           // Password field
-          const Text(
+          Text(
             'Password',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary,
+              color: textPrimary,
             ),
           ),
           const SizedBox(height: 6),
@@ -120,12 +126,12 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
             onFieldSubmitted: (_) => _handleLogin(),
             decoration: InputDecoration(
               hintText: 'Enter your account password',
-              prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20, color: AppTheme.textMuted),
+              prefixIcon: Icon(Icons.lock_outline_rounded, size: 20, color: textMuted),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                   size: 20,
-                  color: AppTheme.textMuted,
+                  color: textMuted,
                 ),
                 onPressed: () {
                   setState(() => _obscurePassword = !_obscurePassword);
@@ -157,7 +163,7 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
                       width: 24,
                       child: Checkbox(
                         value: _rememberMe,
-                        activeColor: AppTheme.primary,
+                        activeColor: brandColor,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                         onChanged: (val) {
                           setState(() => _rememberMe = val ?? false);
@@ -170,12 +176,12 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
                         onTap: () {
                           setState(() => _rememberMe = !_rememberMe);
                         },
-                        child: const Text(
+                        child: Text(
                           'Remember me',
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 13,
-                            color: AppTheme.textSecondary,
+                            color: textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -196,11 +202,11 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
                   minimumSize: const Size(50, 30),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: const Text(
+                child: Text(
                   'Forgot Password?',
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppTheme.primaryLight,
+                    color: isDark ? AppTheme.primaryLight : AppTheme.primaryLight,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -216,10 +222,13 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
             child: ElevatedButton(
               onPressed: _isLoading ? null : _handleLogin,
               child: _isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      ),
                     )
                   : const FittedBox(
                       fit: BoxFit.scaleDown,

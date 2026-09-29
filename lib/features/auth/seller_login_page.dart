@@ -3,6 +3,7 @@ import '../../theme/app_theme.dart';
 import 'widgets/branding_banner.dart';
 import 'widgets/otp_login_form.dart';
 import 'widgets/password_login_form.dart';
+import 'widgets/theme_toggle_button.dart';
 
 class SellerLoginPage extends StatefulWidget {
   const SellerLoginPage({super.key});
@@ -27,10 +28,17 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
   }
 
   void _onLoginSuccess() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: isDark ? AppTheme.darkCardBg : AppTheme.lightCardBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder,
+          ),
+        ),
         title: const Row(
           children: [
             Icon(Icons.check_circle_rounded, color: AppTheme.success),
@@ -38,9 +46,11 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
             Text('Login Successful', style: TextStyle(fontWeight: FontWeight.w700)),
           ],
         ),
-        content: const Text(
+        content: Text(
           'Welcome to Seller Hub! You are being redirected to your seller dashboard.',
-          style: TextStyle(color: AppTheme.textSecondary),
+          style: TextStyle(
+            color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+          ),
         ),
         actions: [
           ElevatedButton(
@@ -56,109 +66,146 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 1024;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceBg = isDark ? AppTheme.darkSurfaceBg : AppTheme.lightSurfaceBg;
 
-    return Scaffold(
-      body: isDesktop
-          ? Row(
-              children: [
-                // Left Branding & Value Proposition Banner
-                const Expanded(
-                  flex: 5,
-                  child: BrandingBanner(),
-                ),
+    return SelectionArea(
+      child: Scaffold(
+        backgroundColor: surfaceBg,
+        body: Stack(
+          children: [
+            // Main Content Area
+            isDesktop
+                ? Row(
+                    children: [
+                      // Left Branding & Value Proposition Banner
+                      const Expanded(
+                        flex: 5,
+                        child: BrandingBanner(),
+                      ),
 
-                // Right Authentication Form Area
-                Expanded(
-                  flex: 6,
-                  child: Container(
-                    color: AppTheme.surfaceBg,
-                    child: Center(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 480),
-                          child: _buildAuthCard(context),
+                      // Right Authentication Form Area
+                      Expanded(
+                        flex: 6,
+                        child: Container(
+                          color: surfaceBg,
+                          child: Center(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 480),
+                                child: _buildAuthCard(context),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Container(
+                    color: surfaceBg,
+                    child: SafeArea(
+                      child: Center(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 460),
+                            child: Column(
+                              children: [
+                                _buildMobileHeader(context),
+                                const SizedBox(height: 24),
+                                _buildAuthCard(context),
+                                const SizedBox(height: 24),
+                                _buildFooterLinks(context),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            )
-          : Container(
-              color: AppTheme.surfaceBg,
-              child: SafeArea(
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 460),
-                      child: Column(
-                        children: [
-                          _buildMobileHeader(),
-                          const SizedBox(height: 24),
-                          _buildAuthCard(context),
-                          const SizedBox(height: 24),
-                          _buildFooterLinks(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+
+            // Top-right Theme Toggle on Desktop
+            if (isDesktop)
+              const Positioned(
+                top: 20,
+                right: 24,
+                child: ThemeToggleButton(),
               ),
-            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildMobileHeader() {
+  Widget _buildMobileHeader(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppTheme.primary,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.agriculture_rounded, color: Colors.white, size: 24),
-        ),
-        const SizedBox(width: 10),
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
           children: [
-            Text(
-              'SELLER HUB',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppTheme.primaryDark,
-                letterSpacing: 0.8,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? AppTheme.primary : AppTheme.primaryDeep,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.agriculture_rounded,
+                color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                size: 24,
               ),
             ),
-            Text(
-              'Agri-Commerce Portal',
-              style: TextStyle(
-                fontSize: 11,
-                color: AppTheme.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SELLER HUB',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.primaryDark,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                Text(
+                  'Agri-Commerce Portal',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+        const ThemeToggleButton(),
       ],
     );
   }
 
   Widget _buildAuthCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppTheme.darkCardBg : AppTheme.lightCardBg;
+    final border = isDark ? AppTheme.darkBorder : AppTheme.lightBorder;
+    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+    final tabBg = isDark ? AppTheme.darkTabBg : AppTheme.lightTabBg;
+    final activeTabBg = isDark ? const Color(0xFF334155) : Colors.white;
+    final primaryColor = isDark ? AppTheme.primaryLight : AppTheme.primaryDeep;
+
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -169,20 +216,20 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header
-          const Text(
+          Text(
             'Welcome back, Partner',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
+              color: textPrimary,
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Sign in to manage your inventory, orders, and settlements.',
             style: TextStyle(
               fontSize: 13.5,
-              color: AppTheme.textSecondary,
+              color: textSecondary,
             ),
           ),
           const SizedBox(height: 24),
@@ -191,7 +238,7 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
           Container(
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
+              color: tabBg,
               borderRadius: BorderRadius.circular(10),
             ),
             padding: const EdgeInsets.all(4),
@@ -200,18 +247,18 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent,
               indicator: BoxDecoration(
-                color: Colors.white,
+                color: activeTabBg,
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   ),
                 ],
               ),
-              labelColor: AppTheme.primary,
-              unselectedLabelColor: AppTheme.textSecondary,
+              labelColor: primaryColor,
+              unselectedLabelColor: textSecondary,
               labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
               unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13.5),
               tabs: const [
@@ -252,17 +299,20 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
           const SizedBox(height: 24),
 
           // Divider
-          const Row(
+          Row(
             children: [
-              Expanded(child: Divider(color: AppTheme.border)),
+              Expanded(child: Divider(color: border)),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
                   'New to Seller Hub?',
-                  style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: isDark ? AppTheme.darkTextMuted : AppTheme.lightTextMuted,
+                  ),
                 ),
               ),
-              Expanded(child: Divider(color: AppTheme.border)),
+              Expanded(child: Divider(color: border)),
             ],
           ),
           const SizedBox(height: 18),
@@ -278,9 +328,12 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
                 );
               },
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppTheme.primary, width: 1.2),
+                side: BorderSide(
+                  color: isDark ? AppTheme.primary : AppTheme.primaryDeep,
+                  width: 1.2,
+                ),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                foregroundColor: AppTheme.primary,
+                foregroundColor: primaryColor,
               ),
               child: const FittedBox(
                 fit: BoxFit.scaleDown,
@@ -304,19 +357,28 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.accentBg,
+              color: isDark ? AppTheme.darkAccentBg : AppTheme.lightAccentBg,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: isDark ? AppTheme.primary.withValues(alpha: 0.3) : AppTheme.accent.withValues(alpha: 0.3),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.headset_mic_outlined, color: AppTheme.primary, size: 20),
+                Icon(
+                  Icons.headset_mic_outlined,
+                  color: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: RichText(
-                    text: const TextSpan(
-                      style: TextStyle(fontSize: 12, color: AppTheme.primaryDark),
-                      children: [
+                    text: TextSpan(
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? const Color(0xFFD1FAE5) : AppTheme.primaryDark,
+                      ),
+                      children: const [
                         TextSpan(text: 'Need help logging in? Contact Seller Support at '),
                         TextSpan(
                           text: '1800-300-8899',
@@ -335,28 +397,29 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
     );
   }
 
-  Widget _buildFooterLinks() {
+  Widget _buildFooterLinks(BuildContext context) {
     return Wrap(
       spacing: 16,
       runSpacing: 8,
       alignment: WrapAlignment.center,
       children: [
-        _buildFooterLink('Seller Policies'),
-        _buildFooterLink('Privacy Policy'),
-        _buildFooterLink('Terms of Service'),
-        _buildFooterLink('Help Center'),
+        _buildFooterLink(context, 'Seller Policies'),
+        _buildFooterLink(context, 'Privacy Policy'),
+        _buildFooterLink(context, 'Terms of Service'),
+        _buildFooterLink(context, 'Help Center'),
       ],
     );
   }
 
-  Widget _buildFooterLink(String label) {
+  Widget _buildFooterLink(BuildContext context, String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
       onTap: () {},
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
-          color: AppTheme.textSecondary,
+          color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
           fontWeight: FontWeight.w500,
         ),
       ),

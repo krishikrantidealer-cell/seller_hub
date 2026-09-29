@@ -91,21 +91,25 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
   @override
   Widget build(BuildContext context) {
     if (!_isOtpSent) {
-      return _buildPhoneInputView();
+      return _buildPhoneInputView(context);
     }
-    return _buildOtpVerificationView();
+    return _buildOtpVerificationView(context);
   }
 
-  Widget _buildPhoneInputView() {
+  Widget _buildPhoneInputView(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Mobile Number',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
+            color: textPrimary,
           ),
         ),
         const SizedBox(height: 6),
@@ -122,11 +126,11 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               alignment: Alignment.centerLeft,
               width: 70,
-              child: const Text(
+              child: Text(
                 '+91  |',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: textPrimary,
                   fontSize: 14,
                 ),
               ),
@@ -134,9 +138,9 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'We will send a 6-digit one-time verification code to this number.',
-          style: TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+          style: TextStyle(fontSize: 12.5, color: textSecondary),
         ),
         const SizedBox(height: 24),
         SizedBox(
@@ -145,10 +149,13 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
           child: ElevatedButton(
             onPressed: _isLoading ? null : _sendOtp,
             child: _isLoading
-                ? const SizedBox(
+                ? SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                    ),
                   )
                 : const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -164,7 +171,13 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
     );
   }
 
-  Widget _buildOtpVerificationView() {
+  Widget _buildOtpVerificationView(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+    final border = isDark ? AppTheme.darkBorder : AppTheme.lightBorder;
+    final brandColor = isDark ? AppTheme.primary : AppTheme.primaryDeep;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -174,18 +187,18 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Enter 6-Digit OTP',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
+                    color: textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Sent to +91 ${_phoneController.text}',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                  style: TextStyle(fontSize: 12, color: textSecondary),
                 ),
               ],
             ),
@@ -196,7 +209,7 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
               icon: const Icon(Icons.edit_outlined, size: 14),
               label: const Text('Change', style: TextStyle(fontSize: 12)),
               style: TextButton.styleFrom(
-                foregroundColor: AppTheme.primaryLight,
+                foregroundColor: isDark ? AppTheme.primaryLight : AppTheme.primaryLight,
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(50, 30),
               ),
@@ -217,7 +230,11 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                 focusNode: _focusNodes[index],
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: textPrimary,
+                ),
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(1),
@@ -236,7 +253,7 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                   contentPadding: EdgeInsets.zero,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppTheme.border),
+                    borderSide: BorderSide(color: border),
                   ),
                 ),
               ),
@@ -253,7 +270,7 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
               _timerSeconds > 0
                   ? 'Resend OTP in 00:${_timerSeconds.toString().padLeft(2, '0')}'
                   : 'Didn\'t receive OTP?',
-              style: const TextStyle(fontSize: 12.5, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 12.5, color: textSecondary),
             ),
             if (_timerSeconds == 0)
               TextButton(
@@ -262,12 +279,12 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                   padding: EdgeInsets.zero,
                   minimumSize: const Size(50, 30),
                 ),
-                child: const Text(
+                child: Text(
                   'Resend Code',
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.primary,
+                    color: brandColor,
                   ),
                 ),
               ),
@@ -282,10 +299,13 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
           child: ElevatedButton(
             onPressed: _isLoading ? null : _verifyOtp,
             child: _isLoading
-                ? const SizedBox(
+                ? SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                    ),
                   )
                 : const Row(
                     mainAxisAlignment: MainAxisAlignment.center,

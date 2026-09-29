@@ -545,46 +545,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                   ),
                                 ),
 
-                                const SizedBox(height: 12),
-
-                                // Register as New Seller CTA
-                                SizedBox(
-                                  height: 44,
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Redirecting to Seller Onboarding Registration...')),
-                                      );
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(
-                                        color: Color(0xFF059669),
-                                        width: 1.4,
-                                      ),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                      foregroundColor: const Color(0xFF059669),
-                                    ),
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(Icons.storefront_rounded, size: 18),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Register as a New Seller / Dealer',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 13.5,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(height: 14),
+                                const SizedBox(height: 16),
 
                                 // Default Demo Credential Hint
                                 InkWell(

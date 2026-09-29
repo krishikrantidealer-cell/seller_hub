@@ -39,17 +39,24 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
             color: isDark ? AppTheme.darkBorder : AppTheme.lightBorder,
           ),
         ),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: AppTheme.success),
-            SizedBox(width: 10),
-            Text('Login Successful', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'Login Successful',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              ),
+            ),
           ],
         ),
         content: Text(
           'Welcome to Seller Hub! You are being redirected to your seller dashboard.',
           style: TextStyle(
             color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+            fontSize: 14,
           ),
         ),
         actions: [
@@ -93,7 +100,7 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
                             child: SingleChildScrollView(
                               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
                               child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 480),
+                                constraints: const BoxConstraints(maxWidth: 490),
                                 child: _buildAuthCard(context),
                               ),
                             ),
@@ -113,7 +120,7 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
                             child: Column(
                               children: [
                                 _buildMobileHeader(context),
-                                const SizedBox(height: 24),
+                                const SizedBox(height: 20),
                                 _buildAuthCard(context),
                                 const SizedBox(height: 24),
                                 _buildFooterLinks(context),
@@ -166,16 +173,16 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.primaryDark,
+                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.primaryDeep,
                     letterSpacing: 0.8,
                   ),
                 ),
                 Text(
                   'Agri-Commerce Portal',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -194,19 +201,19 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
     final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
     final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
     final tabBg = isDark ? AppTheme.darkTabBg : AppTheme.lightTabBg;
-    final activeTabBg = isDark ? const Color(0xFF334155) : Colors.white;
+    final activeTabBg = isDark ? const Color(0xFF243048) : Colors.white;
     final primaryColor = isDark ? AppTheme.primaryLight : AppTheme.primaryDeep;
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border),
+        border: Border.all(color: border, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
-            blurRadius: 20,
+            color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.06),
+            blurRadius: 24,
             offset: const Offset(0, 8),
           ),
         ],
@@ -219,27 +226,31 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
           Text(
             'Welcome back, Partner',
             style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
               color: textPrimary,
+              letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             'Sign in to manage your inventory, orders, and settlements.',
             style: TextStyle(
-              fontSize: 13.5,
+              fontSize: 14,
               color: textSecondary,
+              fontWeight: FontWeight.w500,
+              height: 1.4,
             ),
           ),
           const SizedBox(height: 24),
 
           // Tab Bar (Password vs OTP)
           Container(
-            height: 44,
+            height: 48,
             decoration: BoxDecoration(
               color: tabBg,
               borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: border, width: 1),
             ),
             padding: const EdgeInsets.all(4),
             child: TabBar(
@@ -251,35 +262,43 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   ),
                 ],
               ),
-              labelColor: primaryColor,
+              labelColor: isDark ? AppTheme.primary : AppTheme.primaryDeep,
               unselectedLabelColor: textSecondary,
-              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13.5),
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
               tabs: const [
                 Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.lock_outline_rounded, size: 16),
-                      SizedBox(width: 6),
-                      Text('Password'),
-                    ],
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.lock_outline_rounded, size: 16),
+                        SizedBox(width: 6),
+                        Text('Password'),
+                      ],
+                    ),
                   ),
                 ),
                 Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.phone_android_rounded, size: 16),
-                      SizedBox(width: 6),
-                      Text('Mobile OTP'),
-                    ],
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.phone_android_rounded, size: 16),
+                        SizedBox(width: 6),
+                        Text('Mobile OTP'),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -301,18 +320,19 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
           // Divider
           Row(
             children: [
-              Expanded(child: Divider(color: border)),
+              Expanded(child: Divider(color: border, thickness: 1)),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Text(
                   'New to Seller Hub?',
                   style: TextStyle(
-                    fontSize: 12.5,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                     color: isDark ? AppTheme.darkTextMuted : AppTheme.lightTextMuted,
                   ),
                 ),
               ),
-              Expanded(child: Divider(color: border)),
+              Expanded(child: Divider(color: border, thickness: 1)),
             ],
           ),
           const SizedBox(height: 18),
@@ -320,7 +340,7 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
           // Register Call-to-action
           SizedBox(
             width: double.infinity,
-            height: 46,
+            height: 48,
             child: OutlinedButton(
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -330,21 +350,29 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
               style: OutlinedButton.styleFrom(
                 side: BorderSide(
                   color: isDark ? AppTheme.primary : AppTheme.primaryDeep,
-                  width: 1.2,
+                  width: 1.5,
                 ),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 foregroundColor: primaryColor,
               ),
-              child: const FittedBox(
+              child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.storefront_rounded, size: 18),
-                    SizedBox(width: 8),
+                    Icon(
+                      Icons.storefront_rounded,
+                      size: 19,
+                      color: isDark ? AppTheme.primary : AppTheme.primaryDeep,
+                    ),
+                    const SizedBox(width: 8),
                     Text(
                       'Register as a New Seller / Dealer',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.5,
+                        color: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
+                      ),
                     ),
                   ],
                 ),
@@ -355,36 +383,49 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
 
           // Support contacts banner
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: isDark ? AppTheme.darkAccentBg : AppTheme.lightAccentBg,
-              borderRadius: BorderRadius.circular(8),
+              color: isDark ? const Color(0xFF0C241B) : const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isDark ? AppTheme.primary.withValues(alpha: 0.3) : AppTheme.accent.withValues(alpha: 0.3),
+                color: isDark ? AppTheme.primary.withValues(alpha: 0.35) : AppTheme.primaryDeep.withValues(alpha: 0.25),
+                width: 1.2,
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.headset_mic_outlined,
-                  color: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
-                  size: 20,
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    Icons.headset_mic_rounded,
+                    color: isDark ? AppTheme.primary : AppTheme.primaryDeep,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: RichText(
                     text: TextSpan(
                       style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? const Color(0xFFD1FAE5) : AppTheme.primaryDark,
+                        fontSize: 12.5,
+                        height: 1.45,
+                        fontFamily: Theme.of(context).textTheme.bodyMedium?.fontFamily,
+                        color: isDark ? const Color(0xFFD1FAE5) : const Color(0xFF0F5132),
                       ),
-                      children: const [
-                        TextSpan(text: 'Need help logging in? Contact Seller Support at '),
+                      children: [
+                        const TextSpan(text: 'Need help logging in? Call Seller Support: '),
                         TextSpan(
                           text: '1800-300-8899',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? AppTheme.primaryLight : const Color(0xFF064E3B),
+                          ),
                         ),
-                        TextSpan(text: ' (Mon-Sat, 9AM-7PM)'),
+                        const TextSpan(
+                          text: ' (Mon-Sat, 10AM-7PM)',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ],
                     ),
                   ),
@@ -399,7 +440,7 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
 
   Widget _buildFooterLinks(BuildContext context) {
     return Wrap(
-      spacing: 16,
+      spacing: 20,
       runSpacing: 8,
       alignment: WrapAlignment.center,
       children: [
@@ -418,9 +459,9 @@ class _SellerLoginPageState extends State<SellerLoginPage> with SingleTickerProv
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 12.5,
           color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

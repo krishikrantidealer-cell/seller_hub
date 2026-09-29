@@ -11,9 +11,9 @@ class BrandingBanner extends StatelessWidget {
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppTheme.primaryDark,
-            AppTheme.primary,
-            Color(0xFF13653F),
+            Color(0xFF042F24), // Ultra Deep Emerald
+            Color(0xFF094D36),
+            Color(0xFF0F5A40),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -29,17 +29,17 @@ class BrandingBanner extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    width: 1,
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1.2,
                   ),
                 ),
                 child: const Icon(
                   Icons.agriculture_rounded,
                   color: Colors.white,
-                  size: 28,
+                  size: 30,
                 ),
               ),
               const SizedBox(width: 14),
@@ -50,17 +50,17 @@ class BrandingBanner extends StatelessWidget {
                     'SELLER HUB',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
+                      fontSize: 23,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.4,
                     ),
                   ),
                   Text(
                     'Enterprise Agri-Commerce Suite',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -73,12 +73,13 @@ class BrandingBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 decoration: BoxDecoration(
-                  color: AppTheme.accent.withValues(alpha: 0.2),
+                  color: AppTheme.primary.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppTheme.accent.withValues(alpha: 0.5),
+                    color: AppTheme.primary.withValues(alpha: 0.6),
+                    width: 1.2,
                   ),
                 ),
                 child: const Row(
@@ -86,37 +87,39 @@ class BrandingBanner extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.verified_user_rounded,
-                      color: AppTheme.accent,
-                      size: 16,
+                      color: AppTheme.primaryLight,
+                      size: 17,
                     ),
-                    SizedBox(width: 6),
+                    SizedBox(width: 8),
                     Text(
                       'Trusted by 10,000+ Agri-Dealers & Manufacturers',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
               const Text(
                 'Grow Your Agri Business\nAcross India with Ease',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  height: 1.25,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  height: 1.22,
+                  letterSpacing: -0.5,
                 ),
               ),
               const SizedBox(height: 16),
               Text(
                 'Manage live orders, warehouse stock, multi-carrier dispatch, and fast settlement cycles from a single unified portal.',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontSize: 14,
+                  color: Colors.white.withValues(alpha: 0.92),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w400,
                   height: 1.6,
                 ),
               ),
@@ -128,13 +131,13 @@ class BrandingBanner extends StatelessWidget {
                 'Automated Logistics & Multi-Carrier Routing',
                 'Integrated with Shiprocket, Delhivery & Speed Post with 24-48h SLA monitoring.',
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               _buildFeatureItem(
                 Icons.inventory_2_outlined,
                 'Batch & Shelf-Life Compliance',
                 'Seamless tracking for CIBRC chemical licenses, seed batches, and expiry control.',
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
               _buildFeatureItem(
                 Icons.account_balance_wallet_outlined,
                 'Express T+7 Payout Settlements',
@@ -150,20 +153,21 @@ class BrandingBanner extends StatelessWidget {
               Text(
                 '© 2026 Seller Hub Technologies. All rights reserved.',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               Row(
                 children: [
-                  const Icon(Icons.shield_outlined, color: Colors.white70, size: 14),
+                  const Icon(Icons.shield_outlined, color: Colors.white, size: 16),
                   const SizedBox(width: 6),
                   Text(
                     '256-Bit SSL Encrypted',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -180,12 +184,16 @@ class BrandingBanner extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.white.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.2),
+              width: 1,
+            ),
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
+          child: Icon(icon, color: Colors.white, size: 21),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -196,17 +204,18 @@ class BrandingBanner extends StatelessWidget {
                 title,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 subtitle,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.75),
-                  fontSize: 12.5,
-                  height: 1.4,
+                  color: Colors.white.withValues(alpha: 0.88),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  height: 1.45,
                 ),
               ),
             ],

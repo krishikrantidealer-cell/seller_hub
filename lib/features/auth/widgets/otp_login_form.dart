@@ -107,8 +107,8 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
         Text(
           'Mobile Number',
           style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w700,
             color: textPrimary,
           ),
         ),
@@ -116,6 +116,11 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
         TextFormField(
           controller: _phoneController,
           keyboardType: TextInputType.phone,
+          style: TextStyle(
+            color: textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(10),
@@ -123,15 +128,15 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
           decoration: InputDecoration(
             hintText: 'Enter 10-digit registered number',
             prefixIcon: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               alignment: Alignment.centerLeft,
-              width: 70,
+              width: 75,
               child: Text(
                 '+91  |',
                 style: TextStyle(
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   color: textPrimary,
-                  fontSize: 14,
+                  fontSize: 14.5,
                 ),
               ),
             ),
@@ -140,7 +145,11 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
         const SizedBox(height: 8),
         Text(
           'We will send a 6-digit one-time verification code to this number.',
-          style: TextStyle(fontSize: 12.5, color: textSecondary),
+          style: TextStyle(
+            fontSize: 13,
+            color: textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         const SizedBox(height: 24),
         SizedBox(
@@ -190,15 +199,19 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                 Text(
                   'Enter 6-Digit OTP',
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
                     color: textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Sent to +91 ${_phoneController.text}',
-                  style: TextStyle(fontSize: 12, color: textSecondary),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -207,9 +220,12 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                 setState(() => _isOtpSent = false);
               },
               icon: const Icon(Icons.edit_outlined, size: 14),
-              label: const Text('Change', style: TextStyle(fontSize: 12)),
+              label: const Text(
+                'Change',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
               style: TextButton.styleFrom(
-                foregroundColor: isDark ? AppTheme.primaryLight : AppTheme.primaryLight,
+                foregroundColor: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(50, 30),
               ),
@@ -223,16 +239,16 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(6, (index) {
             return SizedBox(
-              width: 44,
-              height: 50,
+              width: 46,
+              height: 52,
               child: TextFormField(
                 controller: _otpControllers[index],
                 focusNode: _focusNodes[index],
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
                   color: textPrimary,
                 ),
                 inputFormatters: [
@@ -253,7 +269,7 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                   contentPadding: EdgeInsets.zero,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: border),
+                    borderSide: BorderSide(color: border, width: 1.4),
                   ),
                 ),
               ),
@@ -270,7 +286,11 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
               _timerSeconds > 0
                   ? 'Resend OTP in 00:${_timerSeconds.toString().padLeft(2, '0')}'
                   : 'Didn\'t receive OTP?',
-              style: TextStyle(fontSize: 12.5, color: textSecondary),
+              style: TextStyle(
+                fontSize: 13,
+                color: textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             if (_timerSeconds == 0)
               TextButton(
@@ -282,8 +302,8 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
                 child: Text(
                   'Resend Code',
                   style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
                     color: brandColor,
                   ),
                 ),

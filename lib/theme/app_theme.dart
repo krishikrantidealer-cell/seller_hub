@@ -3,35 +3,35 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Brand Color Palette
-  static const Color primary = Color(0xFF10B981); // Vibrant Emerald for dark & light visibility
-  static const Color primaryDeep = Color(0xFF0F5132); // Deep Forest Emerald
+  static const Color primary = Color(0xFF10B981); // Bright Emerald for Dark Mode & Highlights
+  static const Color primaryDeep = Color(0xFF0F5132); // Deep Forest Emerald for Light Mode
   static const Color primaryDark = Color(0xFF064E3B);
   static const Color primaryLight = Color(0xFF34D399);
-  static const Color accent = Color(0xFF20C997);
+  static const Color accent = Color(0xFF059669);
 
-  // Light Mode Colors
-  static const Color lightSurfaceBg = Color(0xFFF8FAFC);
+  // High-Contrast Light Mode Colors
+  static const Color lightSurfaceBg = Color(0xFFF1F5F9); // Crisp Slate 100
   static const Color lightCardBg = Colors.white;
-  static const Color lightTextPrimary = Color(0xFF0F172A);
-  static const Color lightTextSecondary = Color(0xFF475569);
-  static const Color lightTextMuted = Color(0xFF94A3B8);
-  static const Color lightBorder = Color(0xFFE2E8F0);
-  static const Color lightInputBg = Colors.white;
-  static const Color lightTabBg = Color(0xFFF1F5F9);
-  static const Color lightAccentBg = Color(0xFFECFDF5);
+  static const Color lightTextPrimary = Color(0xFF0F172A); // Slate 900 (Ultra Sharp)
+  static const Color lightTextSecondary = Color(0xFF334155); // Slate 700 (High Legibility)
+  static const Color lightTextMuted = Color(0xFF64748B); // Slate 500
+  static const Color lightBorder = Color(0xFFCBD5E1); // Slate 300 (Clear Visible Border)
+  static const Color lightInputBg = Color(0xFFFFFFFF);
+  static const Color lightTabBg = Color(0xFFE2E8F0);
+  static const Color lightAccentBg = Color(0xFFE6F4EA);
 
-  // Dark Mode Colors
-  static const Color darkSurfaceBg = Color(0xFF0B1120); // Slate 950
-  static const Color darkCardBg = Color(0xFF1E293B); // Slate 800
-  static const Color darkTextPrimary = Color(0xFFF8FAFC);
-  static const Color darkTextSecondary = Color(0xFF94A3B8);
-  static const Color darkTextMuted = Color(0xFF64748B);
-  static const Color darkBorder = Color(0xFF334155);
-  static const Color darkInputBg = Color(0xFF0F172A);
-  static const Color darkTabBg = Color(0xFF0F172A);
+  // High-Contrast Dark Mode Colors
+  static const Color darkSurfaceBg = Color(0xFF0A0F1D); // Deep Navy/Slate
+  static const Color darkCardBg = Color(0xFF161F30); // Slate 850
+  static const Color darkTextPrimary = Color(0xFFFFFFFF); // Pure White (Ultra Crisp)
+  static const Color darkTextSecondary = Color(0xFFCBD5E1); // Slate 300 (High Legibility)
+  static const Color darkTextMuted = Color(0xFF94A3B8); // Slate 400
+  static const Color darkBorder = Color(0xFF334155); // Slate 700
+  static const Color darkInputBg = Color(0xFF0B1323);
+  static const Color darkTabBg = Color(0xFF0B1323);
   static const Color darkAccentBg = Color(0xFF064E3B);
 
-  // General Colors
+  // Status Colors
   static const Color error = Color(0xFFEF4444);
   static const Color success = Color(0xFF10B981);
 
@@ -52,22 +52,22 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: lightInputBg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: lightBorder, width: 1.2),
+          borderSide: const BorderSide(color: lightBorder, width: 1.4),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: lightBorder, width: 1.2),
+          borderSide: const BorderSide(color: lightBorder, width: 1.4),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: primaryDeep, width: 1.8),
+          borderSide: const BorderSide(color: primaryDeep, width: 2.0),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: error, width: 1.2),
+          borderSide: const BorderSide(color: error, width: 1.4),
         ),
         hintStyle: TextStyle(
           color: lightTextMuted,
@@ -86,7 +86,7 @@ class AppTheme {
           ),
           textStyle: TextStyle(
             fontSize: 15,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             fontFamily: fontFamily,
           ),
         ),
@@ -111,22 +111,22 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: darkInputBg,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: darkBorder, width: 1.2),
+          borderSide: const BorderSide(color: darkBorder, width: 1.4),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: darkBorder, width: 1.2),
+          borderSide: const BorderSide(color: darkBorder, width: 1.4),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: primary, width: 1.8),
+          borderSide: const BorderSide(color: primary, width: 2.0),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: error, width: 1.2),
+          borderSide: const BorderSide(color: error, width: 1.4),
         ),
         hintStyle: TextStyle(
           color: darkTextMuted,

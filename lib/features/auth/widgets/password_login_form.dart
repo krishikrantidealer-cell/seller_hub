@@ -63,9 +63,9 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.error.withValues(alpha: 0.1),
+                color: AppTheme.error.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
+                border: Border.all(color: AppTheme.error.withValues(alpha: 0.35)),
               ),
               child: Row(
                 children: [
@@ -74,7 +74,11 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
                   Expanded(
                     child: Text(
                       _errorMessage!,
-                      style: const TextStyle(color: AppTheme.error, fontSize: 13),
+                      style: const TextStyle(
+                        color: AppTheme.error,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -87,8 +91,8 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
           Text(
             'Email, Phone or GSTIN',
             style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
               color: textPrimary,
             ),
           ),
@@ -96,6 +100,11 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
           TextFormField(
             controller: _identifierController,
             textInputAction: TextInputAction.next,
+            style: TextStyle(
+              color: textPrimary,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w500,
+            ),
             decoration: InputDecoration(
               hintText: 'Enter registered email, phone or GSTIN',
               prefixIcon: Icon(Icons.person_outline_rounded, size: 20, color: textMuted),
@@ -113,8 +122,8 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
           Text(
             'Password',
             style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
               color: textPrimary,
             ),
           ),
@@ -124,6 +133,11 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
             obscureText: _obscurePassword,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _handleLogin(),
+            style: TextStyle(
+              color: textPrimary,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w500,
+            ),
             decoration: InputDecoration(
               hintText: 'Enter your account password',
               prefixIcon: Icon(Icons.lock_outline_rounded, size: 20, color: textMuted),
@@ -148,7 +162,7 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
               return null;
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // Remember Me & Forgot Password
           Row(
@@ -170,7 +184,7 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Flexible(
                       child: GestureDetector(
                         onTap: () {
@@ -180,9 +194,9 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
                           'Remember me',
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 13.5,
                             color: textSecondary,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -205,9 +219,9 @@ class _PasswordLoginFormState extends State<PasswordLoginForm> {
                 child: Text(
                   'Forgot Password?',
                   style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? AppTheme.primaryLight : AppTheme.primaryLight,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    color: isDark ? AppTheme.primaryLight : AppTheme.primaryDeep,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),

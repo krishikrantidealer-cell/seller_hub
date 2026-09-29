@@ -36,7 +36,7 @@ class SellerHubApp extends StatelessWidget {
               isDark: true,
             ),
             themeMode: themeState.isDark ? ThemeMode.dark : ThemeMode.light,
-            themeAnimationDuration: const Duration(milliseconds: 350),
+            themeAnimationDuration: const Duration(milliseconds: 550),
             themeAnimationCurve: Curves.easeInOutCubic,
           );
         },

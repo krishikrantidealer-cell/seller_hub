@@ -100,24 +100,31 @@ class _OtpLoginFormState extends State<OtpLoginForm> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedSize(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 380),
       curve: Curves.easeInOutCubic,
       alignment: Alignment.topCenter,
       child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 280),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
+        duration: const Duration(milliseconds: 320),
+        switchInCurve: Curves.easeOutQuart,
+        switchOutCurve: Curves.easeInQuad,
         transitionBuilder: (child, animation) {
           final isPhoneView = child.key == const ValueKey('phone_input_view');
           final offsetAnimation = Tween<Offset>(
-            begin: Offset(isPhoneView ? -0.04 : 0.04, 0),
+            begin: Offset(isPhoneView ? -0.03 : 0.03, 0),
             end: Offset.zero,
-          ).animate(animation);
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutQuart));
+          final scaleAnimation = Tween<double>(
+            begin: 0.985,
+            end: 1.0,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutQuart));
           return FadeTransition(
             opacity: animation,
             child: SlideTransition(
               position: offsetAnimation,
-              child: child,
+              child: ScaleTransition(
+                scale: scaleAnimation,
+                child: child,
+              ),
             ),
           );
         },

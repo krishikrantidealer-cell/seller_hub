@@ -45,11 +45,11 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
 
     _rippleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 650),
     );
     _rippleAnimation = CurvedAnimation(
       parent: _rippleController,
-      curve: Curves.easeOutCubic,
+      curve: Curves.easeOutQuart,
     );
   }
 
@@ -203,7 +203,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                         flex: 5,
                         child: RepaintBoundary(
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 450),
+                            duration: const Duration(milliseconds: 650),
                             curve: Curves.easeInOutCubic,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
@@ -488,7 +488,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                         children: [
                                           // Animated Sliding Active Pill Indicator
                                           AnimatedPositioned(
-                                            duration: const Duration(milliseconds: 250),
+                                            duration: const Duration(milliseconds: 320),
                                             curve: Curves.easeOutCubic,
                                             left: _authMethodIndex == 0 ? 0 : tabWidth,
                                             top: 0,
@@ -501,7 +501,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                                 boxShadow: [
                                                   BoxShadow(
                                                     color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-                                                    blurRadius: 5,
+                                                    blurRadius: 6,
                                                     offset: const Offset(0, 1.5),
                                                   ),
                                                 ],
@@ -525,7 +525,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                                       mainAxisAlignment: MainAxisAlignment.center,
                                                       children: [
                                                         AnimatedSwitcher(
-                                                          duration: const Duration(milliseconds: 200),
+                                                          duration: const Duration(milliseconds: 250),
                                                           child: Icon(
                                                             Icons.lock_outline_rounded,
                                                             key: ValueKey<bool>(_authMethodIndex == 0),
@@ -564,7 +564,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                                       mainAxisAlignment: MainAxisAlignment.center,
                                                       children: [
                                                         AnimatedSwitcher(
-                                                          duration: const Duration(milliseconds: 200),
+                                                          duration: const Duration(milliseconds: 250),
                                                           child: Icon(
                                                             Icons.phone_android_rounded,
                                                             key: ValueKey<bool>(_authMethodIndex == 1),
@@ -602,24 +602,31 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
 
                                 // Animated Content Container with Dynamic Height
                                 AnimatedSize(
-                                  duration: const Duration(milliseconds: 300),
+                                  duration: const Duration(milliseconds: 380),
                                   curve: Curves.easeInOutCubic,
                                   alignment: Alignment.topCenter,
                                   child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 280),
-                                    switchInCurve: Curves.easeOutCubic,
-                                    switchOutCurve: Curves.easeInCubic,
+                                    duration: const Duration(milliseconds: 320),
+                                    switchInCurve: Curves.easeOutQuart,
+                                    switchOutCurve: Curves.easeInQuad,
                                     transitionBuilder: (child, animation) {
                                       final isPassword = child.key == const ValueKey('password_form');
                                       final offsetAnimation = Tween<Offset>(
-                                        begin: Offset(isPassword ? -0.04 : 0.04, 0),
+                                        begin: Offset(isPassword ? -0.03 : 0.03, 0),
                                         end: Offset.zero,
-                                      ).animate(animation);
+                                      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutQuart));
+                                      final scaleAnimation = Tween<double>(
+                                        begin: 0.985,
+                                        end: 1.0,
+                                      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutQuart));
                                       return FadeTransition(
                                         opacity: animation,
                                         child: SlideTransition(
                                           position: offsetAnimation,
-                                          child: child,
+                                          child: ScaleTransition(
+                                            scale: scaleAnimation,
+                                            child: child,
+                                          ),
                                         ),
                                       );
                                     },

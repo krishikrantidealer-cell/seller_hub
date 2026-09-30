@@ -75,7 +75,7 @@ class AppTheme {
         ),
         hintStyle: TextStyle(
           fontSize: 12.5,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w400,
           color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
           fontFamily: fontFamily,
         ),

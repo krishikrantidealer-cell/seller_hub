@@ -120,6 +120,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
             keyboardType: TextInputType.emailAddress,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
+              fontWeight: FontWeight.w600,
               color: isDark ? Colors.white : const Color(0xFF0F172A),
             ),
             decoration: InputDecoration(

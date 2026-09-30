@@ -10,8 +10,10 @@ import '../../../logic/auth/auth_state.dart';
 import '../../../logic/theme/theme_bloc.dart';
 import '../../../logic/theme/theme_event.dart';
 import '../../../logic/theme/theme_state.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/router/route_names.dart';
 import '../widgets/forgot_password_dialog.dart';
-import '../widgets/otp_login_form.dart';
+// import '../widgets/otp_login_form.dart';
 import '../widgets/theme_ripple_painter.dart';
 
 class LoginView extends StatefulWidget {
@@ -34,7 +36,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
   bool _obscurePassword = true;
   bool _rememberMe = true;
   bool _isCapsLockOn = false;
-  int _authMethodIndex = 0; // 0 = Password, 1 = Mobile OTP
+  // int _authMethodIndex = 0; // 0 = Password, 1 = Mobile OTP (temporarily commented out)
   Offset _rippleOrigin = const Offset(1200, 40);
   bool? _rippleTargetIsDark;
 
@@ -142,50 +144,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
   }
 
   void _onLoginSuccess() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF161E2E) : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
-          ),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 24),
-            const SizedBox(width: 10),
-            Text(
-              'Login Successful',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w800,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Welcome to Seller Hub! Redirecting to your merchant dashboard.',
-          style: GoogleFonts.plusJakartaSans(
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            fontSize: 14,
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Proceed to Dashboard'),
-          ),
-        ],
-      ),
-    );
+    context.go(RouteNames.dashboard);
   }
 
   @override
@@ -477,6 +436,8 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
 
                                 const SizedBox(height: 24),
 
+                                // --- Mobile OTP login temporarily commented out ---
+                                /*
                                 // Dual Authentication Custom Animated Segmented Switcher
                                 Container(
                                   height: 46,
@@ -676,6 +637,10 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                     ),
                                   ),
                                 ),
+                                */
+
+                                // Password Authentication Form
+                                _buildPasswordForm(isDark),
 
                                 const SizedBox(height: 18),
 
@@ -854,7 +819,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
               keyboardType: TextInputType.emailAddress,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 color: isDark ? Colors.white : const Color(0xFF0F172A),
               ),
               decoration: InputDecoration(
@@ -919,7 +884,8 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
               obscureText: _obscurePassword,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
+                letterSpacing: _obscurePassword ? 1.5 : 0.2,
                 color: isDark ? Colors.white : const Color(0xFF0F172A),
               ),
               decoration: InputDecoration(

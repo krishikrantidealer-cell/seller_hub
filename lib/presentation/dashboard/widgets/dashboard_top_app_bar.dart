@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:seller_hub/core/models/order.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/core/models/seller.dart';
 import 'package:seller_hub/logic/theme/theme_bloc.dart';
@@ -10,6 +11,7 @@ class DashboardTopAppBar extends StatelessWidget {
   final int selectedNavIndex;
   final Product? viewingProduct;
   final SellerProfile? viewingSeller;
+  final MarketplaceOrder? viewingOrder;
   final bool isWide;
   final VoidCallback onMenuPressed;
 
@@ -18,6 +20,7 @@ class DashboardTopAppBar extends StatelessWidget {
     required this.selectedNavIndex,
     this.viewingProduct,
     this.viewingSeller,
+    this.viewingOrder,
     required this.isWide,
     required this.onMenuPressed,
   });
@@ -27,6 +30,38 @@ class DashboardTopAppBar extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
+
+    String title;
+    String subtitle;
+
+    if (selectedNavIndex == 0) {
+      title = 'Operations Overview';
+      subtitle = 'Platform sales, order dispatches & multi-seller metrics';
+    } else if (selectedNavIndex == 1) {
+      if (viewingProduct != null) {
+        title = 'Product Specification Sheet';
+        subtitle = '${viewingProduct!.productCode} • HSN: ${viewingProduct!.hsnCode} • ${viewingProduct!.technicalName}';
+      } else {
+        title = 'Product Catalog & Inventory';
+        subtitle = '38-field agri schema with CIBRC chemical & HSN compliance';
+      }
+    } else if (selectedNavIndex == 2) {
+      if (viewingSeller != null) {
+        title = 'Seller Profile & Commercial Terms';
+        subtitle = '${viewingSeller!.tradeName} • ID: ${viewingSeller!.id} • GSTIN: ${viewingSeller!.gstin}';
+      } else {
+        title = 'Multi-Tenant Sellers Directory';
+        subtitle = 'Onboarded merchants, legal compliance, KYC & commission agreements';
+      }
+    } else {
+      if (viewingOrder != null) {
+        title = 'Order ${viewingOrder!.orderNumber} • ${viewingOrder!.company}';
+        subtitle = 'Seller: ${viewingOrder!.sellerName} • Payment: ${viewingOrder!.paymentStatus} • ${viewingOrder!.orderStatus}';
+      } else {
+        title = 'Orders & Dispatch Management';
+        subtitle = 'Track multi-seller orders, bank UTR references & delivery addresses';
+      }
+    }
 
     return Container(
       height: 64,
@@ -48,15 +83,7 @@ class DashboardTopAppBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  selectedNavIndex == 0
-                      ? 'Operations Overview'
-                      : (selectedNavIndex == 1
-                          ? (viewingProduct != null
-                              ? 'Product Specification Sheet'
-                              : 'Product Catalog & Inventory')
-                          : (viewingSeller != null
-                              ? 'Seller Profile & Commercial Terms'
-                              : 'Multi-Tenant Sellers Directory')),
+                  title,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -65,15 +92,7 @@ class DashboardTopAppBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  selectedNavIndex == 0
-                      ? 'Platform sales, order dispatches & multi-seller metrics'
-                      : (selectedNavIndex == 1
-                          ? (viewingProduct != null
-                              ? '${viewingProduct!.productCode} • HSN: ${viewingProduct!.hsnCode} • ${viewingProduct!.technicalName}'
-                              : '38-field agri schema with CIBRC chemical & HSN compliance')
-                          : (viewingSeller != null
-                              ? '${viewingSeller!.tradeName} • ID: ${viewingSeller!.id} • GSTIN: ${viewingSeller!.gstin}'
-                              : 'Onboarded merchants, legal compliance, KYC & commission agreements')),
+                  subtitle,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w500,

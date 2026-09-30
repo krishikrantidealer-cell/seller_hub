@@ -18,7 +18,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(LoginView), findsOneWidget);
-    expect(find.text('Sign in to Seller Hub'), findsOneWidget);
+    expect(find.text('Admin Sign In'), findsOneWidget);
     expect(find.byIcon(Icons.lock_outline_rounded), findsWidgets);
 
     // Password form fields & actions
@@ -62,7 +62,7 @@ void main() {
 
     expect(find.text('Agricultural Catalog & Master Inventory'), findsOneWidget);
     expect(find.text('Add Product'), findsOneWidget);
-    expect(find.text('Edit'), findsWidgets);
+    expect(find.byIcon(Icons.edit_outlined), findsWidgets);
 
     // Tap product title to open full 38-field Product Details
     await tester.tap(find.text('[TEST ONLY - NOT FOR SALE] Crop Protection Insecticide Sample'));
@@ -103,10 +103,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify Edit buttons exist in compact catalog
-    expect(find.text('Edit'), findsWidgets);
+    expect(find.byIcon(Icons.edit_outlined), findsWidgets);
 
     // Tap Edit on first product
-    await tester.tap(find.text('Edit').first);
+    await tester.tap(find.byIcon(Icons.edit_outlined).first);
     await tester.pumpAndSettle();
 
     // Verify in Edit Mode
@@ -199,8 +199,8 @@ void main() {
     expect(find.text('Krishi Kranti Organics'), findsWidgets);
     expect(find.text('Bharat Agro Chemicals Ltd'), findsWidgets);
 
-    // Tap "Profile" on the first seller
-    await tester.tap(find.text('Profile').first);
+    // Tap View Profile on the first seller
+    await tester.tap(find.byIcon(Icons.visibility_rounded).first);
     await tester.pumpAndSettle();
 
     // Verify Seller Profile View opens

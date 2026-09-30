@@ -227,7 +227,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                             ),
                                           ),
                                           const Text(
-                                            'ENTERPRISE AGRI-COMMERCE',
+                                            'INTERNAL ADMIN CONSOLE',
                                             style: TextStyle(
                                               color: Color(0xFF6EE7B7),
                                               fontSize: 10,
@@ -262,8 +262,8 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                               ),
                                             ),
                                             const SizedBox(width: 6),
-                                            const Text(
-                                              'Active Seller Cloud Infrastructure',
+                                             const Text(
+                                              'Internal Admin Management Console',
                                               style: TextStyle(
                                                 color: Colors.white,
                                                 fontSize: 11.5,
@@ -275,7 +275,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                       ),
                                       const SizedBox(height: 20),
                                       Text(
-                                        'Dedicated Seller\n& Vendor Hub Portal\nfor Agri Commerce',
+                                        'Internal Admin Hub\nto Manage Sellers,\nProducts & Orders',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 28,
                                           fontWeight: FontWeight.w800,
@@ -286,7 +286,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                       ),
                                       const SizedBox(height: 14),
                                       Text(
-                                        'Empowering agro-chemical manufacturers, seed producers, and dealers with automated order routing, batch & expiry compliance, and rapid T+7 payouts.',
+                                        'Centralized control panel for admin teams to onboard sellers, manage agri-product catalogs, monitor orders, resolve disputes, and oversee platform operations.',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 13.5,
                                           fontWeight: FontWeight.w400,
@@ -306,11 +306,11 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                         ),
                                         child: Column(
                                           children: [
-                                            _buildTrustRow(Icons.local_shipping_rounded, 'Multi-Carrier Logistics Integration & 24-48h SLA Tracking'),
+                                            _buildTrustRow(Icons.manage_accounts_rounded, 'Full Seller Onboarding, KYC Verification & Profile Management'),
                                             const SizedBox(height: 10),
-                                            _buildTrustRow(Icons.inventory_2_rounded, 'CIBRC Chemical License & Seed Batch-Level Inventory'),
+                                            _buildTrustRow(Icons.inventory_2_rounded, 'Multi-Seller Product Catalog — Chemical, Seed & Agri Compliance'),
                                             const SizedBox(height: 10),
-                                            _buildTrustRow(Icons.account_balance_wallet_rounded, 'Direct Bank Settlements with Automated TCS & TDS Invoices'),
+                                            _buildTrustRow(Icons.receipt_long_rounded, 'Order & Dispatch Oversight with UTR Bank Settlement Tracking'),
                                           ],
                                         ),
                                       ),
@@ -324,7 +324,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                       SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
-                                          'Authorized Seller Portal • 256-Bit SSL Encrypted',
+                                          'Authorized Admin Portal • 256-Bit SSL Encrypted',
                                           style: TextStyle(
                                             color: Color(0xFFA7F3D0),
                                             fontSize: 11.5,
@@ -401,7 +401,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                         const Icon(Icons.verified_user_rounded, size: 14, color: Color(0xFF059669)),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'SELLER SECURE ACCESS',
+                                          'ADMIN SECURE ACCESS',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 10.5,
                                             fontWeight: FontWeight.w800,
@@ -416,7 +416,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                 const SizedBox(height: 14),
 
                                 Text(
-                                  'Sign in to Seller Hub',
+                                  'Admin Sign In',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 25,
                                     fontWeight: FontWeight.w800,
@@ -426,7 +426,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'Enter your credentials to access your merchant operations portal.',
+                                  'Enter your admin credentials to access the Seller Hub management console.',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     height: 1.45,
@@ -672,7 +672,7 @@ class _LoginViewState extends State<LoginView> with SingleTickerProviderStateMix
                                               color: isDark ? const Color(0xFFD1FAE5) : const Color(0xFF064E3B),
                                             ),
                                             children: [
-                                              const TextSpan(text: 'Seller Helpline: '),
+                                              const TextSpan(text: 'Admin Helpline: '),
                                               TextSpan(
                                                 text: AppConstants.helplinePhone,
                                                 style: GoogleFonts.plusJakartaSans(

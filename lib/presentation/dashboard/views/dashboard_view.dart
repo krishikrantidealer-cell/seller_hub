@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:seller_hub/core/models/order.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/core/models/seller.dart';
 import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/logic/auth/auth_bloc.dart';
 import 'package:seller_hub/logic/auth/auth_event.dart';
 import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/orders_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/product_catalog_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/product_details_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/seller_profile_view.dart';
@@ -26,7 +29,7 @@ class DashboardView extends StatefulWidget {
 class _DashboardViewState extends State<DashboardView> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Primary Navigation: 0 = Dashboard / Operations, 1 = Products, 2 = Sellers
+  // Primary Navigation: 0 = Dashboard / Operations, 1 = Products, 2 = Sellers, 3 = Orders
   int _selectedNavIndex = 0;
 
   // Product catalog state initialized with official 38-field schema models
@@ -38,6 +41,10 @@ class _DashboardViewState extends State<DashboardView> {
   final List<SellerProfile> _sellers = List.from(SellerProfile.sampleSellers);
   SellerProfile? _viewingSeller;
   String _productCatalogSellerFilter = 'All Sellers';
+
+  // Orders management state
+  final List<MarketplaceOrder> _orders = List.from(MockOrders.sampleOrders);
+  MarketplaceOrder? _viewingOrder;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +68,7 @@ class _DashboardViewState extends State<DashboardView> {
                 onNavItemSelected: _onNavItemSelected,
                 productsCount: _products.length,
                 sellersCount: _sellers.length,
+                ordersCount: _orders.length,
                 isDrawer: true,
                 onLogout: () => _handleLogout(context),
               ),
@@ -81,6 +89,7 @@ class _DashboardViewState extends State<DashboardView> {
                   onNavItemSelected: _onNavItemSelected,
                   productsCount: _products.length,
                   sellersCount: _sellers.length,
+                  ordersCount: _orders.length,
                   isDrawer: false,
                   onLogout: () => _handleLogout(context),
                 ),
@@ -96,6 +105,7 @@ class _DashboardViewState extends State<DashboardView> {
                   selectedNavIndex: _selectedNavIndex,
                   viewingProduct: _viewingProduct,
                   viewingSeller: _viewingSeller,
+                  viewingOrder: _viewingOrder,
                   isWide: isWide,
                   onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 ),
@@ -124,7 +134,23 @@ class _DashboardViewState extends State<DashboardView> {
     if (_selectedNavIndex == 0) {
       return OperationsOverviewView(
         products: _products,
-        onViewAllOrders: () {},
+        sellers: _sellers,
+        orders: _orders,
+        onSelectOrder: (order) => setState(() => _viewingOrder = order),
+        onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
+        onNavigateToProducts: () => setState(() {
+          _selectedNavIndex = 1;
+          _viewingProduct = null;
+        }),
+        onNavigateToSellers: () => setState(() {
+          _selectedNavIndex = 2;
+          _viewingSeller = null;
+        }),
+        onNavigateToOrders: () => setState(() {
+          _selectedNavIndex = 3;
+          _viewingOrder = null;
+        }),
+        onOpenAddProduct: () => _openAddProductDialog(context),
       );
     }
 
@@ -169,18 +195,34 @@ class _DashboardViewState extends State<DashboardView> {
     }
 
     // Nav Index 2: Sellers Directory & Profile
-    if (_viewingSeller != null) {
-      return SellerProfileView(
-        seller: _viewingSeller!,
-        allProducts: _products,
-        onBack: () => setState(() => _viewingSeller = null),
-        onSellerUpdated: (updated) {
-          setState(() {
-            final idx = _sellers.indexWhere((s) => s.id == updated.id);
-            if (idx != -1) _sellers[idx] = updated;
-            _viewingSeller = updated;
-          });
-        },
+    if (_selectedNavIndex == 2) {
+      if (_viewingSeller != null) {
+        return SellerProfileView(
+          seller: _viewingSeller!,
+          allProducts: _products,
+          onBack: () => setState(() => _viewingSeller = null),
+          onSellerUpdated: (updated) {
+            setState(() {
+              final idx = _sellers.indexWhere((s) => s.id == updated.id);
+              if (idx != -1) _sellers[idx] = updated;
+              _viewingSeller = updated;
+            });
+          },
+          onViewSellerProducts: (sellerTradeName) {
+            setState(() {
+              _selectedNavIndex = 1;
+              _viewingSeller = null;
+              _viewingProduct = null;
+              _productCatalogSellerFilter = sellerTradeName;
+            });
+          },
+        );
+      }
+
+      return SellersView(
+        sellers: _sellers,
+        products: _products,
+        onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
         onViewSellerProducts: (sellerTradeName) {
           setState(() {
             _selectedNavIndex = 1;
@@ -189,26 +231,32 @@ class _DashboardViewState extends State<DashboardView> {
             _productCatalogSellerFilter = sellerTradeName;
           });
         },
+        onSellerAdded: (newSeller) {
+          setState(() {
+            _sellers.insert(0, newSeller);
+          });
+        },
       );
     }
 
-    return SellersView(
-      sellers: _sellers,
-      products: _products,
-      onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
-      onViewSellerProducts: (sellerTradeName) {
-        setState(() {
-          _selectedNavIndex = 1;
-          _viewingSeller = null;
-          _viewingProduct = null;
-          _productCatalogSellerFilter = sellerTradeName;
-        });
-      },
-      onSellerAdded: (newSeller) {
-        setState(() {
-          _sellers.insert(0, newSeller);
-        });
-      },
+    // Nav Index 3: Orders Directory & Order Detail
+    if (_viewingOrder != null) {
+      return OrderDetailView(
+        order: _viewingOrder!,
+        onBack: () => setState(() => _viewingOrder = null),
+        onOrderUpdated: (updated) {
+          setState(() {
+            final idx = _orders.indexWhere((o) => o.id == updated.id);
+            if (idx != -1) _orders[idx] = updated;
+            _viewingOrder = updated;
+          });
+        },
+      );
+    }
+
+    return OrdersView(
+      orders: _orders,
+      onSelectOrder: (order) => setState(() => _viewingOrder = order),
     );
   }
 
@@ -218,6 +266,7 @@ class _DashboardViewState extends State<DashboardView> {
       _viewingProduct = null;
       _openInEditMode = false;
       _viewingSeller = null;
+      _viewingOrder = null;
     });
   }
 

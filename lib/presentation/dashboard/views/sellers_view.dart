@@ -136,18 +136,24 @@ class _SellersViewState extends State<SellersView> {
                     return Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: FilterChip(
+                        showCheckmark: false,
                         visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         label: Text(status.replaceAll('_', ' ')),
                         selected: isSelected,
-                        selectedColor: const Color(0xFF059669).withValues(alpha: 0.16),
+                        selectedColor: isDark
+                            ? const Color(0xFF059669).withValues(alpha: 0.22)
+                            : const Color(0xFF059669).withValues(alpha: 0.12),
                         backgroundColor: surfaceColor,
                         side: BorderSide(
                           color: isSelected ? const Color(0xFF059669) : borderColor,
+                          width: isSelected ? 1.5 : 1,
                         ),
                         labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          fontSize: 11.5,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                           color: isSelected
                               ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
                               : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
@@ -196,7 +202,7 @@ class _SellersViewState extends State<SellersView> {
                       Expanded(flex: 2, child: _buildColHeader('GSTIN & LICENSE', isDark)),
                       Expanded(flex: 2, child: _buildColHeader('METRICS & ORDERS', isDark)),
                       Expanded(flex: 2, child: _buildColHeader('STATUS', isDark)),
-                      Expanded(flex: 2, child: _buildColHeader('ACTION', isDark, alignRight: true)),
+                      Expanded(flex: 2, child: _buildColHeader('ACTIONS', isDark, alignRight: true)),
                     ],
                   ),
                 ),
@@ -430,27 +436,62 @@ class _SellersViewState extends State<SellersView> {
                 ),
               ),
 
-              // Action (Flex 2)
+              // Actions (Flex 2)
               Expanded(
                 flex: 2,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: () => widget.onSelectSeller(s),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    // View Products Button
+                    Tooltip(
+                      message: "View Seller's Products",
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(6),
+                        onTap: () => widget.onViewSellerProducts(s.tradeName),
+                        child: Container(
+                          width: 32,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.inventory_2_outlined,
+                            size: 15,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      'Profile',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800),
+                    const SizedBox(width: 6),
+                    // View Profile Button
+                    Tooltip(
+                      message: 'View Seller Profile',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(6),
+                        onTap: () => widget.onSelectSeller(s),
+                        child: Container(
+                          width: 32,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFF059669).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.visibility_rounded,
+                            size: 15,
+                            color: Color(0xFF059669),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],

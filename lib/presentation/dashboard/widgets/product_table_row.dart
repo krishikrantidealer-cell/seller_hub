@@ -13,6 +13,7 @@ class ProductTableRow extends StatelessWidget {
   final ValueChanged<bool> onToggleSelect;
   final ValueChanged<String> onSelectSeller;
   final VoidCallback onToggleStatus;
+  final VoidCallback onView;
   final VoidCallback onEdit;
 
   const ProductTableRow({
@@ -27,6 +28,7 @@ class ProductTableRow extends StatelessWidget {
     required this.onToggleSelect,
     required this.onSelectSeller,
     required this.onToggleStatus,
+    required this.onView,
     required this.onEdit,
   });
 
@@ -402,31 +404,62 @@ class ProductTableRow extends StatelessWidget {
 
               const SizedBox(width: 16),
 
-              // 8. ACTIONS (Width 72)
+              // 8. ACTIONS (Width 88)
               SizedBox(
-                width: 72,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined, size: 12),
-                    label: Text(
-                      'Edit',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
+                width: 88,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    // View button
+                    Tooltip(
+                      message: 'View Details',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(6),
+                        onTap: onView,
+                        child: Container(
+                          width: 32,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFF059669).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.visibility_rounded,
+                            size: 15,
+                            color: Color(0xFF059669),
+                          ),
+                        ),
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    const SizedBox(width: 6),
+                    // Edit button
+                    Tooltip(
+                      message: 'Edit Product',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(6),
+                        onTap: onEdit,
+                        child: Container(
+                          width: 32,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD97706).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFFD97706).withValues(alpha: 0.28),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.edit_outlined,
+                            size: 15,
+                            color: Color(0xFFD97706),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],

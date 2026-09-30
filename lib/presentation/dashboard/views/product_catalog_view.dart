@@ -455,18 +455,24 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                     return Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: FilterChip(
+                        showCheckmark: false,
                         visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         label: Text(cat),
                         selected: isSelected,
-                        selectedColor: const Color(0xFF059669).withValues(alpha: 0.16),
+                        selectedColor: isDark
+                            ? const Color(0xFF059669).withValues(alpha: 0.22)
+                            : const Color(0xFF059669).withValues(alpha: 0.12),
                         backgroundColor: surfaceColor,
                         side: BorderSide(
                           color: isSelected ? const Color(0xFF059669) : borderColor,
+                          width: isSelected ? 1.5 : 1,
                         ),
                         labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                          fontSize: 11.5,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                           color: isSelected
                               ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
                               : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
@@ -808,7 +814,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                       ),
                       const SizedBox(width: 16),
                       SizedBox(
-                        width: 72,
+                        width: 88,
                         child: _buildColHeader('ACTIONS', isDark, alignRight: true),
                       ),
                     ],
@@ -896,6 +902,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                                 ),
                               );
                             },
+                            onView: () => widget.onOpenProductDetails(p, editMode: false),
                             onEdit: () => widget.onOpenProductDetails(p, editMode: true),
                           )
                         : ProductMobileCard(

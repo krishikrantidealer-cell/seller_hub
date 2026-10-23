@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/product.dart';
+import 'app_html_view.dart';
 
 class ProductDetailsDialog extends StatefulWidget {
   final Product product;
@@ -267,13 +268,12 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            p.description,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              height: 1.5,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
+          AppHtmlView(
+            htmlData: p.description,
+            fontSize: 13,
+            lineHeight: 1.5,
+            collapsible: true,
+            maxLines: 4,
           ),
           const SizedBox(height: 16),
           Text(

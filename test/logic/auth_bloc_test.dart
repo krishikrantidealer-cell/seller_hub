@@ -9,21 +9,19 @@ import 'package:seller_hub/logic/auth/auth_state.dart';
 class MockAuthRepository implements AuthRepository {
   AuthSession? mockSession;
   bool shouldThrow = false;
+  ApiException? exceptionToThrow;
   String errorMessage = 'Invalid credentials';
-  bool rememberMeValue = true;
-  String? savedIdentifier;
 
   @override
   Future<AuthSession> loginWithPassword({
     required String email,
     required String password,
-    required bool rememberMe,
   }) async {
     if (shouldThrow) {
-      throw ApiException(message: errorMessage, statusCode: 401);
+      throw exceptionToThrow ?? ApiException(message: errorMessage, statusCode: 401);
     }
     final session = mockSession ??
-        AuthSession(
+        const AuthSession(
           userId: '6ab4ae6922033f1670582bdb',
           phoneNumber: '9876543668',
           role: 'ROLE_ADMIN',
@@ -34,8 +32,6 @@ class MockAuthRepository implements AuthRepository {
           isProfileComplete: true,
         );
     mockSession = session;
-    rememberMeValue = rememberMe;
-    savedIdentifier = email;
     return session;
   }
 
@@ -48,12 +44,6 @@ class MockAuthRepository implements AuthRepository {
   Future<void> logout() async {
     mockSession = null;
   }
-
-  @override
-  Future<String?> getSavedIdentifier() async => savedIdentifier;
-
-  @override
-  Future<bool> getRememberMe() async => rememberMeValue;
 }
 
 void main() {
@@ -90,7 +80,6 @@ void main() {
       authBloc.add(const LoginSubmitted(
         identifier: 'admin1email@example.com',
         password: 'Admin!Pass123',
-        rememberMe: true,
       ));
     });
 
@@ -98,7 +87,9 @@ void main() {
       final expectedStates = [
         predicate<AuthState>((state) =>
             state.status == AuthStatus.error &&
-            state.errorMessage == 'Please enter both your email/phone and password.'),
+            state.errorMessage == 'Please enter valid admin credentials.' &&
+            state.getFieldError('email') == 'Admin email is required' &&
+            state.getFieldError('password') == 'Password is required'),
       ];
 
       expectLater(authBloc.stream, emitsInOrder(expectedStates));
@@ -106,7 +97,6 @@ void main() {
       authBloc.add(const LoginSubmitted(
         identifier: '',
         password: '',
-        rememberMe: true,
       ));
     });
 
@@ -126,7 +116,29 @@ void main() {
       authBloc.add(const LoginSubmitted(
         identifier: 'admin1email@example.com',
         password: 'WrongPassword',
-        rememberMe: false,
+      ));
+    });
+
+    test('LoginSubmitted on ValidationException emits error with field-level validationErrors', () async {
+      repository.shouldThrow = true;
+      repository.exceptionToThrow = const ValidationException(
+        message: 'Validation failed for one or more fields',
+        validationErrors: {'email': 'Email must be a well-formed email address'},
+      );
+
+      final expectedStates = [
+        const AuthState(status: AuthStatus.loading),
+        predicate<AuthState>((state) =>
+            state.status == AuthStatus.error &&
+            state.errorMessage == 'Validation failed for one or more fields' &&
+            state.getFieldError('email') == 'Email must be a well-formed email address'),
+      ];
+
+      expectLater(authBloc.stream, emitsInOrder(expectedStates));
+
+      authBloc.add(const LoginSubmitted(
+        identifier: 'admin1email@example.com',
+        password: 'Admin!Pass123',
       ));
     });
 

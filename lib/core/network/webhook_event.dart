@@ -39,12 +39,3 @@ class WebhookEvent {
     'payload': payload,
   };
 }
-
-class ApiEndpoints {
-  static const String baseUrl = 'https://api.sellerhub.internal/v1';
-  static const String login = '$baseUrl/auth/seller/login';
-  static const String requestOtp = '$baseUrl/auth/seller/otp/request';
-  static const String verifyOtp = '$baseUrl/auth/seller/otp/verify';
-  static const String forgotPassword = '$baseUrl/auth/seller/forgot-password';
-  static const String webhooksSubscribe = '$baseUrl/webhooks/subscribe';
-}

@@ -22,7 +22,7 @@ class PaginationFooter extends StatelessWidget {
     required this.totalPages,
     required this.currentPage,
     required this.rowsPerPage,
-    this.rowsPerPageOptions = const [5, 10, 20, 50],
+    this.rowsPerPageOptions = const [5, 10, 20, 50, 100],
     required this.startIndex,
     required this.endIndex,
     required this.isDark,

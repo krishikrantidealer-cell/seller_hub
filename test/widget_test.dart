@@ -10,6 +10,8 @@ import 'package:seller_hub/core/router/app_router.dart';
 import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/presentation/auth/views/login_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/dashboard_view.dart';
+import 'package:seller_hub/presentation/dashboard/widgets/product_hover_preview_thumbnail.dart';
+import 'package:seller_hub/presentation/dashboard/widgets/app_html_view.dart';
 
 void main() {
   final mockHttpClient = MockClient((request) async {
@@ -34,6 +36,308 @@ void main() {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path == '/api/v1/products') {
+      final page = int.tryParse(request.url.queryParameters['page'] ?? '0') ?? 0;
+      final size = int.tryParse(request.url.queryParameters['size'] ?? '20') ?? 20;
+
+      final allProducts = [
+        {
+          "id": "6ad871a31df71c7f599dd954",
+          "sku": "KKR - 35",
+          "productCode": "PRD-6AB4ADA822033F1670582BDA-000035",
+          "hsnCode": "3808",
+          "title": "Beauveria Bassiana - Bio Pesticide",
+          "technicalName": "Beauveria bassiana",
+          "vendor": "Essential Bio Crop Science",
+          "description": "<p>Beauveria Bassiana Bio Pesticide</p>",
+          "images": [],
+          "productImages": [
+            {
+              "id": "0ee2dd28-634a-4e79-957e-e548d07a6b5f",
+              "displayOrder": 0,
+              "midUrl": "https://storage.googleapis.com/test-img1.jpg",
+              "lowUrl": "https://storage.googleapis.com/test-img1-low.jpg"
+            }
+          ],
+          "technicalContent": "5x10^8 CFU/ml",
+          "features": ["Biological insecticide"],
+          "benefits": ["Controls whiteflies"],
+          "modeOfAction": "Contact action",
+          "dosage": "2 ml/L",
+          "applicationMethod": "Foliar spray",
+          "category": "Bio Pesticide",
+          "categoryId": "6ad8582568a1edff7a609fee",
+          "isAvailable": true,
+          "isFeatured": true,
+          "variants": [
+            {
+              "id": "d4642c25c62d3220a533aa5d",
+              "label": "1 ltr (1000ml x 1)",
+              "unit": "ml",
+              "packSize": 1000,
+              "packSizeUnit": "ml",
+              "packQuantity": 1,
+              "shippedBy": "essentialbiocropscience",
+              "totalBaseQuantity": 1000,
+              "totalBaseUnit": "ml",
+              "displayRate": 510.0,
+              "printedMrp": 1200.0,
+              "discountRs": 690.0,
+              "gstPercentage": 5.0,
+              "discountPercentage": 57.5,
+              "stock": 100,
+              "pricePerBaseUnit": 0.51,
+              "displayOrder": 1,
+              "isDefault": true
+            }
+          ]
+        },
+        {
+          "id": "6ad871a41df71c7f599dd973",
+          "sku": "KKR - 66",
+          "productCode": "PRD-6AB4ADA822033F1670582BDA-000066",
+          "hsnCode": "3808",
+          "title": "Black Scorpion insecticide - Lambda Cyhalothrin 4.9% CS",
+          "technicalName": "Lambda Cyhalothrin 4.9% CS",
+          "vendor": "Essential Bio Crop Science",
+          "description": "<p>Black Scorpion Insecticide</p>",
+          "images": [],
+          "productImages": [],
+          "technicalContent": "Lambda Cyhalothrin 4.9% CS",
+          "features": ["Fast knockdown"],
+          "benefits": ["Long residual control"],
+          "modeOfAction": "Nerve axon sodium channel modulator",
+          "dosage": "1.5 ml/L",
+          "applicationMethod": "Foliar spray",
+          "category": "Insecticides",
+          "categoryId": "6ad8582568a1edff7a609fee",
+          "isAvailable": true,
+          "isFeatured": true,
+          "variants": [
+            {
+              "id": "v2",
+              "label": "500 ml",
+              "unit": "ml",
+              "packSize": 500,
+              "packSizeUnit": "ml",
+              "packQuantity": 1,
+              "shippedBy": "essentialbiocropscience",
+              "totalBaseQuantity": 500,
+              "totalBaseUnit": "ml",
+              "displayRate": 480.0,
+              "printedMrp": 950.0,
+              "discountRs": 470.0,
+              "gstPercentage": 18.0,
+              "discountPercentage": 49.5,
+              "stock": 80,
+              "pricePerBaseUnit": 0.96,
+              "displayOrder": 1,
+              "isDefault": true
+            }
+          ]
+        },
+        {
+          "id": "6ad871a51df71c7f599dd984",
+          "sku": "KKR - 77",
+          "productCode": "PRD-6AB4ADA822033F1670582BDA-000077",
+          "hsnCode": "3102",
+          "title": "AgriBegri NitroKing - Concentrated Nitrogen Bio-Liquid 20%",
+          "technicalName": "Organic Liquid Nitrogen 20% SL",
+          "vendor": "AgriBegri Crop Science",
+          "description": "<p>High-efficiency liquid organic nitrogen</p>",
+          "images": [],
+          "productImages": [],
+          "technicalContent": "Total Organic Nitrogen (N): 20.0%",
+          "features": ["100% bio-available nitrogen"],
+          "benefits": ["Accelerates tillering"],
+          "modeOfAction": "Systemic foliar absorption",
+          "dosage": "2.5 ml/L",
+          "applicationMethod": "Foliar or drip",
+          "category": "Fertilizers",
+          "categoryId": "6ad8582568a1edff7a609fee",
+          "isAvailable": true,
+          "isFeatured": true,
+          "variants": [
+            {
+              "id": "v3",
+              "label": "1 Litre",
+              "unit": "ml",
+              "packSize": 1000,
+              "packSizeUnit": "ml",
+              "packQuantity": 1,
+              "shippedBy": "AgriBegri Express",
+              "totalBaseQuantity": 1000,
+              "totalBaseUnit": "ml",
+              "displayRate": 420.0,
+              "printedMrp": 599.0,
+              "discountRs": 179.0,
+              "gstPercentage": 5.0,
+              "discountPercentage": 29.8,
+              "stock": 240,
+              "pricePerBaseUnit": 0.42,
+              "displayOrder": 1,
+              "isDefault": true
+            }
+          ]
+        },
+        {
+          "id": "6ad871a61df71c7f599dd995",
+          "sku": "KKR - 88",
+          "productCode": "PRD-6AB4ADA822033F1670582BDA-000088",
+          "hsnCode": "3808",
+          "title": "BioShield Neem Gold 10,000 PPM Azadirachtin EC",
+          "technicalName": "Azadirachtin 1.0% EC",
+          "vendor": "Krishi Kranti Organics",
+          "description": "<p>Cold-pressed pure neem kernel extract</p>",
+          "images": [],
+          "productImages": [],
+          "technicalContent": "Azadirachtin 10000 PPM",
+          "features": ["Certified organic"],
+          "benefits": ["Controls sucking pests"],
+          "modeOfAction": "Antifeedant and insect growth regulator",
+          "dosage": "2 ml/L",
+          "applicationMethod": "Foliar spray",
+          "category": "Insecticides",
+          "categoryId": "6ad8582568a1edff7a609fee",
+          "isAvailable": true,
+          "isFeatured": true,
+          "variants": [
+            {
+              "id": "v4",
+              "label": "500 ml",
+              "unit": "ml",
+              "packSize": 500,
+              "packSizeUnit": "ml",
+              "packQuantity": 1,
+              "shippedBy": "Seller Standard",
+              "totalBaseQuantity": 500,
+              "totalBaseUnit": "ml",
+              "displayRate": 580.0,
+              "printedMrp": 750.0,
+              "discountRs": 170.0,
+              "gstPercentage": 18.0,
+              "discountPercentage": 22.6,
+              "stock": 45,
+              "pricePerBaseUnit": 1.16,
+              "displayOrder": 1,
+              "isDefault": true
+            }
+          ]
+        },
+        {
+          "id": "6ad871a71df71c7f599dd906",
+          "sku": "KKR - 99",
+          "productCode": "PRD-6AB4ADA822033F1670582BDA-000099",
+          "hsnCode": "3105",
+          "title": "Agribegri PhosphoMax - Water Soluble NPK 00:52:34",
+          "technicalName": "Mono Potassium Phosphate",
+          "vendor": "AgriBegri Crop Science",
+          "description": "<p>Premium imported mono-potassium phosphate</p>",
+          "images": [],
+          "productImages": [],
+          "technicalContent": "Water Soluble Phosphate (P2O5): 52%",
+          "features": ["100% water soluble"],
+          "benefits": ["Promotes vigorous root development"],
+          "modeOfAction": "Osmotic uptake",
+          "dosage": "5 g/L",
+          "applicationMethod": "Drip or foliar",
+          "category": "Fertilizers",
+          "categoryId": "6ad8582568a1edff7a609fee",
+          "isAvailable": true,
+          "isFeatured": false,
+          "variants": [
+            {
+              "id": "v5",
+              "label": "1 kg Pouch",
+              "unit": "kg",
+              "packSize": 1,
+              "packSizeUnit": "kg",
+              "packQuantity": 1,
+              "shippedBy": "AgriBegri Express",
+              "totalBaseQuantity": 1,
+              "totalBaseUnit": "kg",
+              "displayRate": 235.0,
+              "printedMrp": 310.0,
+              "discountRs": 75.0,
+              "gstPercentage": 5.0,
+              "discountPercentage": 24.1,
+              "stock": 180,
+              "pricePerBaseUnit": 235.0,
+              "displayOrder": 1,
+              "isDefault": true
+            }
+          ]
+        },
+        {
+          "id": "6ad871a81df71c7f599dd917",
+          "sku": "KKR - 02",
+          "productCode": "PRD-6AB4ADA822033F1670582BDA-000002",
+          "hsnCode": "3104",
+          "title": "Potassium Schoenite Fertilizer 23% K2O + 11% MgO",
+          "technicalName": "Potassium Magnesium Sulphate",
+          "vendor": "Essential Bio Crop Science",
+          "description": "<p>Natural mineral based double sulphate fertilizer</p>",
+          "images": [],
+          "productImages": [],
+          "technicalContent": "Potash: 23%, Magnesium: 11%, Sulphur: 16%",
+          "features": ["Chlorine-free"],
+          "benefits": ["Improves crop quality"],
+          "modeOfAction": "Root assimilation",
+          "dosage": "10 g/L",
+          "applicationMethod": "Soil or foliar",
+          "category": "Fertilizers",
+          "categoryId": "6ad8582568a1edff7a609fee",
+          "isAvailable": true,
+          "isFeatured": false,
+          "variants": [
+            {
+              "id": "v6",
+              "label": "1 kg Pouch",
+              "unit": "kg",
+              "packSize": 1,
+              "packSizeUnit": "kg",
+              "packQuantity": 1,
+              "shippedBy": "Platform Express Hub",
+              "totalBaseQuantity": 1,
+              "totalBaseUnit": "kg",
+              "displayRate": 360.0,
+              "printedMrp": 499.0,
+              "discountRs": 139.0,
+              "gstPercentage": 12.0,
+              "discountPercentage": 27.9,
+              "stock": 350,
+              "pricePerBaseUnit": 360.0,
+              "displayOrder": 1,
+              "isDefault": true
+            }
+          ]
+        }
+      ];
+
+      final startIndex = page * size;
+      final endIndex = startIndex + size > allProducts.length ? allProducts.length : startIndex + size;
+      final paginated = startIndex < allProducts.length ? allProducts.sublist(startIndex, endIndex) : <Map<String, dynamic>>[];
+
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Products retrieved successfully",
+          "data": {
+            "content": paginated,
+            "page": page,
+            "size": size,
+            "totalElements": allProducts.length,
+            "totalPages": (allProducts.length / size).ceil(),
+            "first": page == 0,
+            "last": endIndex >= allProducts.length,
+            "count": paginated.length,
+          },
+          "timestamp": "2026-10-23T10:39:17.659095962"
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     return http.Response('{"error": "Not found"}', 404);
   });
 
@@ -53,10 +357,8 @@ void main() {
     expect(find.byIcon(Icons.lock_outline_rounded), findsWidgets);
 
     // Password form fields & actions
-    expect(find.text('Email, Phone or GSTIN'), findsOneWidget);
+    expect(find.text('Admin Email / Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
-    expect(find.text('Remember me'), findsOneWidget);
-    expect(find.text('Forgot Password?'), findsOneWidget);
     expect(find.text('Sign In to Dashboard'), findsOneWidget);
   });
 
@@ -94,9 +396,10 @@ void main() {
     expect(find.text('Agricultural Catalog & Master Inventory'), findsOneWidget);
     expect(find.text('Add Product'), findsOneWidget);
     expect(find.byIcon(Icons.edit_outlined), findsWidgets);
+    expect(find.byType(ProductHoverPreviewThumbnail), findsWidgets);
 
     // Tap product title to open full 38-field Product Details
-    await tester.tap(find.text('[TEST ONLY - NOT FOR SALE] Crop Protection Insecticide Sample'));
+    await tester.tap(find.text('Beauveria Bassiana - Bio Pesticide'));
     await tester.pumpAndSettle();
 
     // Verify Product Details View is displayed with agronomy and pricing
@@ -188,7 +491,7 @@ void main() {
     expect(find.text('Rows per page:'), findsOneWidget);
 
     // Switch rows per page to 5
-    await tester.tap(find.text('10').last);
+    await tester.tap(find.text('20').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('5').last);
     await tester.pumpAndSettle();
@@ -329,6 +632,132 @@ void main() {
 
     // Verify catalog remains stable and responsive
     expect(find.text('Agricultural Catalog & Master Inventory'), findsOneWidget);
+  });
+
+  testWidgets('Product Details View allows editing multi-variants, adding new SKUs, and displays original image', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Go to Products
+    await tester.tap(find.text('Products').first);
+    await tester.pumpAndSettle();
+
+    // Open first product details
+    await tester.tap(find.text('Beauveria Bassiana - Bio Pesticide'));
+    await tester.pumpAndSettle();
+
+    // Verify variants card is present
+    expect(find.textContaining('Packaging & Commercial Variants'), findsOneWidget);
+    expect(find.text('Original Image'), findsOneWidget);
+    expect(find.text('All Packaging SKUs Matrix'), findsOneWidget);
+    expect(find.text('Edit Variants'), findsOneWidget);
+
+    // Tap Edit Variants to activate editing mode
+    await tester.tap(find.text('Edit Variants'));
+    await tester.pumpAndSettle();
+
+    // Verify Active Variant Editor is shown
+    expect(find.textContaining('Editing SKU #1'), findsOneWidget);
+    expect(find.text('Variant Label / Name *'), findsOneWidget);
+    expect(find.text('Pack Quantity *'), findsOneWidget);
+    expect(find.text('Add SKU'), findsWidgets);
+
+    // Tap Add SKU
+    final addSkuFinder = find.text('Add SKU').first;
+    await tester.ensureVisible(addSkuFinder);
+    await tester.tap(addSkuFinder);
+    await tester.pumpAndSettle();
+
+    // Verify a new SKU was added
+    expect(find.textContaining('Editing SKU #2'), findsOneWidget);
+
+    // Save changes
+    final saveFinder = find.text('Save Changes');
+    await tester.ensureVisible(saveFinder);
+    await tester.tap(saveFinder);
+    await tester.pumpAndSettle();
+
+    // Verify view mode restored
+    expect(find.text('EDIT MODE ACTIVE'), findsNothing);
+  });
+
+  testWidgets('AppHtmlView parses HTML descriptions and renders headings, paragraphs, and list items', (WidgetTester tester) async {
+    const htmlSnippet = '<h2>Product Overview</h2><p><strong>Bio Pesticide</strong> works through contact action.</p><ul><li>Active: Beauveria</li><li>Formulation: Liquid</li></ul>';
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: AppHtmlView(
+            htmlData: htmlSnippet,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppHtmlView), findsOneWidget);
+    expect(find.byType(RichText), findsWidgets);
+
+    // Verify rendered RichText spans contain the parsed HTML content
+    final richTexts = tester.widgetList<RichText>(find.byType(RichText));
+    final combinedPlainText = richTexts.map((r) => r.text.toPlainText()).join(' ');
+
+    expect(combinedPlainText, contains('Product Overview'));
+    expect(combinedPlainText, contains('Bio Pesticide'));
+    expect(combinedPlainText, contains('works through contact action'));
+    expect(combinedPlainText, contains('Beauveria'));
+    expect(combinedPlainText, contains('Formulation: Liquid'));
+  });
+
+  testWidgets('AppHtmlView clamps to 4 lines and toggles more... and less...', (WidgetTester tester) async {
+    const longHtml = '<h2>Overview</h2><p>Line 1 of detailed text.</p><p>Line 2 with more explanations.</p><p>Line 3 about crop protection.</p><p>Line 4 with application dosage.</p><p>Line 5 extra details.</p>';
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: AppHtmlView(
+            htmlData: longHtml,
+            collapsible: true,
+            maxLines: 4,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify initial state shows "more..." button
+    expect(find.text('more...'), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+
+    // Tap "more..."
+    await tester.tap(find.text('more...'));
+    await tester.pumpAndSettle();
+
+    // Verify expanded state shows "less..." button
+    expect(find.text('less...'), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_up_rounded), findsOneWidget);
+
+    // Tap "less..."
+    await tester.tap(find.text('less...'));
+    await tester.pumpAndSettle();
+
+    // Verify collapsed back to "more..."
+    expect(find.text('more...'), findsOneWidget);
   });
 }
 

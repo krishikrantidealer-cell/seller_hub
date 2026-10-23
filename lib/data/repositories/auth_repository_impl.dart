@@ -16,7 +16,6 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthSession> loginWithPassword({
     required String email,
     required String password,
-    required bool rememberMe,
   }) async {
     final responseDto = await remoteDataSource.loginWithPassword(
       email: email,
@@ -32,12 +31,6 @@ class AuthRepositoryImpl implements AuthRepository {
       userId: session.userId,
       role: session.role,
       phoneNumber: session.phoneNumber,
-    );
-
-    // Save remember-me preferences
-    await tokenStorage.saveRememberMe(
-      rememberMe: rememberMe,
-      identifier: email,
     );
 
     return session;
@@ -71,15 +64,5 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> logout() async {
     await tokenStorage.clearSession();
-  }
-
-  @override
-  Future<String?> getSavedIdentifier() async {
-    return tokenStorage.getSavedIdentifier();
-  }
-
-  @override
-  Future<bool> getRememberMe() async {
-    return tokenStorage.getRememberMe();
   }
 }

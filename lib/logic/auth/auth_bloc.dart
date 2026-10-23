@@ -7,12 +7,9 @@ import 'auth_state.dart';
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository authRepository;
 
-  AuthBloc({required this.authRepository})
-      : super(const AuthState()) {
+  AuthBloc({required this.authRepository}) : super(const AuthState()) {
     on<CheckAuthStatus>(_onCheckAuthStatus);
     on<LoginSubmitted>(_onLoginSubmitted);
-    on<OtpRequested>(_onOtpRequested);
-    on<OtpSubmitted>(_onOtpSubmitted);
     on<LogoutRequested>(_onLogoutRequested);
   }
 
@@ -42,69 +39,62 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final cleanIdentifier = event.identifier.trim();
     final cleanPassword = event.password;
 
-    if (cleanIdentifier.isEmpty || cleanPassword.isEmpty) {
+    final fieldErrors = <String, String>{};
+    if (cleanIdentifier.isEmpty) {
+      fieldErrors['identifier'] = 'Admin email is required';
+      fieldErrors['email'] = 'Admin email is required';
+    } else if (cleanIdentifier.contains('@') &&
+        !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(cleanIdentifier)) {
+      fieldErrors['identifier'] = 'Please enter a valid email address';
+      fieldErrors['email'] = 'Please enter a valid email address';
+    }
+
+    if (cleanPassword.isEmpty) {
+      fieldErrors['password'] = 'Password is required';
+    } else if (cleanPassword.length < 6) {
+      fieldErrors['password'] = 'Password must be at least 6 characters';
+    }
+
+    if (fieldErrors.isNotEmpty) {
       emit(state.copyWith(
         status: AuthStatus.error,
-        errorMessage: 'Please enter both your email/phone and password.',
+        errorMessage: 'Please enter valid admin credentials.',
+        validationErrors: fieldErrors,
       ));
       return;
     }
 
-    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    emit(state.copyWith(
+      status: AuthStatus.loading,
+      errorMessage: null,
+      validationErrors: null,
+    ));
 
     try {
       final session = await authRepository.loginWithPassword(
         email: cleanIdentifier,
         password: cleanPassword,
-        rememberMe: event.rememberMe,
       );
 
       emit(state.copyWith(
         status: AuthStatus.authenticated,
         session: session,
         errorMessage: null,
+        validationErrors: null,
       ));
     } on ApiException catch (e) {
       emit(state.copyWith(
         status: AuthStatus.error,
         errorMessage: e.message,
+        validationErrors: e.validationErrors,
       ));
     } catch (e) {
       emit(state.copyWith(
         status: AuthStatus.error,
         errorMessage: 'Login failed: ${e.toString()}',
+        validationErrors: null,
       ));
     }
-  }
-
-  Future<void> _onOtpRequested(
-    OtpRequested event,
-    Emitter<AuthState> emit,
-  ) async {
-    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
-    await Future.delayed(const Duration(milliseconds: 500));
-    emit(state.copyWith(status: AuthStatus.unauthenticated, isOtpSent: true));
-  }
-
-  Future<void> _onOtpSubmitted(
-    OtpSubmitted event,
-    Emitter<AuthState> emit,
-  ) async {
-    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    if (event.otp.length < 6) {
-      emit(state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: 'Invalid 6-digit OTP code',
-      ));
-      return;
-    }
-
-    emit(state.copyWith(
-      status: AuthStatus.authenticated,
-      isOtpSent: false,
-    ));
   }
 
   Future<void> _onLogoutRequested(

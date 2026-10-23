@@ -1,0 +1,377 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:seller_hub/core/models/product.dart';
+import 'package:seller_hub/core/network/api_exception.dart';
+import 'package:seller_hub/domain/repositories/product_repository.dart';
+import 'package:seller_hub/logic/product/product_bloc.dart';
+import 'package:seller_hub/logic/product/product_event.dart';
+import 'package:seller_hub/logic/product/product_state.dart';
+
+class MockProductRepository implements ProductRepository {
+  bool shouldThrow = false;
+  String errorMessage = 'Failed to fetch products';
+  ProductPageData? pageDataToReturn;
+  ProductPageData? cachedDataToReturn;
+  Product? lastUpdatedProduct;
+
+  @override
+  Future<ProductPageData?> getCachedProducts({
+    int page = 0,
+    int size = 20,
+  }) async {
+    return cachedDataToReturn;
+  }
+
+  @override
+  Future<void> updateLocalProduct(Product product) async {
+    lastUpdatedProduct = product;
+  }
+
+  @override
+  Future<ProductPageData> getProducts({
+    int page = 0,
+    int size = 20,
+  }) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+
+    if (pageDataToReturn != null) {
+      return pageDataToReturn!;
+    }
+
+    return ProductPageData(
+      content: [
+        Product(
+          id: '6ad871a31df71c7f599dd954',
+          sku: 'KKR - 35',
+          productCode: 'PRD-6AB4ADA822033F1670582BDA-000035',
+          hsnCode: '3808',
+          title: 'Beauveria Bassiana - Bio Pesticide',
+          technicalName: 'Beauveria bassiana',
+          vendor: 'Essential Bio Crop Science',
+          description: 'Beauveria Bassiana Bio Pesticide',
+          images: const ['https://storage.googleapis.com/test-img.jpg'],
+          productImages: const [
+            ProductImage(
+              id: '0ee2dd28',
+              displayOrder: 0,
+              midUrl: 'https://storage.googleapis.com/test-img.jpg',
+            ),
+          ],
+          technicalContent: '5x10^8 CFU/ml min',
+          modeOfAction: 'Fungal contact action',
+          dosage: '2.5 ml / L',
+          applicationMethod: 'Foliar spray',
+          category: 'Bio Pesticide',
+          isAvailable: true,
+          isFeatured: true,
+          ratings: 4.8,
+          refundPolicy: '7 Days Returnable',
+          productWeight: 1.0,
+          productWeightUnit: 'kg',
+          variants: const [
+            ProductVariant(
+              id: 'd4642c25c62d3220a533aa5d',
+              label: '1 ltr (1000ml x 1)',
+              unit: 'ml',
+              packSize: 1000,
+              displayRate: 510.0,
+              printedMrp: 1200.0,
+              stock: 100,
+              pricePerBaseUnit: 0.51,
+              isDefault: true,
+            ),
+          ],
+        ),
+      ],
+      page: page,
+      size: size,
+      totalElements: 68,
+      totalPages: 4,
+      first: page == 0,
+      last: page == 3,
+      count: 1,
+    );
+  }
+}
+
+void main() {
+  late MockProductRepository repository;
+  late ProductBloc productBloc;
+
+  setUp(() {
+    repository = MockProductRepository();
+    productBloc = ProductBloc(productRepository: repository);
+  });
+
+  tearDown(() {
+    productBloc.close();
+  });
+
+  group('ProductBloc Tests', () {
+    test('initial state has ProductStatus.initial', () {
+      expect(productBloc.state.status, equals(ProductStatus.initial));
+      expect(productBloc.state.products, isEmpty);
+      expect(productBloc.state.currentPage, equals(0));
+      expect(productBloc.state.pageSize, equals(20));
+    });
+
+    test('FetchProducts emits [loading, loaded] on successful repository call', () async {
+      final expectedStates = [
+        const ProductState(
+          status: ProductStatus.loading,
+          currentPage: 0,
+          pageSize: 20,
+        ),
+        predicate<ProductState>((state) {
+          return state.status == ProductStatus.loaded &&
+              state.products.length == 1 &&
+              state.products.first.title == 'Beauveria Bassiana - Bio Pesticide' &&
+              state.pageData.totalElements == 68 &&
+              state.pageData.totalPages == 4;
+        }),
+      ];
+
+      expectLater(productBloc.stream, emitsInOrder(expectedStates));
+
+      productBloc.add(const FetchProducts(page: 0, size: 20));
+    });
+
+    test('FetchProducts emits [loading, error] on ApiException', () async {
+      repository.shouldThrow = true;
+      repository.errorMessage = 'Server error retrieving products';
+
+      final expectedStates = [
+        const ProductState(
+          status: ProductStatus.loading,
+          currentPage: 0,
+          pageSize: 20,
+        ),
+        predicate<ProductState>((state) {
+          return state.status == ProductStatus.error &&
+              state.errorMessage == 'Server error retrieving products';
+        }),
+      ];
+
+      expectLater(productBloc.stream, emitsInOrder(expectedStates));
+
+      productBloc.add(const FetchProducts(page: 0, size: 20));
+    });
+
+    test('SelectProductPage triggers FetchProducts with requested page', () async {
+      productBloc.add(const SelectProductPage(2));
+
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(
+          predicate<ProductState>((s) => s.status == ProductStatus.loaded && s.currentPage == 2),
+        ),
+      );
+    });
+
+    test('ChangeProductPageSize triggers FetchProducts with page 0 and new size', () async {
+      productBloc.add(const ChangeProductPageSize(50));
+
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(
+          predicate<ProductState>((s) => s.status == ProductStatus.loaded && s.pageSize == 50),
+        ),
+      );
+    });
+
+    test('UpdateLocalProduct updates product locally in state without full refetch', () async {
+      productBloc.add(const FetchProducts(page: 0, size: 20));
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(predicate<ProductState>((s) => s.status == ProductStatus.loaded)),
+      );
+
+      final originalProduct = productBloc.state.products.first;
+      final updatedProduct = originalProduct.copyWith(title: 'Updated Beauveria Title');
+
+      productBloc.add(UpdateLocalProduct(updatedProduct));
+
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(
+          predicate<ProductState>((s) => s.products.first.title == 'Updated Beauveria Title'),
+        ),
+      );
+    });
+
+    test('InitializeProducts hydrates from cache immediately (0ms) without showing loading spinner', () async {
+      repository.cachedDataToReturn = ProductPageData(
+        content: [
+          Product(
+            id: 'cached-1',
+            sku: 'KKR - 99',
+            productCode: 'PRD-CACHED-001',
+            hsnCode: '3808',
+            title: 'Cached Neem Oil Organic',
+            technicalName: 'Azadirachtin 1%',
+            vendor: 'Essential Bio Crop Science',
+            description: 'Organic Cold Pressed Neem Oil',
+            images: const ['https://storage.googleapis.com/test-img.jpg'],
+            technicalContent: '10000 PPM',
+            modeOfAction: 'Repellent and Anti-feedant',
+            dosage: '3 ml / L',
+            applicationMethod: 'Foliar spray',
+            category: 'Bio Pesticide',
+            isAvailable: true,
+            isFeatured: true,
+            ratings: 4.9,
+            refundPolicy: '7 Days Returnable',
+            productWeight: 1.0,
+            productWeightUnit: 'L',
+            displayRate: 450.0,
+            printedMrp: 900.0,
+            stock: 50,
+          ),
+        ],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+        first: true,
+        last: true,
+        count: 1,
+      );
+
+      productBloc.add(const InitializeProducts(page: 0, size: 20));
+
+      // Verify the first emitted state has status loaded IMMEDIATELY (no ProductStatus.loading)
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(
+          predicate<ProductState>((s) =>
+              s.status == ProductStatus.loaded &&
+              s.products.isNotEmpty &&
+              s.products.first.title == 'Cached Neem Oil Organic'),
+        ),
+      );
+    });
+
+    test('WebSocketProductUpdateReceived updates product in-place with 0ms loading', () async {
+      // First populate bloc with initial product
+      productBloc.add(const FetchProducts(page: 0, size: 20));
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(predicate<ProductState>((s) => s.status == ProductStatus.loaded)),
+      );
+
+      // Simulate incoming WebSocket update payload
+      final updatedPayload = {
+        'type': 'PRODUCT_UPDATE',
+        'data': {
+          'id': '6ad871a31df71c7f599dd954',
+          'sku': 'KKR - 35',
+          'productCode': 'PRD-6AB4ADA822033F1670582BDA-000035',
+          'title': 'Beauveria Bassiana - Updated Live via WebSocket',
+          'displayRate': 599.0,
+          'printedMrp': 1400.0,
+          'stock': 120,
+        },
+      };
+
+      productBloc.add(WebSocketProductUpdateReceived(updatedPayload));
+
+      // Verify state reflects change without entering ProductStatus.loading
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(
+          predicate<ProductState>((s) =>
+              s.status == ProductStatus.loaded &&
+              s.products.first.title == 'Beauveria Bassiana - Updated Live via WebSocket' &&
+              s.products.first.displayRate == 599.0),
+        ),
+      );
+    });
+
+    test('WebSocket stock update modifies product stock in real-time', () async {
+      productBloc.add(const FetchProducts(page: 0, size: 20));
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(predicate<ProductState>((s) => s.status == ProductStatus.loaded)),
+      );
+
+      final stockPayload = {
+        'type': 'STOCK_UPDATED',
+        'data': {
+          'productId': '6ad871a31df71c7f599dd954',
+          'stock': 42,
+        },
+      };
+
+      productBloc.add(WebSocketProductUpdateReceived(stockPayload));
+
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(
+          predicate<ProductState>((s) =>
+              s.status == ProductStatus.loaded &&
+              s.products.first.stock == 42),
+        ),
+      );
+    });
+
+    test('Product fromJson correctly decodes MongoDB multi-variants with commercial attributes', () {
+      final mongoJson = {
+        'id': '6ad871a31df71c7f599dd954',
+        'sku': 'KKR - 35',
+        'productCode': 'PRD-6AB4ADA822033F1670582BDA-000035',
+        'hsnCode': '3808',
+        'title': 'Beauveria Bassiana - Bio Pesticide',
+        'category': null,
+        'categoryId': '6ad8582568a1edff7a609fee',
+        'variants': [
+          {
+            'id': 'v1',
+            'label': '1 ltr (1000ml x 1)',
+            'packSize': 1000,
+            'packSizeUnit': 'ml',
+            'packQuantity': 1,
+            'displayRate': 510.0,
+            'printedMrp': 1200.0,
+            'stock': 100,
+            'isDefault': true,
+          },
+          {
+            'id': 'v2',
+            'label': '3 ltr (1000ml x 3)',
+            'packSize': 1000,
+            'packSizeUnit': 'ml',
+            'packQuantity': 3,
+            'displayRate': 1210.0,
+            'printedMrp': 3600.0,
+            'stock': 100,
+            'isDefault': false,
+          },
+          {
+            'id': 'v3',
+            'label': '10 ltr (1000ml x 10)',
+            'packSize': 1000,
+            'packSizeUnit': 'ml',
+            'packQuantity': 10,
+            'displayRate': 3740.0,
+            'printedMrp': 12000.0,
+            'stock': 100,
+            'isDefault': false,
+          },
+        ],
+      };
+
+      final product = Product.fromJson(mongoJson);
+
+      expect(product.variantsCount, 3);
+      expect(product.hasMultipleVariants, true);
+      expect(product.minDisplayRate, 510.0);
+      expect(product.maxDisplayRate, 3740.0);
+      expect(product.priceRangeFormatted, '₹510 - ₹3740');
+      expect(product.mrpRangeFormatted, '₹1200 - ₹12000');
+      expect(product.totalStock, 300);
+      expect(product.defaultVariant?.label, '1 ltr (1000ml x 1)');
+      expect(product.resolvedCategory, 'Bio Pesticides');
+    });
+  });
+}

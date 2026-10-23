@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/product.dart';
+import '../widgets/app_product_image.dart';
+import '../widgets/app_html_view.dart';
 
 class ProductDetailsView extends StatefulWidget {
   final Product product;
@@ -46,6 +48,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late TextEditingController _variantController;
   late TextEditingController _packSizeController;
   late TextEditingController _unitController;
+  late TextEditingController _packQuantityController;
   late TextEditingController _displayRateController;
   late TextEditingController _printedMrpController;
   late TextEditingController _costPriceController;
@@ -63,6 +66,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late bool _editIsAvailable;
   // late bool _editIsFeatured; // isFeatured temporarily commented out
 
+  int _selectedVariantIndex = 0;
+  List<ProductVariant> _workingVariants = [];
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +78,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
 
   void _initControllers(Product p) {
+    _workingVariants = List.from(p.variants);
+    final defIdx = _workingVariants.indexWhere((v) => v.isDefault);
+    _selectedVariantIndex = defIdx != -1 ? defIdx : 0;
+    final initialVar = _workingVariants.isNotEmpty ? _workingVariants[_selectedVariantIndex] : null;
+
     _titleController = TextEditingController(text: p.title);
     _techNameController = TextEditingController(text: p.technicalName);
     _productCodeController = TextEditingController(text: p.productCode);
@@ -90,16 +101,17 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _targetDiseasesController = TextEditingController(text: p.targetDiseases);
     _dosageController = TextEditingController(text: p.dosage);
     _appMethodController = TextEditingController(text: p.applicationMethod);
-    _variantController = TextEditingController(text: p.variant);
-    _packSizeController = TextEditingController(text: p.packSize);
-    _unitController = TextEditingController(text: p.unit);
-    _displayRateController = TextEditingController(text: p.displayRate.toStringAsFixed(2));
-    _printedMrpController = TextEditingController(text: p.printedMrp.toStringAsFixed(2));
-    _costPriceController = TextEditingController(text: p.costPrice.toStringAsFixed(2));
-    _gstController = TextEditingController(text: p.gst.toStringAsFixed(0));
-    _shippedByController = TextEditingController(text: p.shippedBy);
+    _variantController = TextEditingController(text: initialVar?.label ?? p.variant);
+    _packSizeController = TextEditingController(text: (initialVar != null ? initialVar.packSize : (int.tryParse(p.packSize) ?? 1)).toString());
+    _unitController = TextEditingController(text: initialVar?.unit ?? p.unit);
+    _packQuantityController = TextEditingController(text: (initialVar?.packQuantity ?? 1).toString());
+    _displayRateController = TextEditingController(text: (initialVar?.displayRate ?? p.displayRate).toStringAsFixed(2));
+    _printedMrpController = TextEditingController(text: (initialVar?.printedMrp ?? p.printedMrp).toStringAsFixed(2));
+    _costPriceController = TextEditingController(text: (initialVar?.costPrice ?? p.costPrice).toStringAsFixed(2));
+    _gstController = TextEditingController(text: (initialVar?.gstPercentage ?? p.gst).toStringAsFixed(0));
+    _shippedByController = TextEditingController(text: initialVar?.shippedBy ?? p.shippedBy);
     _swgController = TextEditingController(text: p.swg);
-    _stockController = TextEditingController(text: p.stock.toString());
+    _stockController = TextEditingController(text: (initialVar?.stock ?? p.stock).toString());
     _ratingsController = TextEditingController(text: p.ratings.toStringAsFixed(1));
     _refundPolicyController = TextEditingController(text: p.refundPolicy);
     _weightController = TextEditingController(text: p.productWeight.toStringAsFixed(2));
@@ -113,6 +125,153 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
   void _resetControllers() {
     _initControllers(_currentProduct);
+  }
+
+  void _syncCurrentVariantFromControllers() {
+    if (_workingVariants.isEmpty || _selectedVariantIndex >= _workingVariants.length) return;
+    final cur = _workingVariants[_selectedVariantIndex];
+    final disp = double.tryParse(_displayRateController.text.trim()) ?? cur.displayRate;
+    final mrp = double.tryParse(_printedMrpController.text.trim()) ?? cur.printedMrp;
+    final cp = double.tryParse(_costPriceController.text.trim()) ?? cur.costPrice;
+    final st = int.tryParse(_stockController.text.trim()) ?? cur.stock;
+    final ps = int.tryParse(_packSizeController.text.trim()) ?? cur.packSize;
+    final pq = int.tryParse(_packQuantityController.text.trim()) ?? cur.packQuantity;
+    final unit = _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : cur.unit;
+    final disc = (mrp > disp) ? (mrp - disp) : 0.0;
+    final discPct = mrp > 0 ? (disc / mrp * 100) : 0.0;
+    final totalBase = (ps > 0 && pq > 0) ? (ps * pq) : cur.totalBaseQuantity;
+    final pricePerBase = totalBase > 0 ? (disp / totalBase) : 0.0;
+
+    _workingVariants[_selectedVariantIndex] = cur.copyWith(
+      label: _variantController.text.trim(),
+      packSize: ps,
+      unit: unit,
+      packSizeUnit: unit,
+      packQuantity: pq,
+      totalBaseQuantity: totalBase,
+      totalBaseUnit: unit,
+      pricePerBaseUnit: pricePerBase,
+      displayRate: disp,
+      printedMrp: mrp,
+      costPrice: cp,
+      discountRs: disc,
+      discountPercentage: discPct,
+      stock: st,
+      gstPercentage: double.tryParse(_gstController.text.trim()) ?? cur.gstPercentage,
+      shippedBy: _shippedByController.text.trim(),
+    );
+  }
+
+  void _onVariantFieldChanged() {
+    _syncCurrentVariantFromControllers();
+    setState(() {});
+  }
+
+  void _selectVariant(int index) {
+    if (index < 0 || index >= _workingVariants.length) return;
+    if (_isEditing) {
+      _syncCurrentVariantFromControllers();
+    }
+    setState(() {
+      _selectedVariantIndex = index;
+      final v = _workingVariants[index];
+      _variantController.text = v.label;
+      _packSizeController.text = v.packSize.toString();
+      _unitController.text = v.unit;
+      _packQuantityController.text = v.packQuantity.toString();
+      _displayRateController.text = v.displayRate.toStringAsFixed(2);
+      _printedMrpController.text = v.printedMrp.toStringAsFixed(2);
+      _costPriceController.text = v.costPrice.toStringAsFixed(2);
+      _stockController.text = v.stock.toString();
+      _shippedByController.text = v.shippedBy;
+      _gstController.text = v.gstPercentage.toStringAsFixed(0);
+    });
+  }
+
+  void _addVariant() {
+    if (_isEditing) {
+      _syncCurrentVariantFromControllers();
+    }
+    setState(() {
+      final newIndex = _workingVariants.length + 1;
+      final unit = _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : 'ml';
+      final newVariant = ProductVariant(
+        id: 'var_${DateTime.now().millisecondsSinceEpoch}',
+        displayOrder: newIndex,
+        isDefault: _workingVariants.isEmpty,
+        label: 'Pack $newIndex (${_packSizeController.text.trim()}$unit x 1)',
+        unit: unit,
+        packSize: int.tryParse(_packSizeController.text.trim()) ?? 1,
+        packSizeUnit: unit,
+        packQuantity: 1,
+        packUnit: 'pack',
+        shippedBy: _shippedByController.text.trim().isNotEmpty
+            ? _shippedByController.text.trim()
+            : (_vendorController.text.trim().isNotEmpty ? _vendorController.text.trim() : 'Seller Standard'),
+        totalBaseQuantity: int.tryParse(_packSizeController.text.trim()) ?? 1,
+        totalBaseUnit: unit,
+        displayRate: double.tryParse(_displayRateController.text.trim()) ?? 500.0,
+        printedMrp: double.tryParse(_printedMrpController.text.trim()) ?? 999.0,
+        costPrice: double.tryParse(_costPriceController.text.trim()) ?? 350.0,
+        stock: 50,
+        gstPercentage: double.tryParse(_gstController.text.trim()) ?? 18.0,
+      );
+      _workingVariants.add(newVariant);
+      _selectVariant(_workingVariants.length - 1);
+    });
+  }
+
+  void _duplicateVariant(int index) {
+    if (index < 0 || index >= _workingVariants.length) return;
+    if (_isEditing) {
+      _syncCurrentVariantFromControllers();
+    }
+    setState(() {
+      final source = _workingVariants[index];
+      final newIndex = _workingVariants.length + 1;
+      final duplicate = source.copyWith(
+        id: 'var_${DateTime.now().millisecondsSinceEpoch}',
+        displayOrder: newIndex,
+        isDefault: false,
+        label: '${source.label} (Copy)',
+      );
+      _workingVariants.add(duplicate);
+      _selectVariant(_workingVariants.length - 1);
+    });
+  }
+
+  void _deleteVariant(int index) {
+    if (_workingVariants.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Cannot delete the only remaining variant',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    setState(() {
+      final wasDefault = _workingVariants[index].isDefault;
+      _workingVariants.removeAt(index);
+      if (wasDefault && _workingVariants.isNotEmpty) {
+        _workingVariants[0] = _workingVariants[0].copyWith(isDefault: true);
+      }
+      final newIdx = (index >= _workingVariants.length) ? _workingVariants.length - 1 : index;
+      _selectVariant(newIdx);
+    });
+  }
+
+  void _setVariantAsDefault(int index) {
+    if (index < 0 || index >= _workingVariants.length) return;
+    setState(() {
+      for (int i = 0; i < _workingVariants.length; i++) {
+        _workingVariants[i] = _workingVariants[i].copyWith(isDefault: i == index);
+      }
+    });
   }
 
   @override
@@ -138,6 +297,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _variantController.dispose();
     _packSizeController.dispose();
     _unitController.dispose();
+    _packQuantityController.dispose();
     _displayRateController.dispose();
     _printedMrpController.dispose();
     _costPriceController.dispose();
@@ -186,6 +346,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         ),
       );
       return;
+    }
+
+    if (_isEditing) {
+      _syncCurrentVariantFromControllers();
     }
 
     final displayRate = double.tryParse(_displayRateController.text) ?? _currentProduct.displayRate;
@@ -242,6 +406,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       images: updatedImages,
       isAvailable: _editIsAvailable,
       isFeatured: _currentProduct.isFeatured,
+      variants: _workingVariants,
     );
 
     setState(() {
@@ -516,6 +681,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     children: [
                       _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
                       const SizedBox(height: 18),
+                      _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+                      const SizedBox(height: 18),
                       _buildAgronomyCard(p, isDark, surfaceColor, borderColor, cardBgColor),
                       const SizedBox(height: 18),
                       _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
@@ -529,6 +696,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             Column(
               children: [
                 _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+                const SizedBox(height: 16),
+                _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
                 const SizedBox(height: 16),
                 _buildImageAndMediaCard(p, isDark, surfaceColor, borderColor, cardBgColor),
                 const SizedBox(height: 16),
@@ -854,6 +1023,1012 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
 
   // ==========================================
+  // CARD: PACKAGING & COMMERCIAL VARIANTS (MongoDB BSON)
+  // ==========================================
+  Widget _buildVariantsCard(
+    Product p,
+    bool isDark,
+    Color surfaceColor,
+    Color borderColor,
+    Color cardBgColor,
+  ) {
+    final variantsList = _isEditing ? _workingVariants : p.variants;
+    if (variantsList.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final safeIdx = (_selectedVariantIndex < variantsList.length) ? _selectedVariantIndex : 0;
+    final activeVariant = variantsList[safeIdx];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.layers_rounded, color: Color(0xFF6366F1), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Packaging & Commercial Variants (${variantsList.length} SKUs)',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _isEditing
+                          ? 'Edit variant pricing, pack size, units, and inventory live'
+                          : 'MongoDB multi-variant architecture with pack quantity, unit pricing & stock',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              if (_isEditing) ...[
+                FilledButton.icon(
+                  onPressed: _addVariant,
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('Add SKU'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    textStyle: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ] else ...[
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isEditing = true;
+                    });
+                  },
+                  icon: const Icon(Icons.edit_note_rounded, size: 16),
+                  label: const Text('Edit Variants'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF059669),
+                    side: const BorderSide(color: Color(0xFF059669)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    textStyle: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Horizontal Variant Pill Selector
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                ...List.generate(variantsList.length, (idx) {
+                  final v = variantsList[idx];
+                  final isSelected = idx == safeIdx;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: InkWell(
+                      onTap: () => _selectVariant(idx),
+                      borderRadius: BorderRadius.circular(10),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF059669)
+                              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF059669)
+                                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (v.isDefault) ...[
+                              Icon(
+                                Icons.star_rounded,
+                                size: 14,
+                                color: isSelected ? Colors.amberAccent : const Color(0xFFD97706),
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              v.label.isNotEmpty ? v.label : 'Variant ${idx + 1}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                color: isSelected
+                                    ? Colors.white
+                                    : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white.withValues(alpha: 0.22)
+                                    : (isDark ? Colors.black26 : Colors.white),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '₹${v.displayRate.toStringAsFixed(0)}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF059669),
+                                ),
+                              ),
+                            ),
+                            if (_isEditing && variantsList.length > 1) ...[
+                              const SizedBox(width: 6),
+                              InkWell(
+                                onTap: () => _deleteVariant(idx),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(2),
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    size: 13,
+                                    color: isSelected ? Colors.white70 : const Color(0xFFEF4444),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+                if (_isEditing) ...[
+                  InkWell(
+                    onTap: _addVariant,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF059669).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF059669).withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.add_rounded, size: 15, color: Color(0xFF059669)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Add SKU',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF059669),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Active Variant Section: Interactive Form only when in edit mode
+          if (_isEditing) ...[
+            _buildActiveVariantEditor(activeVariant, safeIdx, isDark, borderColor, cardBgColor),
+            const SizedBox(height: 18),
+          ],
+
+          // Variants Table Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'All Packaging SKUs Matrix',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_isEditing)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(
+                    'Click row to edit SKU',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: const Color(0xFF059669),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Full-Width Packaging SKUs Matrix Table
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: borderColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final tableWidth = constraints.maxWidth > 700 ? constraints.maxWidth : 700.0;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Table Header Row (Full Width)
+                        Container(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  'VARIANT / PACK',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'PACK SIZE',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 1,
+                                child: Text(
+                                  'QTY',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'SELLING RATE',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'PRINTED MRP',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'STOCK',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  'BASE RATE',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 70,
+                                child: Text(
+                                  'DEFAULT',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Divider(height: 1, color: borderColor),
+
+                        // Table Rows (Full Width)
+                        ...variantsList.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final v = entry.value;
+                          final isCur = idx == safeIdx;
+
+                          return Material(
+                            color: isCur
+                                ? (isDark
+                                    ? const Color(0xFF059669).withValues(alpha: 0.12)
+                                    : const Color(0xFF059669).withValues(alpha: 0.06))
+                                : Colors.transparent,
+                            child: InkWell(
+                              onTap: () => _selectVariant(idx),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: idx < variantsList.length - 1
+                                        ? BorderSide(color: borderColor.withValues(alpha: 0.6))
+                                        : BorderSide.none,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: Row(
+                                        children: [
+                                          if (_isEditing && isCur) ...[
+                                            const Icon(Icons.edit_rounded, size: 12, color: Color(0xFF059669)),
+                                            const SizedBox(width: 4),
+                                          ],
+                                          Flexible(
+                                            child: Text(
+                                              v.label,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 12,
+                                                fontWeight: isCur ? FontWeight.w800 : FontWeight.w600,
+                                                color: isCur
+                                                    ? const Color(0xFF059669)
+                                                    : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        '${v.packSize} ${v.packSizeUnit}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        '${v.packQuantity}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        '₹${v.displayRate.toStringAsFixed(0)}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFF059669),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        '₹${v.printedMrp.toStringAsFixed(0)}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                          decoration: v.printedMrp > v.displayRate ? TextDecoration.lineThrough : null,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 6,
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: v.stock > 50 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 5),
+                                          Flexible(
+                                            child: Text(
+                                              '${v.stock} Units',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: v.stock > 50 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        v.pricePerBaseUnit > 0 ? '₹${v.pricePerBaseUnit.toStringAsFixed(3)}' : '-',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 70,
+                                      child: Center(
+                                        child: v.isDefault
+                                            ? Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'Default',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: const Color(0xFF10B981),
+                                                  ),
+                                                ),
+                                              )
+                                            : Text(
+                                                '-',
+                                                style: TextStyle(
+                                                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveVariantEditor(
+    ProductVariant v,
+    int index,
+    bool isDark,
+    Color borderColor,
+    Color cardBgColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row with variant status & quick actions
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(Icons.tune_rounded, size: 16, color: Color(0xFF059669)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Editing SKU #${index + 1}: ${v.label.isNotEmpty ? v.label : "Unnamed Variant"}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      v.isDefault ? 'Primary Default SKU' : 'Secondary Packaging Variant',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        color: v.isDefault ? const Color(0xFFD97706) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                        fontWeight: v.isDefault ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (!v.isDefault)
+                IconButton(
+                  tooltip: 'Set as Default SKU',
+                  icon: const Icon(Icons.star_outline_rounded, size: 18, color: Color(0xFFD97706)),
+                  onPressed: () => _setVariantAsDefault(index),
+                  visualDensity: VisualDensity.compact,
+                ),
+              IconButton(
+                tooltip: 'Duplicate Variant',
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                onPressed: () => _duplicateVariant(index),
+                visualDensity: VisualDensity.compact,
+              ),
+              if (_workingVariants.length > 1)
+                IconButton(
+                  tooltip: 'Delete Variant',
+                  icon: const Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFEF4444)),
+                  onPressed: () => _deleteVariant(index),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Row 1: Label, Pack Size, Unit, Pack Quantity
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWideVariant = constraints.maxWidth > 650;
+              if (isWideVariant) {
+                return Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: _buildField(
+                            controller: _variantController,
+                            label: 'Variant Label / Name *',
+                            hint: 'e.g. 1 ltr (250ml x 4)',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: _buildField(
+                            controller: _packSizeController,
+                            label: 'Pack Size *',
+                            hint: '250',
+                            keyboardType: TextInputType.number,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: _buildField(
+                            controller: _unitController,
+                            label: 'Unit *',
+                            hint: 'ml / L / kg',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: _buildField(
+                            controller: _packQuantityController,
+                            label: 'Pack Quantity *',
+                            hint: '4',
+                            keyboardType: TextInputType.number,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _buildField(
+                            controller: _displayRateController,
+                            label: 'Selling Rate (₹) *',
+                            hint: '1060.00',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildField(
+                            controller: _printedMrpController,
+                            label: 'Printed MRP (₹) *',
+                            hint: '1900.00',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildField(
+                            controller: _costPriceController,
+                            label: 'Cost Price (₹)',
+                            hint: '850.00',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildField(
+                            controller: _stockController,
+                            label: 'Stock Quantity *',
+                            hint: '100',
+                            keyboardType: TextInputType.number,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildField(
+                            controller: _gstController,
+                            label: 'GST Slab (%)',
+                            hint: '18',
+                            keyboardType: TextInputType.number,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildField(
+                            controller: _shippedByController,
+                            label: 'Fulfilled / Shipped By',
+                            hint: 'essentialbiocropscience',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              } else {
+                // Responsive stacked layout for smaller screen widths
+                return Column(
+                  children: [
+                    _buildField(
+                      controller: _variantController,
+                      label: 'Variant Label / Name *',
+                      hint: 'e.g. 1 ltr (250ml x 4)',
+                      isDark: isDark,
+                      borderColor: borderColor,
+                      onChanged: (_) => _onVariantFieldChanged(),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildField(
+                            controller: _packSizeController,
+                            label: 'Pack Size *',
+                            hint: '250',
+                            keyboardType: TextInputType.number,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildField(
+                            controller: _unitController,
+                            label: 'Unit *',
+                            hint: 'ml / L / kg',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildField(
+                            controller: _packQuantityController,
+                            label: 'Pack Quantity *',
+                            hint: '4',
+                            keyboardType: TextInputType.number,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildField(
+                            controller: _displayRateController,
+                            label: 'Selling Rate (₹) *',
+                            hint: '1060.00',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildField(
+                            controller: _printedMrpController,
+                            label: 'Printed MRP (₹) *',
+                            hint: '1900.00',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildField(
+                            controller: _costPriceController,
+                            label: 'Cost Price (₹)',
+                            hint: '850.00',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildField(
+                            controller: _stockController,
+                            label: 'Stock Quantity *',
+                            hint: '100',
+                            keyboardType: TextInputType.number,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildField(
+                            controller: _gstController,
+                            label: 'GST Slab (%)',
+                            hint: '18',
+                            keyboardType: TextInputType.number,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildField(
+                            controller: _shippedByController,
+                            label: 'Shipped By',
+                            hint: 'essentialbiocropscience',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 14),
+
+          // Live Metrics Calculations Badge Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor),
+            ),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _buildLiveCalcBadge(
+                  icon: Icons.scale_rounded,
+                  label: 'Base Volume:',
+                  value: '${v.totalBaseQuantity} ${v.totalBaseUnit}',
+                  color: const Color(0xFF6366F1),
+                  isDark: isDark,
+                ),
+                _buildLiveCalcBadge(
+                  icon: Icons.savings_rounded,
+                  label: 'Customer Savings:',
+                  value: '₹${v.discountRs.toStringAsFixed(0)} (${v.discountPercentage.toStringAsFixed(1)}% off)',
+                  color: const Color(0xFF10B981),
+                  isDark: isDark,
+                ),
+                _buildLiveCalcBadge(
+                  icon: Icons.pie_chart_rounded,
+                  label: 'Per Base Unit:',
+                  value: v.pricePerBaseUnit > 0 ? '₹${v.pricePerBaseUnit.toStringAsFixed(3)} / ${v.totalBaseUnit}' : 'N/A',
+                  color: const Color(0xFF0EA5E9),
+                  isDark: isDark,
+                ),
+                _buildLiveCalcBadge(
+                  icon: Icons.trending_up_rounded,
+                  label: 'Gross Profit:',
+                  value: '₹${(v.displayRate - v.costPrice).toStringAsFixed(2)}',
+                  color: const Color(0xFF059669),
+                  isDark: isDark,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveCalcBadge({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================
   // CARD 2: IMAGE & VISUAL ASSETS
   // ==========================================
   Widget _buildImageAndMediaCard(
@@ -863,7 +2038,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     Color borderColor,
     Color cardBgColor,
   ) {
-    final previewUrl = _isEditing ? _imageUrlController.text.trim() : (p.images.isNotEmpty ? p.images.first : '');
+    final previewUrl = _isEditing && _imageUrlController.text.trim().isNotEmpty
+        ? _imageUrlController.text.trim()
+        : p.originalImageUrl;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -877,38 +2054,47 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Container(
-              height: 200,
-              color: cardBgColor,
+            child: SizedBox(
+              height: 344,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (previewUrl.isNotEmpty && previewUrl.startsWith('http'))
-                    Image.network(
-                      previewUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => _buildImageFallback(p),
-                    )
-                  else
-                    _buildImageFallback(p),
+                  AppProductImage(
+                    imageUrl: previewUrl,
+                    width: double.infinity,
+                    height: 344,
+                    borderRadius: 10,
+                    borderColor: borderColor,
+                    categoryColor: const Color(0xFF64748B),
+                    fit: BoxFit.cover,
+                    backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    padding: EdgeInsets.zero,
+                  ),
 
-                  // Pack Tag on Image
+                  // Original Asset Badge (Top Left)
                   Positioned(
-                    bottom: 12,
-                    left: 12,
+                    top: 10,
+                    left: 10,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.75),
+                        color: Colors.black.withValues(alpha: 0.72),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        'Pack: ${_isEditing ? _packSizeController.text : p.packSize} ${_isEditing ? _unitController.text : p.unit} • ${_isEditing ? _variantController.text : p.variant}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.image_outlined, size: 12, color: Colors.white70),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Original Image',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -916,49 +2102,17 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
           if (_isEditing) ...[
+            const SizedBox(height: 12),
             _buildField(
               controller: _imageUrlController,
-              label: 'Primary Image URL',
-              hint: 'https://images.unsplash.com/...',
+              label: 'Original Image URL',
+              hint: 'https://storage.googleapis.com/...',
               isDark: isDark,
               borderColor: borderColor,
               onChanged: (_) => setState(() {}),
             ),
-          ] else ...[
-            Text(
-              'Product Media Gallery (${p.images.length} Image)',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-              ),
-              textAlign: TextAlign.center,
-            ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageFallback(Product p) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.inventory_2_outlined, size: 48, color: const Color(0xFF059669).withValues(alpha: 0.6)),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              _isEditing ? _titleController.text : p.title,
-              style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
         ],
       ),
     );
@@ -1759,14 +2913,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ),
           const SizedBox(height: 14),
 
-          // Description
-          Text(
-            p.description,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13.5,
-              height: 1.55,
-              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-            ),
+          // Description (Parsed HTML with rich typography, list support & 4-line truncation)
+          AppHtmlView(
+            htmlData: p.description,
+            fontSize: 13.5,
+            lineHeight: 1.55,
+            collapsible: true,
+            maxLines: 4,
           ),
 
           const SizedBox(height: 18),

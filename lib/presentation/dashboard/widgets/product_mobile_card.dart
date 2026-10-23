@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:seller_hub/core/models/product.dart';
+import 'package:seller_hub/presentation/dashboard/widgets/app_product_image.dart';
 
 class ProductMobileCard extends StatelessWidget {
   final Product product;
@@ -57,17 +58,12 @@ class ProductMobileCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 6),
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: categoryColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: categoryColor.withValues(alpha: 0.25)),
-                  ),
-                  child: Center(
-                    child: Icon(Icons.inventory_2_outlined, color: categoryColor, size: 16),
-                  ),
+                AppProductImage(
+                  imageUrl: product.thumbnailUrl,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 6,
+                  categoryColor: categoryColor,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -103,7 +99,9 @@ class ProductMobileCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '₹${product.displayRate.toStringAsFixed(0)}',
+                      product.hasMultipleVariants && product.minDisplayRate != product.maxDisplayRate
+                          ? product.priceRangeFormatted
+                          : '₹${product.displayRate.toStringAsFixed(0)}',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
@@ -111,7 +109,9 @@ class ProductMobileCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'MRP ₹${product.printedMrp.toStringAsFixed(0)}',
+                      product.hasMultipleVariants && product.minMrp != product.maxMrp
+                          ? 'MRP ${product.mrpRangeFormatted}'
+                          : 'MRP ₹${product.printedMrp.toStringAsFixed(0)}',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 9.5,
                         color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
@@ -128,6 +128,7 @@ class ProductMobileCard extends StatelessWidget {
             Wrap(
               spacing: 6,
               runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -148,10 +149,30 @@ class ProductMobileCard extends StatelessWidget {
                     border: Border.all(color: categoryColor.withValues(alpha: 0.25)),
                   ),
                   child: Text(
-                    product.category,
+                    product.resolvedCategory,
                     style: GoogleFonts.plusJakartaSans(fontSize: 9.5, fontWeight: FontWeight.w700, color: categoryColor),
                   ),
                 ),
+                if (product.hasMultipleVariants)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.layers_outlined, size: 9, color: Color(0xFF6366F1)),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${product.variantsCount} Variants',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w800, color: const Color(0xFF6366F1)),
+                        ),
+                      ],
+                    ),
+                  ),
                 InkWell(
                   onTap: () => onSelectSeller(sellerName),
                   child: Container(
@@ -174,7 +195,9 @@ class ProductMobileCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${product.packSize} ${product.unit} • ${product.variant}',
+                  product.defaultVariant?.label.isNotEmpty == true
+                      ? product.defaultVariant!.label
+                      : '${product.packSize} ${product.unit} • ${product.variant}',
                   style: GoogleFonts.plusJakartaSans(fontSize: 9.5, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                 ),
               ],

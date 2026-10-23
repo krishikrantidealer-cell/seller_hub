@@ -20,7 +20,7 @@ class ApiClient {
   })  : _client = client ?? http.Client(),
         _tokenStorage = tokenStorage ?? TokenStorage(),
         _baseUrl = baseUrl ?? ApiEndpoints.baseUrl,
-        _timeout = timeout ?? const Duration(seconds: 15);
+        _timeout = timeout ?? const Duration(seconds: 60);
 
   Uri _buildUri(String path, [Map<String, dynamic>? queryParameters]) {
     final cleanPath = path.startsWith('/') ? path : '/$path';
@@ -73,7 +73,7 @@ class ApiClient {
       );
     } on TimeoutException {
       throw const NetworkException(
-        message: 'Connection timed out. Please try again.',
+        message: 'The server took too long to respond. The backend may be waking up from cold standby. Please try again.',
       );
     } on http.ClientException catch (e) {
       throw NetworkException(
@@ -94,30 +94,55 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? queryParameters,
     bool requiresAuth = false,
+    int retries = 1,
   }) async {
-    try {
-      final uri = _buildUri(path, queryParameters);
-      final headers = await _buildHeaders(requiresAuth: requiresAuth);
+    int attempts = 0;
+    while (attempts <= retries) {
+      attempts++;
+      try {
+        final uri = _buildUri(path, queryParameters);
+        final headers = await _buildHeaders(requiresAuth: requiresAuth);
 
-      final response = await _client.get(uri, headers: headers).timeout(_timeout);
-      return _processResponse(response);
-    } on SocketException catch (e) {
-      throw NetworkException(
-        message: 'No internet connection or server unreachable: ${e.message}',
-        details: e,
-      );
-    } on TimeoutException {
-      throw const NetworkException(
-        message: 'Connection timed out. Please try again.',
-      );
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException(
-        message: 'Unexpected error occurred: $e',
-        details: e,
-      );
+        final response = await _client.get(uri, headers: headers).timeout(_timeout);
+        return _processResponse(response);
+      } on SocketException catch (e) {
+        if (attempts > retries) {
+          throw NetworkException(
+            message: 'No internet connection or server unreachable: ${e.message}',
+            details: e,
+          );
+        }
+        await Future.delayed(const Duration(milliseconds: 1500));
+      } on TimeoutException {
+        if (attempts > retries) {
+          throw const NetworkException(
+            message: 'Connection timed out. The cloud server may be waking up from standby. Please tap Retry.',
+          );
+        }
+        await Future.delayed(const Duration(milliseconds: 1500));
+      } on http.ClientException catch (e) {
+        if (attempts > retries) {
+          throw NetworkException(
+            message: 'Network communication failure: ${e.message}',
+            details: e,
+          );
+        }
+        await Future.delayed(const Duration(milliseconds: 1500));
+      } on ApiException {
+        rethrow;
+      } catch (e) {
+        if (attempts > retries) {
+          throw ApiException(
+            message: 'Unexpected error occurred: $e',
+            details: e,
+          );
+        }
+        await Future.delayed(const Duration(milliseconds: 1500));
+      }
     }
+    throw const NetworkException(
+      message: 'Failed to connect to server after retrying.',
+    );
   }
 
   Map<String, dynamic> _processResponse(http.Response response) {
@@ -139,6 +164,13 @@ class ApiClient {
 
     final statusCode = response.statusCode;
 
+    Map<String, String>? validationErrors;
+    if (responseData['validationErrors'] is Map) {
+      validationErrors = (responseData['validationErrors'] as Map).map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      );
+    }
+
     if (statusCode >= 200 && statusCode < 300) {
       // Check if backend returned an explicit success=false
       if (responseData.containsKey('success') && responseData['success'] == false) {
@@ -146,6 +178,7 @@ class ApiClient {
         throw ApiException(
           message: message,
           statusCode: statusCode,
+          validationErrors: validationErrors,
           details: responseData,
         );
       }
@@ -156,9 +189,19 @@ class ApiClient {
         responseData['error'] as String? ??
         'Request failed with status $statusCode';
 
+    if (statusCode == 400 && validationErrors != null && validationErrors.isNotEmpty) {
+      throw ValidationException(
+        message: errorMessage,
+        validationErrors: validationErrors,
+        statusCode: statusCode,
+        details: responseData,
+      );
+    }
+
     if (statusCode == 401) {
       throw UnauthorizedException(
         message: errorMessage,
+        validationErrors: validationErrors,
         details: responseData,
       );
     }
@@ -174,6 +217,7 @@ class ApiClient {
     throw ApiException(
       message: errorMessage,
       statusCode: statusCode,
+      validationErrors: validationErrors,
       details: responseData,
     );
   }

@@ -5,9 +5,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:seller_hub/core/models/order.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/core/models/seller.dart';
+import 'package:seller_hub/core/network/websocket_service.dart';
 import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/logic/auth/auth_bloc.dart';
 import 'package:seller_hub/logic/auth/auth_event.dart';
+import 'package:seller_hub/logic/product/product_bloc.dart';
+import 'package:seller_hub/logic/product/product_event.dart';
 import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/orders_view.dart';
@@ -32,8 +35,7 @@ class _DashboardViewState extends State<DashboardView> {
   // Primary Navigation: 0 = Dashboard / Operations, 1 = Products, 2 = Sellers, 3 = Orders
   int _selectedNavIndex = 0;
 
-  // Product catalog state initialized with official 38-field schema models
-  final List<Product> _products = List.from(Product.sampleProducts);
+  // Active viewing/editing product state
   Product? _viewingProduct;
   bool _openInEditMode = false;
 
@@ -47,6 +49,19 @@ class _DashboardViewState extends State<DashboardView> {
   MarketplaceOrder? _viewingOrder;
 
   @override
+  void initState() {
+    super.initState();
+    // Connect to WebSocket server to receive live changes
+    WebSocketService().connect();
+  }
+
+  @override
+  void dispose() {
+    WebSocketService().disconnect();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final size = MediaQuery.of(context).size;
@@ -55,6 +70,12 @@ class _DashboardViewState extends State<DashboardView> {
     final backgroundColor = isDark ? const Color(0xFF0A0F1D) : const Color(0xFFF8FAFC);
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
+
+    final productBloc = context.watch<ProductBloc>();
+    final products = productBloc.state.products;
+    final totalProductsCount = productBloc.state.totalProducts > 0
+        ? productBloc.state.totalProducts
+        : products.length;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -66,7 +87,7 @@ class _DashboardViewState extends State<DashboardView> {
               child: DashboardSidebar(
                 selectedIndex: _selectedNavIndex,
                 onNavItemSelected: _onNavItemSelected,
-                productsCount: _products.length,
+                productsCount: totalProductsCount,
                 sellersCount: _sellers.length,
                 ordersCount: _orders.length,
                 isDrawer: true,
@@ -87,7 +108,7 @@ class _DashboardViewState extends State<DashboardView> {
                 child: DashboardSidebar(
                   selectedIndex: _selectedNavIndex,
                   onNavItemSelected: _onNavItemSelected,
-                  productsCount: _products.length,
+                  productsCount: totalProductsCount,
                   sellersCount: _sellers.length,
                   ordersCount: _orders.length,
                   isDrawer: false,
@@ -118,7 +139,7 @@ class _DashboardViewState extends State<DashboardView> {
                         horizontal: isWide ? 32 : 16,
                         vertical: 24,
                       ),
-                      child: _buildActiveContent(isWide),
+                      child: _buildActiveContent(isWide, products),
                     ),
                   ),
                 ),
@@ -130,10 +151,10 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _buildActiveContent(bool isWide) {
+  Widget _buildActiveContent(bool isWide, List<Product> products) {
     if (_selectedNavIndex == 0) {
       return OperationsOverviewView(
-        products: _products,
+        products: products,
         sellers: _sellers,
         orders: _orders,
         onSelectOrder: (order) => setState(() => _viewingOrder = order),
@@ -164,9 +185,8 @@ class _DashboardViewState extends State<DashboardView> {
             _openInEditMode = false;
           }),
           onProductUpdated: (updated) {
+            context.read<ProductBloc>().add(UpdateLocalProduct(updated));
             setState(() {
-              final idx = _products.indexWhere((p) => p.productCode == updated.productCode);
-              if (idx != -1) _products[idx] = updated;
               _viewingProduct = updated;
             });
           },
@@ -174,7 +194,7 @@ class _DashboardViewState extends State<DashboardView> {
       }
 
       return ProductCatalogView(
-        products: _products,
+        products: products,
         sellers: _sellers,
         initialSellerFilter: _productCatalogSellerFilter,
         isWide: isWide,
@@ -186,10 +206,7 @@ class _DashboardViewState extends State<DashboardView> {
         },
         onOpenAddProduct: () => _openAddProductDialog(context),
         onProductUpdated: (updated) {
-          setState(() {
-            final idx = _products.indexWhere((p) => p.productCode == updated.productCode);
-            if (idx != -1) _products[idx] = updated;
-          });
+          context.read<ProductBloc>().add(UpdateLocalProduct(updated));
         },
       );
     }
@@ -199,7 +216,7 @@ class _DashboardViewState extends State<DashboardView> {
       if (_viewingSeller != null) {
         return SellerProfileView(
           seller: _viewingSeller!,
-          allProducts: _products,
+          allProducts: products,
           onBack: () => setState(() => _viewingSeller = null),
           onSellerUpdated: (updated) {
             setState(() {
@@ -221,7 +238,7 @@ class _DashboardViewState extends State<DashboardView> {
 
       return SellersView(
         sellers: _sellers,
-        products: _products,
+        products: products,
         onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
         onViewSellerProducts: (sellerTradeName) {
           setState(() {
@@ -277,9 +294,7 @@ class _DashboardViewState extends State<DashboardView> {
       builder: (ctx) => AddProductDialog(
         sellerId: activeSellerId,
         onProductAdded: (newProduct) {
-          setState(() {
-            _products.insert(0, newProduct);
-          });
+          context.read<ProductBloc>().add(UpdateLocalProduct(newProduct));
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(

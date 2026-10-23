@@ -4,8 +4,11 @@ import 'core/di/injection_container.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'domain/repositories/auth_repository.dart';
+import 'domain/repositories/product_repository.dart';
 import 'logic/auth/auth_bloc.dart';
 import 'logic/auth/auth_event.dart';
+import 'logic/product/product_bloc.dart';
+import 'logic/product/product_event.dart';
 import 'logic/theme/theme_bloc.dart';
 import 'logic/theme/theme_state.dart';
 
@@ -17,16 +20,23 @@ void main() async {
 
 class SellerHubApp extends StatelessWidget {
   final AuthRepository? authRepository;
+  final ProductRepository? productRepository;
 
-  const SellerHubApp({super.key, this.authRepository});
+  const SellerHubApp({
+    super.key,
+    this.authRepository,
+    this.productRepository,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final repo = authRepository ?? InjectionContainer.instance.authRepository;
+    final authRepo = authRepository ?? InjectionContainer.instance.authRepository;
+    final productRepo = productRepository ?? InjectionContainer.instance.productRepository;
 
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider<AuthRepository>.value(value: repo),
+        RepositoryProvider<AuthRepository>.value(value: authRepo),
+        RepositoryProvider<ProductRepository>.value(value: productRepo),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -35,6 +45,11 @@ class SellerHubApp extends StatelessWidget {
             create: (ctx) => AuthBloc(
               authRepository: ctx.read<AuthRepository>(),
             )..add(CheckAuthStatus()),
+          ),
+          BlocProvider<ProductBloc>(
+            create: (ctx) => ProductBloc(
+              productRepository: ctx.read<ProductRepository>(),
+            )..add(const InitializeProducts(page: 0, size: 20)),
           ),
         ],
         child: BlocBuilder<ThemeBloc, ThemeState>(

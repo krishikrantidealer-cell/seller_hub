@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:seller_hub/core/models/product.dart';
+import 'package:seller_hub/presentation/dashboard/widgets/product_hover_preview_thumbnail.dart';
 
 class ProductTableRow extends StatelessWidget {
   final Product product;
@@ -65,19 +66,10 @@ class ProductTableRow extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 8),
                   child: Row(
                     children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: categoryColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: categoryColor.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: Center(
-                          child: Icon(Icons.inventory_2_outlined, color: categoryColor, size: 17),
-                        ),
+                      ProductHoverPreviewThumbnail(
+                        product: product,
+                        categoryColor: categoryColor,
+                        size: 34,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -233,27 +225,67 @@ class ProductTableRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: categoryColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: categoryColor.withValues(alpha: 0.25)),
-                        ),
-                        child: Text(
-                          product.category,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: categoryColor,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: categoryColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: categoryColor.withValues(alpha: 0.25)),
+                              ),
+                              child: Text(
+                                product.resolvedCategory,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: categoryColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          if (product.hasMultipleVariants) ...[
+                            const SizedBox(width: 4),
+                            Tooltip(
+                              message: product.variants
+                                  .map((v) => '• ${v.label} — ₹${v.displayRate.toStringAsFixed(0)} (Stock: ${v.stock})')
+                                  .join('\n'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.layers_outlined, size: 9, color: Color(0xFF6366F1)),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '${product.variantsCount}V',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF6366F1),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${product.packSize} ${product.unit} • ${product.variant}',
+                        product.defaultVariant?.label.isNotEmpty == true
+                            ? product.defaultVariant!.label
+                            : '${product.packSize} ${product.unit} • ${product.variant}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w500,
@@ -277,7 +309,9 @@ class ProductTableRow extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        '₹${product.displayRate.toStringAsFixed(0)}',
+                        product.hasMultipleVariants && product.minDisplayRate != product.maxDisplayRate
+                            ? product.priceRangeFormatted
+                            : '₹${product.displayRate.toStringAsFixed(0)}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w800,
@@ -286,7 +320,9 @@ class ProductTableRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'MRP ₹${product.printedMrp.toStringAsFixed(0)}${product.discountPercentage > 0 ? ' • -${product.discountPercentage.toStringAsFixed(0)}%' : ''}',
+                        product.hasMultipleVariants && product.minMrp != product.maxMrp
+                            ? 'MRP ${product.mrpRangeFormatted}'
+                            : 'MRP ₹${product.printedMrp.toStringAsFixed(0)}${product.discountPercentage > 0 ? ' • -${product.discountPercentage.toStringAsFixed(0)}%' : ''}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 9,
                           color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
@@ -310,7 +346,7 @@ class ProductTableRow extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        '${product.stock} Units',
+                        '${product.totalStock} Units',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w800,
@@ -325,21 +361,23 @@ class ProductTableRow extends StatelessWidget {
                             height: 6,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: product.stock > 50
+                              color: product.totalStock > 50
                                   ? const Color(0xFF10B981)
-                                  : (product.stock > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
+                                  : (product.totalStock > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
                             ),
                           ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              product.stock > 50 ? 'In Stock' : (product.stock > 0 ? 'Low Stock' : 'Out of Stock'),
+                              product.hasMultipleVariants
+                                  ? '${product.variantsCount} packs in stock'
+                                  : (product.totalStock > 50 ? 'In Stock' : (product.totalStock > 0 ? 'Low Stock' : 'Out of Stock')),
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w700,
-                                color: product.stock > 50
+                                color: product.totalStock > 50
                                     ? const Color(0xFF10B981)
-                                    : (product.stock > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
+                                    : (product.totalStock > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

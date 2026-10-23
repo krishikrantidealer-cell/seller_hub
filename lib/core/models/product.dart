@@ -50,6 +50,95 @@ class ProductDimensions extends Equatable {
   List<Object?> get props => [length, width, height, unit];
 }
 
+/// Media Image representation matching backend Cloud Storage URLs
+class ProductImage extends Equatable {
+  final String id;
+  final int displayOrder;
+  final String midUrl;
+  final String lowUrl;
+  final String originalUrl;
+  final String originalObjectName;
+  final String midObjectName;
+  final String lowObjectName;
+
+  const ProductImage({
+    this.id = '',
+    this.displayOrder = 0,
+    this.midUrl = '',
+    this.lowUrl = '',
+    this.originalUrl = '',
+    this.originalObjectName = '',
+    this.midObjectName = '',
+    this.lowObjectName = '',
+  });
+
+  static const String defaultGcsBucketBase = 'https://storage.googleapis.com/sellerhub-prod-media-us';
+
+  factory ProductImage.fromJson(Map<String, dynamic> json) {
+    final id = _parseString(json['id'] ?? json['_id']);
+    final displayOrder = _parseInt(json['displayOrder'], 0);
+
+    final originalObj = _parseString(json['originalObjectName']);
+    final midObj = _parseString(json['midObjectName']);
+    final lowObj = _parseString(json['lowObjectName']);
+
+    String mid = _parseString(json['midUrl']);
+    String low = _parseString(json['lowUrl']);
+    String original = _parseString(json['originalUrl']);
+
+    // If signed URLs are not present, synthesize from GCS object name paths
+    if (mid.isEmpty && midObj.isNotEmpty) {
+      mid = midObj.startsWith('http') ? midObj : '$defaultGcsBucketBase/$midObj';
+    }
+    if (low.isEmpty && lowObj.isNotEmpty) {
+      low = lowObj.startsWith('http') ? lowObj : '$defaultGcsBucketBase/$lowObj';
+    }
+    if (original.isEmpty && originalObj.isNotEmpty) {
+      original = originalObj.startsWith('http') ? originalObj : '$defaultGcsBucketBase/$originalObj';
+    }
+
+    // Fallbacks
+    if (mid.isEmpty && low.isNotEmpty) mid = low;
+    if (low.isEmpty && mid.isNotEmpty) low = mid;
+    if (mid.isEmpty && original.isNotEmpty) mid = original;
+
+    return ProductImage(
+      id: id,
+      displayOrder: displayOrder,
+      midUrl: mid,
+      lowUrl: low,
+      originalUrl: original,
+      originalObjectName: originalObj,
+      midObjectName: midObj,
+      lowObjectName: lowObj,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    '_id': id,
+    'displayOrder': displayOrder,
+    'midUrl': midUrl,
+    'lowUrl': lowUrl,
+    if (originalUrl.isNotEmpty) 'originalUrl': originalUrl,
+    if (originalObjectName.isNotEmpty) 'originalObjectName': originalObjectName,
+    if (midObjectName.isNotEmpty) 'midObjectName': midObjectName,
+    if (lowObjectName.isNotEmpty) 'lowObjectName': lowObjectName,
+  };
+
+  @override
+  List<Object?> get props => [
+    id,
+    displayOrder,
+    midUrl,
+    lowUrl,
+    originalUrl,
+    originalObjectName,
+    midObjectName,
+    lowObjectName,
+  ];
+}
+
 /// Variant model encapsulating commercial, pricing, packaging & inventory specs
 class ProductVariant extends Equatable {
   final String id;
@@ -73,6 +162,7 @@ class ProductVariant extends Equatable {
   final double gstPercentage;
   final double discountPercentage;
   final int stock;
+  final double pricePerBaseUnit;
 
   const ProductVariant({
     this.id = '',
@@ -96,6 +186,7 @@ class ProductVariant extends Equatable {
     this.gstPercentage = 18.0,
     this.discountPercentage = 0.0,
     this.stock = 0,
+    this.pricePerBaseUnit = 0.0,
   });
 
   factory ProductVariant.fromJson(Map<String, dynamic> json) {
@@ -111,7 +202,7 @@ class ProductVariant extends Equatable {
     return ProductVariant(
       id: _parseString(json['_id'] ?? json['id']),
       displayOrder: _parseInt(json['displayOrder'], 1),
-      isDefault: json['isDefault'] as bool? ?? true,
+      isDefault: json['isDefault'] == true,
       label: _parseString(json['label'] ?? json['Varient'] ?? json['variant']),
       unit: _parseString(json['unit'] ?? json['Unit'] ?? 'ml'),
       packSize: _parseInt(json['packSize'] ?? json['Pack Size'], 1),
@@ -130,11 +221,13 @@ class ProductVariant extends Equatable {
       gstPercentage: _parseDouble(json['gstPercentage'] ?? json['GST'] ?? 18.0),
       discountPercentage: discPct,
       stock: _parseInt(json['stock'] ?? json['Stock']),
+      pricePerBaseUnit: _parseDouble(json['pricePerBaseUnit']),
     );
   }
 
   Map<String, dynamic> toJson() => {
     '_id': id,
+    'id': id,
     'displayOrder': displayOrder,
     'isDefault': isDefault,
     'label': label,
@@ -155,6 +248,7 @@ class ProductVariant extends Equatable {
     'gstPercentage': gstPercentage,
     'discountPercentage': discountPercentage,
     'stock': stock,
+    'pricePerBaseUnit': pricePerBaseUnit,
   };
 
   ProductVariant copyWith({
@@ -179,6 +273,7 @@ class ProductVariant extends Equatable {
     double? gstPercentage,
     double? discountPercentage,
     int? stock,
+    double? pricePerBaseUnit,
   }) {
     return ProductVariant(
       id: id ?? this.id,
@@ -202,6 +297,7 @@ class ProductVariant extends Equatable {
       gstPercentage: gstPercentage ?? this.gstPercentage,
       discountPercentage: discountPercentage ?? this.discountPercentage,
       stock: stock ?? this.stock,
+      pricePerBaseUnit: pricePerBaseUnit ?? this.pricePerBaseUnit,
     );
   }
 
@@ -215,6 +311,7 @@ class ProductVariant extends Equatable {
     displayRate,
     printedMrp,
     stock,
+    pricePerBaseUnit,
   ];
 }
 
@@ -230,6 +327,7 @@ class Product extends Equatable {
   final String vendor;
   final String description;
   final List<String> images;
+  final List<ProductImage> productImages;
   final String technicalContent;
   final List<String> featuresList;
   final List<String> benefitsList;
@@ -284,6 +382,7 @@ class Product extends Equatable {
     required this.vendor,
     required this.description,
     required this.images,
+    this.productImages = const [],
     required this.technicalContent,
     String features = '',
     List<String>? featuresList,
@@ -355,6 +454,109 @@ class Product extends Equatable {
     return variants.firstWhere((v) => v.isDefault, orElse: () => variants.first);
   }
 
+  int get variantsCount => variants.isNotEmpty ? variants.length : 1;
+  bool get hasMultipleVariants => variants.length > 1;
+
+  double get minDisplayRate {
+    if (variants.isEmpty) return displayRate;
+    return variants.map((v) => v.displayRate).reduce((a, b) => a < b ? a : b);
+  }
+
+  double get maxDisplayRate {
+    if (variants.isEmpty) return displayRate;
+    return variants.map((v) => v.displayRate).reduce((a, b) => a > b ? a : b);
+  }
+
+  double get minMrp {
+    if (variants.isEmpty) return printedMrp;
+    return variants.map((v) => v.printedMrp).reduce((a, b) => a < b ? a : b);
+  }
+
+  double get maxMrp {
+    if (variants.isEmpty) return printedMrp;
+    return variants.map((v) => v.printedMrp).reduce((a, b) => a > b ? a : b);
+  }
+
+  int get totalStock {
+    if (variants.isEmpty) return stock;
+    return variants.fold(0, (sum, v) => sum + v.stock);
+  }
+
+  String get priceRangeFormatted {
+    if (variants.isEmpty) return '₹${displayRate.toStringAsFixed(0)}';
+    if (minDisplayRate == maxDisplayRate) return '₹${minDisplayRate.toStringAsFixed(0)}';
+    return '₹${minDisplayRate.toStringAsFixed(0)} - ₹${maxDisplayRate.toStringAsFixed(0)}';
+  }
+
+  String get mrpRangeFormatted {
+    if (variants.isEmpty) return '₹${printedMrp.toStringAsFixed(0)}';
+    if (minMrp == maxMrp) return '₹${minMrp.toStringAsFixed(0)}';
+    return '₹${minMrp.toStringAsFixed(0)} - ₹${maxMrp.toStringAsFixed(0)}';
+  }
+
+  String get resolvedCategory {
+    if (category.isNotEmpty && category.trim().isNotEmpty) return category;
+    final t = '$title $description'.toLowerCase();
+    if (t.contains('insecticide') || t.contains('insect')) return 'Insecticides';
+    if (t.contains('fungicide') || t.contains('fungi')) return 'Fungicides';
+    if (t.contains('bio fertilizer') || t.contains('fertilizer') || t.contains('fertiliser')) return 'Fertilizers';
+    if (t.contains('bio pesticide') || t.contains('pesticide')) return 'Bio Pesticides';
+    if (t.contains('herbicide') || t.contains('weedicide')) return 'Herbicides';
+    if (t.contains('seed')) return 'Seeds';
+    if (t.contains('stimulant') || t.contains('growth')) return 'Bio Stimulants';
+    return 'Agri Inputs';
+  }
+
+  String get thumbnailUrl {
+    if (productImages.isNotEmpty) {
+      final first = productImages.first;
+      if (first.lowUrl.isNotEmpty) return first.lowUrl;
+      if (first.midUrl.isNotEmpty) return first.midUrl;
+    }
+    if (images.isNotEmpty) return images.first;
+    return '';
+  }
+
+  String get primaryImageUrl {
+    if (productImages.isNotEmpty) {
+      final first = productImages.first;
+      if (first.midUrl.isNotEmpty) return first.midUrl;
+      if (first.lowUrl.isNotEmpty) return first.lowUrl;
+    }
+    if (images.isNotEmpty) return images.first;
+    return '';
+  }
+
+  String get originalImageUrl {
+    if (productImages.isNotEmpty) {
+      final first = productImages.first;
+      // If originalUrl has active pre-signed credentials or is an external CDN, prioritize it
+      if (first.originalUrl.isNotEmpty &&
+          (first.originalUrl.contains('X-Goog-Signature') ||
+              first.originalUrl.contains('token') ||
+              !first.originalUrl.contains('storage.googleapis.com'))) {
+        return first.originalUrl;
+      }
+      // midUrl from backend is the 1200x1200px signed high-resolution asset
+      if (first.midUrl.isNotEmpty) return first.midUrl;
+      if (first.originalUrl.isNotEmpty) return first.originalUrl;
+      if (first.lowUrl.isNotEmpty) return first.lowUrl;
+    }
+    if (images.isNotEmpty) return images.first;
+    return '';
+  }
+
+  String get highResImageUrl {
+    if (productImages.isNotEmpty) {
+      final first = productImages.first;
+      if (first.midUrl.isNotEmpty) return first.midUrl;
+      if (first.originalUrl.isNotEmpty) return first.originalUrl;
+      if (first.lowUrl.isNotEmpty) return first.lowUrl;
+    }
+    if (images.isNotEmpty) return images.first;
+    return '';
+  }
+
   // Convenience Properties mapping all 38 official schema attributes
   String get features => featuresList.join(', ');
   String get benefits => benefitsList.join(', ');
@@ -398,7 +600,22 @@ class Product extends Equatable {
     final vendor = _parseString(json['vendor'] ?? json['Vendor']);
     final description = _parseString(json['description'] ?? json['Description']);
 
-    final images = _parseListString(json['images'] ?? json['Images']);
+    List<ProductImage> parsedProductImages = [];
+    if (json['productImages'] is List) {
+      parsedProductImages = (json['productImages'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map((m) => ProductImage.fromJson(m))
+          .toList();
+    }
+
+    var images = _parseListString(json['images'] ?? json['Images']);
+    if (images.isEmpty && parsedProductImages.isNotEmpty) {
+      images = parsedProductImages
+          .map((img) => img.midUrl.isNotEmpty ? img.midUrl : img.lowUrl)
+          .where((url) => url.isNotEmpty)
+          .toList();
+    }
+
     final technicalContent = _parseString(json['technicalContent'] ?? json['Technical Content']);
     final featuresList = _parseListString(json['features'] ?? json['Features']);
     final benefitsList = _parseListString(json['benefits'] ?? json['Benefites']);
@@ -462,6 +679,7 @@ class Product extends Equatable {
       vendor: vendor,
       description: description,
       images: images,
+      productImages: parsedProductImages,
       technicalContent: technicalContent,
       featuresList: featuresList,
       benefitsList: benefitsList,
@@ -518,6 +736,7 @@ class Product extends Equatable {
     'vendor': vendor,
     'description': description,
     'images': images,
+    'productImages': productImages.map((p) => p.toJson()).toList(),
     'technicalContent': technicalContent,
     'features': featuresList,
     'benefits': benefitsList,
@@ -553,6 +772,7 @@ class Product extends Equatable {
     'Vendor': vendor,
     'Description': description,
     'Images': images,
+    'ProductImages': productImages.map((p) => p.toJson()).toList(),
     'Technical Content': technicalContent,
     'Features': features,
     'Benefites': benefits,
@@ -597,6 +817,7 @@ class Product extends Equatable {
     String? vendor,
     String? description,
     List<String>? images,
+    List<ProductImage>? productImages,
     String? technicalContent,
     String? features,
     List<String>? featuresList,
@@ -683,6 +904,7 @@ class Product extends Equatable {
       vendor: vendor ?? this.vendor,
       description: description ?? this.description,
       images: images ?? this.images,
+      productImages: productImages ?? this.productImages,
       technicalContent: technicalContent ?? this.technicalContent,
       featuresList: featuresList ?? (features != null ? [features] : this.featuresList),
       benefitsList: benefitsList ?? (benefits != null ? [benefits] : this.benefitsList),
@@ -726,289 +948,7 @@ class Product extends Equatable {
     );
   }
 
-  /// Authentic sample agri products including the exact user MongoDB production document
-  static final List<Product> sampleProducts = [
-    // 1. EXACT USER PRODUCTION MONGODB RECORD
-    Product(
-      id: '6abbb7a337a9025b8c51a7e5',
-      sku: 'TEMP-TEST-001',
-      productCode: 'TEMP-CODE-001',
-      hsnCode: 'TEST-NOT-A-VALID-HSN',
-      sellerId: '6ab4ada822033f1670582bda',
-      title: '[TEST ONLY - NOT FOR SALE] Crop Protection Insecticide Sample',
-      technicalName: 'Synthetic test compound A',
-      vendor: 'TEST DATA - temporary placeholder',
-      description: 'Synthetic development record; not a real agricultural product.',
-      images: [],
-      technicalContent: 'TEST DATA ONLY. No product or use claims.',
-      featuresList: ['Temporary test record only'],
-      benefitsList: ['Not for sale or agricultural use'],
-      modeOfAction: 'TEST ONLY',
-      suitableCropsList: ['TEST ONLY'],
-      targetPestsList: [],
-      targetDiseasesList: [],
-      dosage: 'Not applicable - temporary test data only',
-      applicationMethod: 'Not applicable - temporary test data only',
-      category: 'Insecticides',
-      categoryId: '6ab4f6f619ec643fd9bf3620',
-      collectionIds: [],
-      subCollectionIds: [],
-      productDimensions: ProductDimensions(length: 24, width: 12, height: 12, unit: 'cm'),
-      isAvailable: true,
-      isFeatured: true,
-      variants: [
-        ProductVariant(
-          id: '6abbb7a337a9025b8c51a7e6',
-          displayOrder: 1,
-          isDefault: true,
-          label: '1 Litre (250 ML x 4 Qty)',
-          unit: 'ml',
-          packSize: 250,
-          packSizeUnit: 'ml',
-          packQuantity: 4,
-          packUnit: 'bottle',
-          shippedBy: 'TEST ONLY - no shipping method',
-          swg: 1200,
-          totalBaseQuantity: 1000,
-          totalBaseUnit: 'ml',
-          dimensions: ProductDimensions(length: 24, width: 12, height: 12, unit: 'cm'),
-          displayRate: 399.0,
-          printedMrp: 499.0,
-          costPrice: 220.0,
-          discountRs: 100.0,
-          gstPercentage: 0.0,
-          discountPercentage: 20.04,
-          stock: 40,
-        ),
-      ],
-      ratings: 0.0,
-      refundPolicy: 'TEST ONLY - temporary placeholder',
-      productWeight: 1350.0,
-      productWeightUnit: 'g',
-      status: 'ACTIVE',
-      version: 7,
-    ),
 
-    // 2. Chlorpyrifos
-    Product(
-      productCode: 'PRD-AGRI-001',
-      sku: 'SKU-CHLOR-20EC',
-      hsnCode: '38089190',
-      sellerId: '6ab5c71982bfa034298101ab',
-      title: 'AgriShield Pro Chlorpyrifos 20% EC',
-      technicalName: 'Chlorpyrifos 20% EC',
-      vendor: 'Bharat Agro Chemicals Ltd',
-      description: 'Broad-spectrum organophosphate insecticide with contact, stomach, and respiratory action for control of sucking and chewing pests in field crops.',
-      images: ['https://images.unsplash.com/photo-1592417817098-8f3d691023c7?w=600'],
-      technicalContent: 'Chlorpyrifos 20% w/w Emulsifiable Concentrate (EC)',
-      featuresList: ['Triple action (Contact, Stomach & Fumigant)', 'Strong soil persistence for termite protection'],
-      benefitsList: ['Rapid knockdown within 30 minutes', 'Safeguards crop root establishment'],
-      modeOfAction: 'Cholinesterase inhibition disrupting synaptic neurotransmission',
-      suitableCropsList: ['Paddy', 'Cotton', 'Sugarcane', 'Groundnut', 'Citrus'],
-      targetPestsList: ['Stem Borer', 'Termites', 'Bollworms', 'Aphids', 'Root Grub'],
-      targetDiseasesList: ['None (Insecticide)'],
-      dosage: '2.0 - 2.5 ml / Litre of water (400 - 500 ml / acre)',
-      applicationMethod: 'Foliar Spray & Soil Drenching',
-      category: 'Insecticides',
-      collections: 'Crop Protection & Insect Control',
-      subCollections: 'Organophosphate Insecticides',
-      isAvailable: true,
-      isFeatured: true,
-      variant: 'Liquid EC',
-      packSize: '1000',
-      displayRate: 540.0,
-      printedMrp: 650.0,
-      costPrice: 410.0,
-      discountRs: 110.0,
-      unit: 'ml Bottle',
-      gst: 18.0,
-      discountPercentage: 16.9,
-      shippedBy: 'Krishi Kranti Logistics',
-      swg: 'Bottle-1L',
-      stock: 240,
-      ratings: 4.8,
-      refundPolicy: '7 Days Returnable',
-      productWeight: 1.18,
-      productWeightUnit: 'kg',
-      dimensions: '9 x 9 x 24 cm',
-    ),
-
-    // 3. Bio-NPK Consortia
-    Product(
-      productCode: 'PRD-AGRI-005',
-      sku: 'SKU-BIONPK-1L',
-      hsnCode: '31010099',
-      sellerId: '6ab4ada822033f1670582bda',
-      title: 'Bio-NPK Liquid Consortia Nitrogen & Phosphate Solubilizer',
-      technicalName: 'Azotobacter + PSB + KMB Consortia',
-      vendor: 'Krishi Kranti Organics',
-      description: 'High count microbial bacterial liquid consortium fixing atmospheric nitrogen, solubilizing soil phosphorus, and mobilizing potash for root uptake.',
-      images: ['https://images.unsplash.com/photo-1585314062340-f1a5a7c9328d?w=600'],
-      technicalContent: 'Viable bacterial spore count 1x10^8 CFU/ml',
-      featuresList: ['Reduces chemical fertilizer requirement by 25-30%', 'Enhances root rhizosphere health'],
-      benefitsList: ['Eco-friendly', 'Prevents soil compaction', 'Boosts early vegetative growth'],
-      modeOfAction: 'Biological nitrogen fixation and organic acid excretion for mineral dissolution',
-      suitableCropsList: ['Wheat', 'Paddy', 'Sugarcane', 'Cotton', 'Vegetables', 'Pulses'],
-      targetPestsList: [],
-      targetDiseasesList: [],
-      dosage: '1 Litre per acre via Drip irrigation or soil drenching',
-      applicationMethod: 'Drip Fertigation & Soil Drenching',
-      category: 'Fertilizers',
-      collections: 'Biological & Organic Nutrients',
-      subCollections: 'Microbial Consortia',
-      isAvailable: true,
-      isFeatured: false,
-      variant: 'Liquid Inoculant',
-      packSize: '1000',
-      displayRate: 420.0,
-      printedMrp: 550.0,
-      costPrice: 280.0,
-      discountRs: 130.0,
-      unit: 'ml Bottle',
-      gst: 5.0,
-      discountPercentage: 23.6,
-      shippedBy: 'Platform Express Hub',
-      swg: 'Bottle-1L',
-      stock: 180,
-      ratings: 4.8,
-      refundPolicy: '7 Days Returnable',
-      productWeight: 1.15,
-      productWeightUnit: 'kg',
-      dimensions: '10 x 10 x 24 cm',
-    ),
-
-    // 4. Neem Rakshak 10000 PPM
-    Product(
-      productCode: 'PRD-AGRI-006',
-      sku: 'SKU-NEEM-10000',
-      hsnCode: '38089990',
-      sellerId: '6ab7e90141fca928374162ec',
-      title: 'Neem Rakshak 10000 PPM Pure Cold Pressed Azadirachtin',
-      technicalName: 'Azadirachtin 1% (10000 PPM) EC',
-      vendor: 'Kisan Care Biotech',
-      description: 'Certified organic botanical insecticide offering antifeedant, repellent, and insect growth regulator (IGR) action against resistant pests.',
-      images: ['https://images.unsplash.com/photo-1592417817098-8f3d691023c7?w=600'],
-      technicalContent: 'Azadirachtin 10000 PPM pure cold-pressed neem kernel extract',
-      featuresList: ['Zero residue', 'Safe for honeybees and natural beneficial predators'],
-      benefitsList: ['Ideal for export quality crops and residue-free organic farming'],
-      modeOfAction: 'Ecdysone receptor disruption, feeding deterrence, and oviposition inhibition',
-      suitableCropsList: ['Tomato', 'Chilli', 'Brinjal', 'Okra', 'Grapes', 'Tea', 'Spices'],
-      targetPestsList: ['Whiteflies', 'Aphids', 'Thrips', 'Jassids', 'Leaf Miners', 'Caterpillars'],
-      targetDiseasesList: [],
-      dosage: '1.5 - 2.0 ml / Litre of water (300 ml / acre)',
-      applicationMethod: 'Foliar Spray early morning or evening',
-      category: 'Insecticides',
-      collections: 'Organic Pest Defense',
-      subCollections: 'Botanical Neem Formulations',
-      isAvailable: true,
-      isFeatured: true,
-      variant: 'Emulsifiable Concentrate (EC)',
-      packSize: '500',
-      displayRate: 640.0,
-      printedMrp: 799.0,
-      costPrice: 460.0,
-      discountRs: 159.0,
-      unit: 'ml Bottle',
-      gst: 12.0,
-      discountPercentage: 19.9,
-      shippedBy: 'Seller Standard Logistics',
-      swg: 'Bottle-500ml',
-      stock: 120,
-      ratings: 4.7,
-      refundPolicy: '7 Days Returnable',
-      productWeight: 0.58,
-      productWeightUnit: 'kg',
-      dimensions: '8 x 8 x 20 cm',
-    ),
-
-    // 5. HumicGold 98%
-    Product(
-      productCode: 'PRD-AGRI-008',
-      sku: 'SKU-HUMIC-98',
-      hsnCode: '38249900',
-      sellerId: '6ab4ada822033f1670582bda',
-      title: 'HumicGold 98% Potassium Humate Shiny Flakes',
-      technicalName: 'Potassium Humate 98% Flakes',
-      vendor: 'Krishi Kranti Organics',
-      description: 'Ultra-pure 100% soluble potassium humate shiny flakes rich in humic acid and fulvic acid for root elongation and soil cation exchange capacity (CEC).',
-      images: ['https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?w=600'],
-      technicalContent: 'Humic Acid 65% + Fulvic Acid 15% + K2O 10%',
-      featuresList: ['Instant dissolving flakes', 'Stimulates white feeder root growth'],
-      benefitsList: ['Rejuvenates tired saline soils', 'Accelerates nutrient chelation in root zone'],
-      modeOfAction: 'Biochemical soil conditioning and plant membrane permeability enhancement',
-      suitableCropsList: ['All Agricultural, Horticultural, Plantation & Floriculture Crops'],
-      targetPestsList: [],
-      targetDiseasesList: [],
-      dosage: '500 gm - 1 kg per acre with flood irrigation, drip, or broadcasting',
-      applicationMethod: 'Drip Fertigation & Broadcast with Fertilizer',
-      category: 'Bio Stimulants',
-      collections: 'Soil Health & Root Stimulants',
-      subCollections: 'Humic & Fulvic Derivatives',
-      isAvailable: true,
-      isFeatured: true,
-      variant: 'Soluble Flakes',
-      packSize: '1',
-      displayRate: 360.0,
-      printedMrp: 499.0,
-      costPrice: 240.0,
-      discountRs: 139.0,
-      unit: 'kg Pouch',
-      gst: 12.0,
-      discountPercentage: 27.9,
-      shippedBy: 'Platform Express Hub',
-      swg: 'Pouch-1kg',
-      stock: 350,
-      ratings: 4.9,
-      refundPolicy: '7 Days Returnable',
-      productWeight: 1.05,
-      productWeightUnit: 'kg',
-      dimensions: '18 x 5 x 26 cm',
-    ),
-
-    // 6. FungiStop
-    Product(
-      productCode: 'PRD-AGRI-004',
-      sku: 'SKU-AZOXY-DIFEN',
-      hsnCode: '38089290',
-      sellerId: '6ab8f21950dca827164928fe',
-      title: 'FungiStop Azoxystrobin 18.2% + Difenoconazole 11.4% SC',
-      technicalName: 'Azoxystrobin + Difenoconazole SC',
-      vendor: 'Syngenta Crop Protection',
-      description: 'Dual action strobilurin and triazole systemic fungicide providing preventive, curative, and eradicative protection against fungal complexes.',
-      images: ['https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=600'],
-      technicalContent: 'Azoxystrobin 18.2% + Difenoconazole 11.4% SC formulation',
-      featuresList: ['Dual mode of action', 'Rainfast in 2 hours'],
-      benefitsList: ['Improves grain shine', 'Stops sheath blight spread', 'Extends photosynthetic green leaf duration'],
-      modeOfAction: 'Mitochondrial respiration inhibition (QoI) + Ergosterol biosynthesis inhibition (DMI)',
-      suitableCropsList: ['Paddy', 'Chilli', 'Tomato', 'Grapes', 'Maize'],
-      targetPestsList: [],
-      targetDiseasesList: ['Sheath Blight', 'Blast', 'Powdery Mildew', 'Anthracnose', 'Dieback'],
-      dosage: '1.0 ml / Litre of water (200 ml / acre)',
-      applicationMethod: 'Foliar Spray with hollow cone nozzle',
-      category: 'Fungicides',
-      collections: 'Disease Defense & Protection',
-      subCollections: 'Systemic Dual Fungicides',
-      isAvailable: true,
-      isFeatured: true,
-      variant: 'Suspension Concentrate (SC)',
-      packSize: '200',
-      displayRate: 890.0,
-      printedMrp: 1080.0,
-      costPrice: 710.0,
-      discountRs: 190.0,
-      unit: 'ml Bottle',
-      gst: 18.0,
-      discountPercentage: 17.6,
-      shippedBy: 'AgriBegri Express',
-      swg: 'Liquid-0.3',
-      stock: 320,
-      ratings: 4.9,
-      refundPolicy: '7 Days Returnable if sealed',
-      productWeight: 0.28,
-      productWeightUnit: 'kg',
-      dimensions: '8 x 8 x 16 cm',
-    ),
-  ];
 
   @override
   List<Object?> get props => [
@@ -1031,6 +971,7 @@ class Product extends Equatable {
     isFeatured,
     status,
     version,
+    productImages,
   ];
 }
 
@@ -1068,4 +1009,71 @@ List<String> _parseListString(dynamic val) {
     return val.split(RegExp(r'[,•;\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
   }
   return [];
+}
+
+/// Paginated products response data model
+class ProductPageData extends Equatable {
+  final List<Product> content;
+  final int page;
+  final int size;
+  final int totalElements;
+  final int totalPages;
+  final bool first;
+  final bool last;
+  final int count;
+
+  const ProductPageData({
+    this.content = const [],
+    this.page = 0,
+    this.size = 20,
+    this.totalElements = 0,
+    this.totalPages = 0,
+    this.first = true,
+    this.last = true,
+    this.count = 0,
+  });
+
+  factory ProductPageData.fromJson(Map<String, dynamic> json) {
+    List<Product> products = [];
+    if (json['content'] is List) {
+      products = (json['content'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map((item) => Product.fromJson(item))
+          .toList();
+    }
+
+    return ProductPageData(
+      content: products,
+      page: _parseInt(json['page'], 0),
+      size: _parseInt(json['size'], 20),
+      totalElements: _parseInt(json['totalElements'], products.length),
+      totalPages: _parseInt(json['totalPages'], 1),
+      first: json['first'] as bool? ?? true,
+      last: json['last'] as bool? ?? true,
+      count: _parseInt(json['count'], products.length),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'content': content.map((p) => p.toJson()).toList(),
+    'page': page,
+    'size': size,
+    'totalElements': totalElements,
+    'totalPages': totalPages,
+    'first': first,
+    'last': last,
+    'count': count,
+  };
+
+  @override
+  List<Object?> get props => [
+    content,
+    page,
+    size,
+    totalElements,
+    totalPages,
+    first,
+    last,
+    count,
+  ];
 }

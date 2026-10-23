@@ -111,7 +111,6 @@ void main() {
       final session = await repository.loginWithPassword(
         email: 'admin1email@example.com',
         password: 'Admin!Pass123',
-        rememberMe: true,
       );
 
       expect(session.userId, '6ab4ae6922033f1670582bdb');
@@ -123,8 +122,6 @@ void main() {
       expect(await tokenStorage.getAccessToken(), session.accessToken);
       expect(await tokenStorage.getUserId(), '6ab4ae6922033f1670582bdb');
       expect(await tokenStorage.getRole(), 'ROLE_ADMIN');
-      expect(await tokenStorage.getSavedIdentifier(), 'admin1email@example.com');
-      expect(await tokenStorage.getRememberMe(), isTrue);
 
       // Verify checkAuthStatus retrieves it
       final retrievedSession = await repository.checkAuthStatus();

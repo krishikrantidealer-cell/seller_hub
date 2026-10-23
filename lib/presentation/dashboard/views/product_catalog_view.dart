@@ -5,6 +5,10 @@ import 'package:seller_hub/core/models/seller.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/pagination_footer.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/product_mobile_card.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/product_table_row.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:seller_hub/logic/product/product_bloc.dart';
+import 'package:seller_hub/logic/product/product_event.dart';
+import 'package:seller_hub/logic/product/product_state.dart';
 
 class ProductCatalogView extends StatefulWidget {
   final List<Product> products;
@@ -44,8 +48,8 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
 
   // Pagination State
   int _currentPage = 1;
-  int _rowsPerPage = 10;
-  final List<int> _rowsPerPageOptions = const [5, 10, 20, 50];
+  int _rowsPerPage = 20;
+  final List<int> _rowsPerPageOptions = const [5, 10, 20, 50, 100];
 
   final List<String> _categoryFilterOptions = const [
     'All',
@@ -123,6 +127,14 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
 
+    ProductBloc? productBloc;
+    try {
+      productBloc = context.watch<ProductBloc>();
+    } catch (_) {}
+    final productState = productBloc?.state ?? const ProductState();
+    final isLoading = productState.status == ProductStatus.loading;
+    final hasError = productState.status == ProductStatus.error;
+
     // Filter products by search, category, seller, stock, and availability
     final filtered = widget.products.where((p) {
       final matchesSearch = _searchQuery.isEmpty ||
@@ -187,23 +199,38 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       });
     }
 
-    // Pagination calculations
-    final totalItems = filtered.length;
-    final totalPages = totalItems > 0 ? (totalItems / _rowsPerPage).ceil() : 1;
-    final safePage = _currentPage.clamp(1, totalPages);
-    final startIndex = totalItems == 0 ? 0 : (safePage - 1) * _rowsPerPage;
-    final endIndex = totalItems == 0 ? 0 : (startIndex + _rowsPerPage > totalItems ? totalItems : startIndex + _rowsPerPage);
-    final paginatedProducts = totalItems == 0 ? <Product>[] : filtered.sublist(startIndex, endIndex);
-
-    final inStockCount = widget.products.where((p) => p.stock > 50).length;
-    final lowStockCount = widget.products.where((p) => p.stock > 0 && p.stock <= 50).length;
-    final sellersCount = _sellerFilterOptions.where((s) => s != 'All Sellers').length;
-
     final hasActiveFilters = _selectedSellerFilter != 'All Sellers' ||
         _selectedCategoryFilter != 'All' ||
         _selectedStockFilter != 'All Stock' ||
         _selectedAvailabilityFilter != 'All Status' ||
         _searchQuery.isNotEmpty;
+
+    // Server vs Client Pagination calculations
+    final isServerPaginated = !hasActiveFilters &&
+        productState.pageData.totalElements > 0 &&
+        (productState.pageData.totalElements > widget.products.length || productState.totalPages > 1);
+
+    final activeRowsPerPage = isServerPaginated ? productState.pageSize : _rowsPerPage;
+    final totalItems = isServerPaginated ? productState.totalProducts : filtered.length;
+    final totalPages = isServerPaginated
+        ? productState.totalPages
+        : (totalItems > 0 ? (totalItems / activeRowsPerPage).ceil() : 1);
+    final safePage = isServerPaginated
+        ? (productState.currentPage + 1).clamp(1, totalPages)
+        : _currentPage.clamp(1, totalPages);
+    final startIndex = isServerPaginated
+        ? (productState.currentPage * productState.pageSize)
+        : (totalItems == 0 ? 0 : (safePage - 1) * activeRowsPerPage);
+    final endIndex = isServerPaginated
+        ? (startIndex + filtered.length).clamp(0, totalItems)
+        : (totalItems == 0 ? 0 : (startIndex + activeRowsPerPage > totalItems ? totalItems : startIndex + activeRowsPerPage));
+    final paginatedProducts = isServerPaginated
+        ? filtered
+        : (totalItems == 0 ? <Product>[] : filtered.sublist(startIndex, endIndex));
+
+    final inStockCount = widget.products.where((p) => p.stock > 50).length;
+    final lowStockCount = widget.products.where((p) => p.stock > 0 && p.stock <= 50).length;
+    final sellersCount = _sellerFilterOptions.where((s) => s != 'All Sellers').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,6 +335,32 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
             ),
             const SizedBox(width: 8),
 
+            // Refresh Button
+            if (productBloc != null) ...[
+              SizedBox(
+                height: 40,
+                width: 40,
+                child: IconButton(
+                  onPressed: isLoading
+                      ? null
+                      : () => productBloc!.add(FetchProducts(
+                            page: productState.currentPage,
+                            size: productState.pageSize,
+                            isRefresh: true,
+                          )),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  tooltip: 'Sync Products from Server',
+                  style: IconButton.styleFrom(
+                    backgroundColor: surfaceColor,
+                    foregroundColor: const Color(0xFF059669),
+                    side: BorderSide(color: borderColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+
             // Add Product Button
             SizedBox(
               height: 40,
@@ -331,6 +384,65 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
             ),
           ],
         ),
+
+        if (isLoading) ...[
+          const SizedBox(height: 6),
+          const ClipRRect(
+            borderRadius: BorderRadius.all(Radius.circular(2)),
+            child: LinearProgressIndicator(
+              minHeight: 2.5,
+              backgroundColor: Color(0x1A059669),
+              color: Color(0xFF059669),
+            ),
+          ),
+        ],
+
+        if (hasError && productState.errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    productState.errorMessage!,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFB91C1C),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => productBloc?.add(FetchProducts(
+                    page: productState.currentPage,
+                    size: productState.pageSize,
+                  )),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Retry',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFDC2626),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
 
         const SizedBox(height: 10),
 
@@ -826,25 +938,112 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
               if (filtered.isEmpty)
                 Center(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 36),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.search_off_rounded,
-                          size: 36,
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No products matching your search criteria',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: isLoading
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Color(0xFF059669),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'Loading products from catalog...',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          )
+                        : hasError
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFFEF2F2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.cloud_off_rounded,
+                                      size: 30,
+                                      color: Color(0xFFDC2626),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    productState.errorMessage ?? 'Connection timed out',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Cloud backend may have been on standby.\nTap Retry now that the service is active.',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton.icon(
+                                    onPressed: () => productBloc?.add(FetchProducts(
+                                      page: productState.currentPage,
+                                      size: productState.pageSize,
+                                      isRefresh: true,
+                                    )),
+                                    icon: const Icon(Icons.refresh_rounded, size: 16),
+                                    label: Text(
+                                      'Retry Connection',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF059669),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.search_off_rounded,
+                                    size: 36,
+                                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    hasActiveFilters
+                                        ? 'No products matching your search criteria'
+                                        : 'No products found in catalog',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ],
+                              ),
                   ),
                 )
               else
@@ -938,7 +1137,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                   totalItems: totalItems,
                   totalPages: totalPages,
                   currentPage: safePage,
-                  rowsPerPage: _rowsPerPage,
+                  rowsPerPage: activeRowsPerPage,
                   rowsPerPageOptions: _rowsPerPageOptions,
                   startIndex: startIndex,
                   endIndex: endIndex,
@@ -946,11 +1145,28 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                   surfaceColor: surfaceColor,
                   borderColor: borderColor,
                   isWide: widget.isWide,
-                  onPageChanged: (newPage) => setState(() => _currentPage = newPage),
-                  onRowsPerPageChanged: (newRows) => setState(() {
-                    _rowsPerPage = newRows;
-                    _currentPage = 1;
-                  }),
+                  onPageChanged: (newPage) {
+                    if (isServerPaginated && productBloc != null) {
+                      productBloc.add(FetchProducts(
+                        page: newPage - 1,
+                        size: activeRowsPerPage,
+                      ));
+                    } else {
+                      setState(() => _currentPage = newPage);
+                    }
+                  },
+                  onRowsPerPageChanged: (newRows) {
+                    setState(() {
+                      _rowsPerPage = newRows;
+                      _currentPage = 1;
+                    });
+                    if (isServerPaginated && productBloc != null) {
+                      productBloc.add(FetchProducts(
+                        page: 0,
+                        size: newRows,
+                      ));
+                    }
+                  },
                 ),
             ],
           ),

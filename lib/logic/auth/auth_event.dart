@@ -40,3 +40,5 @@ class OtpSubmitted extends AuthEvent {
 }
 
 class LogoutRequested extends AuthEvent {}
+
+class CheckAuthStatus extends AuthEvent {}

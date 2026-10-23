@@ -2,22 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:seller_hub/core/models/order.dart';
-import 'package:seller_hub/core/models/product.dart';
-import 'package:seller_hub/core/models/seller.dart';
-import 'package:seller_hub/core/router/route_names.dart';
-import 'package:seller_hub/logic/auth/auth_bloc.dart';
-import 'package:seller_hub/logic/auth/auth_event.dart';
-import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
-import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
-import 'package:seller_hub/presentation/dashboard/views/orders_view.dart';
-import 'package:seller_hub/presentation/dashboard/views/product_catalog_view.dart';
-import 'package:seller_hub/presentation/dashboard/views/product_details_view.dart';
-import 'package:seller_hub/presentation/dashboard/views/seller_profile_view.dart';
-import 'package:seller_hub/presentation/dashboard/views/sellers_view.dart';
-import 'package:seller_hub/presentation/dashboard/widgets/add_product_dialog.dart';
-import 'package:seller_hub/presentation/dashboard/widgets/dashboard_sidebar.dart';
-import 'package:seller_hub/presentation/dashboard/widgets/dashboard_top_app_bar.dart';
+import '../../../core/models/order.dart';
+import '../../../core/models/product.dart';
+import '../../../core/models/seller.dart';
+import '../../../core/router/route_names.dart';
+import '../../../logic/auth/auth_bloc.dart';
+import '../../../logic/auth/auth_event.dart';
+import '../../../logic/seller_catalog/seller_catalog_bloc.dart';
+import '../../../logic/seller_catalog/seller_catalog_event.dart';
+import '../../../logic/seller_catalog/seller_catalog_state.dart';
+import '../../../logic/seller_orders/seller_order_bloc.dart';
+import '../../../logic/seller_orders/seller_order_event.dart';
+import '../../../logic/seller_orders/seller_order_state.dart';
+import 'operations_overview_view.dart';
+import 'order_detail_view.dart';
+import 'orders_view.dart';
+import 'product_catalog_view.dart';
+import 'product_details_view.dart';
+import 'seller_profile_view.dart';
+import 'sellers_view.dart';
+import '../widgets/add_product_dialog.dart';
+import '../widgets/dashboard_sidebar.dart';
+import '../widgets/dashboard_top_app_bar.dart';
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -32,8 +38,6 @@ class _DashboardViewState extends State<DashboardView> {
   // Primary Navigation: 0 = Dashboard / Operations, 1 = Products, 2 = Sellers, 3 = Orders
   int _selectedNavIndex = 0;
 
-  // Product catalog state initialized with official 38-field schema models
-  final List<Product> _products = List.from(Product.sampleProducts);
   Product? _viewingProduct;
   bool _openInEditMode = false;
 
@@ -42,9 +46,25 @@ class _DashboardViewState extends State<DashboardView> {
   SellerProfile? _viewingSeller;
   String _productCatalogSellerFilter = 'All Sellers';
 
-  // Orders management state
-  final List<MarketplaceOrder> _orders = List.from(MockOrders.sampleOrders);
   MarketplaceOrder? _viewingOrder;
+
+  @override
+  void initState() {
+    super.initState();
+    // Dispatch initial fetches if not already loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final catalogState = context.read<SellerCatalogBloc>().state;
+        if (catalogState is SellerCatalogInitial) {
+          context.read<SellerCatalogBloc>().add(const FetchSellerProductsEvent());
+        }
+        final orderState = context.read<SellerOrderBloc>().state;
+        if (orderState is SellerOrderInitial) {
+          context.read<SellerOrderBloc>().add(const FetchSellerOrdersEvent());
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,86 +76,130 @@ class _DashboardViewState extends State<DashboardView> {
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: backgroundColor,
-      drawer: isWide
-          ? null
-          : Drawer(
-              backgroundColor: surfaceColor,
-              child: DashboardSidebar(
-                selectedIndex: _selectedNavIndex,
-                onNavItemSelected: _onNavItemSelected,
-                productsCount: _products.length,
-                sellersCount: _sellers.length,
-                ordersCount: _orders.length,
-                isDrawer: true,
-                onLogout: () => _handleLogout(context),
+    return BlocConsumer<SellerCatalogBloc, SellerCatalogState>(
+      listener: (context, catalogState) {
+        if (catalogState is SellerCatalogActionSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                catalogState.message,
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
               ),
+              backgroundColor: const Color(0xFF059669),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              margin: const EdgeInsets.all(20),
             ),
-      body: Row(
-        children: [
-          // Desktop Persistent Sidebar
-          if (isWide)
-            SizedBox(
-              width: 270,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  border: Border(right: BorderSide(color: borderColor, width: 1)),
-                ),
-                child: DashboardSidebar(
-                  selectedIndex: _selectedNavIndex,
-                  onNavItemSelected: _onNavItemSelected,
-                  productsCount: _products.length,
-                  sellersCount: _sellers.length,
-                  ordersCount: _orders.length,
-                  isDrawer: false,
-                  onLogout: () => _handleLogout(context),
-                ),
+          );
+        } else if (catalogState is SellerCatalogError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                catalogState.message,
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
               ),
+              backgroundColor: const Color(0xFFDC2626),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              margin: const EdgeInsets.all(20),
             ),
+          );
+        }
+      },
+      builder: (context, catalogState) {
+        return BlocBuilder<SellerOrderBloc, SellerOrderState>(
+          builder: (context, orderState) {
+            final products = catalogState.products.isNotEmpty
+                ? catalogState.products
+                : List<Product>.from(Product.sampleProducts);
+            final orders = orderState.orders.isNotEmpty
+                ? orderState.orders
+                : List<MarketplaceOrder>.from(MockOrders.sampleOrders);
 
-          // Main App Content Area
-          Expanded(
-            child: Column(
-              children: [
-                // Top App Bar
-                DashboardTopAppBar(
-                  selectedNavIndex: _selectedNavIndex,
-                  viewingProduct: _viewingProduct,
-                  viewingSeller: _viewingSeller,
-                  viewingOrder: _viewingOrder,
-                  isWide: isWide,
-                  onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                ),
-
-                // Active Section Body
-                Expanded(
-                  child: SelectionArea(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isWide ? 32 : 16,
-                        vertical: 24,
+            return Scaffold(
+              key: _scaffoldKey,
+              backgroundColor: backgroundColor,
+              drawer: isWide
+                  ? null
+                  : Drawer(
+                      backgroundColor: surfaceColor,
+                      child: DashboardSidebar(
+                        selectedIndex: _selectedNavIndex,
+                        onNavItemSelected: _onNavItemSelected,
+                        productsCount: products.length,
+                        sellersCount: _sellers.length,
+                        ordersCount: orders.length,
+                        isDrawer: true,
+                        onLogout: () => _handleLogout(context),
                       ),
-                      child: _buildActiveContent(isWide),
+                    ),
+              body: Row(
+                children: [
+                  // Desktop Persistent Sidebar
+                  if (isWide)
+                    SizedBox(
+                      width: 270,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: surfaceColor,
+                          border: Border(right: BorderSide(color: borderColor, width: 1)),
+                        ),
+                        child: DashboardSidebar(
+                          selectedIndex: _selectedNavIndex,
+                          onNavItemSelected: _onNavItemSelected,
+                          productsCount: products.length,
+                          sellersCount: _sellers.length,
+                          ordersCount: orders.length,
+                          isDrawer: false,
+                          onLogout: () => _handleLogout(context),
+                        ),
+                      ),
+                    ),
+
+                  // Main App Content Area
+                  Expanded(
+                    child: Column(
+                      children: [
+                        // Top App Bar
+                        DashboardTopAppBar(
+                          selectedNavIndex: _selectedNavIndex,
+                          viewingProduct: _viewingProduct,
+                          viewingSeller: _viewingSeller,
+                          viewingOrder: _viewingOrder,
+                          isWide: isWide,
+                          onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                        ),
+
+                        // Active Section Body
+                        Expanded(
+                          child: SelectionArea(
+                            child: SingleChildScrollView(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isWide ? 32 : 16,
+                                vertical: 24,
+                              ),
+                              child: _buildActiveContent(isWide, products, orders),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget _buildActiveContent(bool isWide) {
+  Widget _buildActiveContent(bool isWide, List<Product> products, List<MarketplaceOrder> orders) {
     if (_selectedNavIndex == 0) {
       return OperationsOverviewView(
-        products: _products,
+        products: products,
         sellers: _sellers,
-        orders: _orders,
+        orders: orders,
         onSelectOrder: (order) => setState(() => _viewingOrder = order),
         onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
         onNavigateToProducts: () => setState(() {
@@ -164,9 +228,8 @@ class _DashboardViewState extends State<DashboardView> {
             _openInEditMode = false;
           }),
           onProductUpdated: (updated) {
+            context.read<SellerCatalogBloc>().add(UpdateProductListingEvent(updated));
             setState(() {
-              final idx = _products.indexWhere((p) => p.productCode == updated.productCode);
-              if (idx != -1) _products[idx] = updated;
               _viewingProduct = updated;
             });
           },
@@ -174,7 +237,7 @@ class _DashboardViewState extends State<DashboardView> {
       }
 
       return ProductCatalogView(
-        products: _products,
+        products: products,
         sellers: _sellers,
         initialSellerFilter: _productCatalogSellerFilter,
         isWide: isWide,
@@ -186,10 +249,7 @@ class _DashboardViewState extends State<DashboardView> {
         },
         onOpenAddProduct: () => _openAddProductDialog(context),
         onProductUpdated: (updated) {
-          setState(() {
-            final idx = _products.indexWhere((p) => p.productCode == updated.productCode);
-            if (idx != -1) _products[idx] = updated;
-          });
+          context.read<SellerCatalogBloc>().add(UpdateProductListingEvent(updated));
         },
       );
     }
@@ -199,7 +259,7 @@ class _DashboardViewState extends State<DashboardView> {
       if (_viewingSeller != null) {
         return SellerProfileView(
           seller: _viewingSeller!,
-          allProducts: _products,
+          allProducts: products,
           onBack: () => setState(() => _viewingSeller = null),
           onSellerUpdated: (updated) {
             setState(() {
@@ -221,7 +281,7 @@ class _DashboardViewState extends State<DashboardView> {
 
       return SellersView(
         sellers: _sellers,
-        products: _products,
+        products: products,
         onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
         onViewSellerProducts: (sellerTradeName) {
           setState(() {
@@ -245,9 +305,8 @@ class _DashboardViewState extends State<DashboardView> {
         order: _viewingOrder!,
         onBack: () => setState(() => _viewingOrder = null),
         onOrderUpdated: (updated) {
+          context.read<SellerOrderBloc>().add(UpdateLocalSellerOrderEvent(updated));
           setState(() {
-            final idx = _orders.indexWhere((o) => o.id == updated.id);
-            if (idx != -1) _orders[idx] = updated;
             _viewingOrder = updated;
           });
         },
@@ -255,7 +314,7 @@ class _DashboardViewState extends State<DashboardView> {
     }
 
     return OrdersView(
-      orders: _orders,
+      orders: orders,
       onSelectOrder: (order) => setState(() => _viewingOrder = order),
     );
   }
@@ -277,21 +336,7 @@ class _DashboardViewState extends State<DashboardView> {
       builder: (ctx) => AddProductDialog(
         sellerId: activeSellerId,
         onProductAdded: (newProduct) {
-          setState(() {
-            _products.insert(0, newProduct);
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Added "${newProduct.title}" to catalog for Seller $activeSellerId.',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-              ),
-              backgroundColor: const Color(0xFF059669),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              margin: const EdgeInsets.all(20),
-            ),
-          );
+          context.read<SellerCatalogBloc>().add(SubmitProductListingEvent(newProduct));
         },
       ),
     );

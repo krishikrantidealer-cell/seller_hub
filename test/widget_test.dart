@@ -1,15 +1,46 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:seller_hub/main.dart';
+import 'package:seller_hub/core/di/injection_container.dart';
 import 'package:seller_hub/core/router/app_router.dart';
 import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/presentation/auth/views/login_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/dashboard_view.dart';
 
 void main() {
-  setUp(() {
+  final mockHttpClient = MockClient((request) async {
+    if (request.url.path == '/api/v1/auth/password/login') {
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Authentication successful",
+          "data": {
+            "accessToken": "eyJhbGciOiJIUzM4NCJ9.test_access_token",
+            "refreshToken": "eyJhbGciOiJIUzM4NCJ9.test_refresh_token",
+            "tokenType": "Bearer",
+            "expiresInMs": 86400000,
+            "userId": "6ab4ae6922033f1670582bdb",
+            "phoneNumber": "9876543668",
+            "role": "ROLE_ADMIN",
+            "isProfileComplete": true
+          },
+          "timestamp": "2026-10-23T09:49:31.843224715"
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    return http.Response('{"error": "Not found"}', 404);
+  });
+
+  setUp(() async {
     SharedPreferences.setMockInitialValues({});
+    InjectionContainer.instance.reset();
+    await InjectionContainer.instance.init(httpClient: mockHttpClient);
     AppRouter.router.go(RouteNames.login);
   });
 

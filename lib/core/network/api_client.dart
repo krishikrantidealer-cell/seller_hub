@@ -1,0 +1,180 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import '../constants/api_endpoints.dart';
+import '../storage/token_storage.dart';
+import 'api_exception.dart';
+
+class ApiClient {
+  final http.Client _client;
+  final TokenStorage _tokenStorage;
+  final String _baseUrl;
+  final Duration _timeout;
+
+  ApiClient({
+    http.Client? client,
+    TokenStorage? tokenStorage,
+    String? baseUrl,
+    Duration? timeout,
+  })  : _client = client ?? http.Client(),
+        _tokenStorage = tokenStorage ?? TokenStorage(),
+        _baseUrl = baseUrl ?? ApiEndpoints.baseUrl,
+        _timeout = timeout ?? const Duration(seconds: 15);
+
+  Uri _buildUri(String path, [Map<String, dynamic>? queryParameters]) {
+    final cleanPath = path.startsWith('/') ? path : '/$path';
+    final fullUrl = '$_baseUrl$cleanPath';
+    return Uri.parse(fullUrl).replace(
+      queryParameters: queryParameters?.map(
+        (key, value) => MapEntry(key, value?.toString() ?? ''),
+      ),
+    );
+  }
+
+  Future<Map<String, String>> _buildHeaders({bool requiresAuth = false}) async {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+
+    if (requiresAuth) {
+      final token = await _tokenStorage.getAccessToken();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+
+    return headers;
+  }
+
+  Future<Map<String, dynamic>> post(
+    String path, {
+    Map<String, dynamic>? body,
+    bool requiresAuth = false,
+  }) async {
+    try {
+      final uri = _buildUri(path);
+      final headers = await _buildHeaders(requiresAuth: requiresAuth);
+
+      final response = await _client
+          .post(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(_timeout);
+
+      return _processResponse(response);
+    } on SocketException catch (e) {
+      throw NetworkException(
+        message: 'No internet connection or server unreachable: ${e.message}',
+        details: e,
+      );
+    } on TimeoutException {
+      throw const NetworkException(
+        message: 'Connection timed out. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      throw NetworkException(
+        message: 'Network communication failure: ${e.message}',
+        details: e,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Unexpected error occurred: $e',
+        details: e,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    bool requiresAuth = false,
+  }) async {
+    try {
+      final uri = _buildUri(path, queryParameters);
+      final headers = await _buildHeaders(requiresAuth: requiresAuth);
+
+      final response = await _client.get(uri, headers: headers).timeout(_timeout);
+      return _processResponse(response);
+    } on SocketException catch (e) {
+      throw NetworkException(
+        message: 'No internet connection or server unreachable: ${e.message}',
+        details: e,
+      );
+    } on TimeoutException {
+      throw const NetworkException(
+        message: 'Connection timed out. Please try again.',
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Unexpected error occurred: $e',
+        details: e,
+      );
+    }
+  }
+
+  Map<String, dynamic> _processResponse(http.Response response) {
+    Map<String, dynamic> responseData;
+
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is Map<String, dynamic>) {
+        responseData = decoded;
+      } else {
+        responseData = {'data': decoded};
+      }
+    } catch (e) {
+      responseData = {
+        'message': 'Failed to parse response body',
+        'raw': response.body,
+      };
+    }
+
+    final statusCode = response.statusCode;
+
+    if (statusCode >= 200 && statusCode < 300) {
+      // Check if backend returned an explicit success=false
+      if (responseData.containsKey('success') && responseData['success'] == false) {
+        final message = responseData['message'] as String? ?? 'Operation failed';
+        throw ApiException(
+          message: message,
+          statusCode: statusCode,
+          details: responseData,
+        );
+      }
+      return responseData;
+    }
+
+    final errorMessage = responseData['message'] as String? ??
+        responseData['error'] as String? ??
+        'Request failed with status $statusCode';
+
+    if (statusCode == 401) {
+      throw UnauthorizedException(
+        message: errorMessage,
+        details: responseData,
+      );
+    }
+
+    if (statusCode >= 500) {
+      throw ServerException(
+        message: errorMessage,
+        statusCode: statusCode,
+        details: responseData,
+      );
+    }
+
+    throw ApiException(
+      message: errorMessage,
+      statusCode: statusCode,
+      details: responseData,
+    );
+  }
+}

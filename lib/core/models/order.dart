@@ -379,65 +379,6 @@ class MarketplaceOrder extends Equatable {
     );
   }
 
-  factory MarketplaceOrder.fromJson(Map<String, dynamic> json) {
-    return MarketplaceOrder(
-      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      orderNumber: json['orderNumber']?.toString() ?? json['orderId']?.toString() ?? '',
-      paymentMethod: json['paymentMethod']?.toString() ?? 'Razorpay UPI / QR Transfer',
-      paymentStatus: json['paymentStatus']?.toString() ?? 'PAID',
-      company: json['company']?.toString() ?? 'AgriBegri Marketplace Pvt Ltd',
-      sellerName: json['sellerName']?.toString() ?? 'Krishi Kranti Organics',
-      referenceBankDetail: json['referenceBankDetail'] is Map<String, dynamic>
-          ? OrderBankDetail.fromJson(json['referenceBankDetail'] as Map<String, dynamic>)
-          : const OrderBankDetail(),
-      paidDate: json['paidDate'] != null ? DateTime.tryParse(json['paidDate'].toString()) ?? DateTime.now() : DateTime.now(),
-      orderDate: json['orderDate'] != null ? DateTime.tryParse(json['orderDate'].toString()) ?? DateTime.now() : DateTime.now(),
-      orderStatus: json['orderStatus']?.toString() ?? json['status']?.toString() ?? 'READY TO DISPATCH',
-      items: json['items'] is List
-          ? (json['items'] as List)
-              .whereType<Map<String, dynamic>>()
-              .map((i) => OrderItem.fromJson(i))
-              .toList()
-          : const [],
-      sellerDetails: json['sellerDetails'] is Map<String, dynamic>
-          ? OrderSellerDetail.fromJson(json['sellerDetails'] as Map<String, dynamic>)
-          : const OrderSellerDetail(sellerId: '', tradeName: ''),
-      shippingAddress: json['shippingAddress'] is Map<String, dynamic>
-          ? OrderAddress.fromJson(json['shippingAddress'] as Map<String, dynamic>)
-          : const OrderAddress(recipientName: '', phone: '', addressLine: '', city: '', state: '', pincode: ''),
-      billingAddress: json['billingAddress'] is Map<String, dynamic>
-          ? OrderAddress.fromJson(json['billingAddress'] as Map<String, dynamic>)
-          : const OrderAddress(recipientName: '', phone: '', addressLine: '', city: '', state: '', pincode: ''),
-      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
-      gstAmount: (json['gstAmount'] as num?)?.toDouble() ?? 0.0,
-      shippingFee: (json['shippingFee'] as num?)?.toDouble() ?? 0.0,
-      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
-      grandTotal: (json['grandTotal'] as num?)?.toDouble() ?? (json['totalAmount'] as num?)?.toDouble() ?? 0.0,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'orderNumber': orderNumber,
-    'paymentMethod': paymentMethod,
-    'paymentStatus': paymentStatus,
-    'company': company,
-    'sellerName': sellerName,
-    'referenceBankDetail': referenceBankDetail.toJson(),
-    'paidDate': paidDate.toIso8601String(),
-    'orderDate': orderDate.toIso8601String(),
-    'orderStatus': orderStatus,
-    'items': items.map((i) => i.toJson()).toList(),
-    'sellerDetails': sellerDetails.toJson(),
-    'shippingAddress': shippingAddress.toJson(),
-    'billingAddress': billingAddress.toJson(),
-    'subtotal': subtotal,
-    'gstAmount': gstAmount,
-    'shippingFee': shippingFee,
-    'discountAmount': discountAmount,
-    'grandTotal': grandTotal,
-  };
-
   @override
   List<Object?> get props => [
     id,

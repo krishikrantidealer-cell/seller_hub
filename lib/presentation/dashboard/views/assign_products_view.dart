@@ -469,97 +469,130 @@ class _AssignProductsViewState extends State<AssignProductsView> {
                     color: surfaceColor,
                     border: Border(bottom: BorderSide(color: borderColor)),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Icon(Icons.account_tree_outlined, size: 16, color: Color(0xFF7C3AED)),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Target Assignment:',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: textPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              ChoiceChip(
-                                label: Text('${widget.collection.name} (Root Only)'),
-                                labelStyle: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: _selectedSubCollectionId == null ? Colors.white : textPrimary,
-                                ),
-                                selected: _selectedSubCollectionId == null,
-                                selectedColor: const Color(0xFF059669),
-                                onSelected: (val) {
-                                  if (val) setState(() => _selectedSubCollectionId = null);
-                                },
-                              ),
-                              const SizedBox(width: 8),
-                              ...widget.collection.subCollections.map((sub) {
-                                final isSub = _selectedSubCollectionId == sub.id;
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: ChoiceChip(
-                                    avatar: isSub
-                                        ? const Icon(Icons.check, size: 14, color: Colors.white)
-                                        : null,
-                                    label: Text('${sub.name} (${sub.productCount})'),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(Icons.account_tree_outlined, size: 16, color: Color(0xFF7C3AED)),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Target Assignment:',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  ChoiceChip(
+                                    label: Text('${widget.collection.name} (Root Only)'),
                                     labelStyle: GoogleFonts.plusJakartaSans(
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w700,
-                                      color: isSub ? Colors.white : textPrimary,
+                                      color: _selectedSubCollectionId == null ? Colors.white : textPrimary,
                                     ),
-                                    selected: isSub,
-                                    selectedColor: const Color(0xFF7C3AED),
+                                    selected: _selectedSubCollectionId == null,
+                                    selectedColor: const Color(0xFF059669),
                                     onSelected: (val) {
-                                      setState(() {
-                                        _selectedSubCollectionId = val ? sub.id : null;
-                                      });
+                                      if (val) setState(() => _selectedSubCollectionId = null);
                                     },
                                   ),
-                                );
-                              }),
-                            ],
+                                  const SizedBox(width: 8),
+                                  ...widget.collection.subCollections.map((sub) {
+                                    final isSub = _selectedSubCollectionId == sub.id;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: ChoiceChip(
+                                        avatar: isSub
+                                            ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                            : null,
+                                        label: Text('${sub.name} (${sub.productCount})'),
+                                        labelStyle: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSub ? Colors.white : textPrimary,
+                                        ),
+                                        selected: isSub,
+                                        selectedColor: const Color(0xFF7C3AED),
+                                        onSelected: (val) {
+                                          setState(() {
+                                            _selectedSubCollectionId = val ? sub.id : null;
+                                          });
+                                        },
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                       if (_selectedSubCollectionId != null) ...[
-                        const SizedBox(width: 12),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: Checkbox(
-                                value: _includeRootCollection,
-                                activeColor: const Color(0xFF059669),
-                                onChanged: (val) => setState(() => _includeRootCollection = val ?? true),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF7C3AED).withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: Checkbox(
+                                  value: _includeRootCollection,
+                                  activeColor: const Color(0xFF059669),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                  onChanged: (val) => setState(() => _includeRootCollection = val ?? true),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Also assign to root collection (${widget.collection.name})',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: textSecondary,
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text.rich(
+                                  TextSpan(
+                                    text: 'Also assign to root collection ',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: textPrimary,
+                                    ),
+                                    children: [
+                                      TextSpan(
+                                        text: '(${widget.collection.name})',
+                                        style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF059669)),
+                                      ),
+                                      TextSpan(
+                                        text: _includeRootCollection
+                                            ? ' — Products will appear in both "${widget.collection.subCollections.firstWhere((s) => s.id == _selectedSubCollectionId, orElse: () => widget.collection.subCollections.first).name}" and "${widget.collection.name}"'
+                                            : ' — Products will ONLY appear in "${widget.collection.subCollections.firstWhere((s) => s.id == _selectedSubCollectionId, orElse: () => widget.collection.subCollections.first).name}"',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ],

@@ -561,46 +561,56 @@ class _CollectionsViewState extends State<CollectionsView> {
   }
 
   Widget _buildSearchBar(bool isDark, Color surfaceColor, Color borderColor) {
-    return Container(
+    return SizedBox(
       height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8), size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search collections by title, slug, or child categories (e.g. Rice, Pest)...',
-                hintStyle: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
-                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                ),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
+      child: TextField(
+        controller: _searchController,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          color: isDark ? Colors.white : const Color(0xFF0F172A),
+        ),
+        decoration: InputDecoration(
+          hintText: 'Search collections by title, slug, or child categories (e.g. Rice, Pest)...',
+          hintStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
           ),
-          if (_searchQuery.isNotEmpty)
-            GestureDetector(
-              onTap: () => _searchController.clear(),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(Icons.close_rounded, size: 16, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-              ),
-            ),
-        ],
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            size: 17,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  tooltip: 'Clear search',
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = '';
+                    });
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: surfaceColor,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: borderColor),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: borderColor),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF059669), width: 1.4),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
       ),
     );
   }

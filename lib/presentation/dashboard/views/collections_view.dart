@@ -178,12 +178,31 @@ class _CollectionsViewState extends State<CollectionsView> {
     );
   }
 
+  IconData _getCollectionIcon(String name, String slug) {
+    final lower = (name + slug).toLowerCase();
+    if (lower.contains('crop')) return Icons.eco_rounded;
+    if (lower.contains('pest') || lower.contains('disease')) return Icons.pest_control_rounded;
+    if (lower.contains('best') || lower.contains('seller')) return Icons.star_rounded;
+    if (lower.contains('new') || lower.contains('arrival')) return Icons.auto_awesome_rounded;
+    if (lower.contains('offer') || lower.contains('deal')) return Icons.local_offer_rounded;
+    return Icons.folder_special_rounded;
+  }
+
+  Color _getCollectionColor(String name, String slug) {
+    final lower = (name + slug).toLowerCase();
+    if (lower.contains('crop')) return const Color(0xFF10B981);
+    if (lower.contains('pest') || lower.contains('disease')) return const Color(0xFFEF4444);
+    if (lower.contains('best') || lower.contains('seller')) return const Color(0xFFF59E0B);
+    if (lower.contains('new') || lower.contains('arrival')) return const Color(0xFF8B5CF6);
+    return const Color(0xFF0284C7);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
-    final cardBgColor = isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC);
+    final cardBgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
 
     return MultiBlocListener(
       listeners: [
@@ -250,26 +269,26 @@ class _CollectionsViewState extends State<CollectionsView> {
               }).toList();
 
               return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. Header & Actions Row
+                    // 1. Sleek Compact Header
                     _buildHeader(context, state, isDark, borderColor),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
 
-                    // 2. Overview Metrics Row
+                    // 2. Compact Overview Metrics Row
                     _buildMetricsRow(state, prodState, isDark, surfaceColor, borderColor),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 14),
 
-                    // 3. Search & Filter Bar
+                    // 3. Compact Search Bar
                     _buildSearchBar(isDark, surfaceColor, borderColor),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
 
-                    // 4. Content Area: Loading, Error, Empty, or Collections List
+                    // 4. Content Area
                     if (state.status == CollectionStatus.loading && allItems.isEmpty)
                       _buildLoadingState(isDark)
                     else if (state.status == CollectionStatus.error && allItems.isEmpty)
@@ -281,10 +300,9 @@ class _CollectionsViewState extends State<CollectionsView> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: filteredItems.length,
-                        separatorBuilder: (_, index) => const SizedBox(height: 16),
+                        separatorBuilder: (_, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final item = filteredItems[index];
-                          // By default, expand if user expanded or if it has subcollections and less than 3 total collections
                           final isExpanded = _expandedCollectionIds.contains(item.id) ||
                               (_searchQuery.isNotEmpty && item.subCollections.isNotEmpty);
                           return _buildCollectionCard(item, prodState, isExpanded, isDark, surfaceColor, borderColor, cardBgColor);
@@ -306,84 +324,95 @@ class _CollectionsViewState extends State<CollectionsView> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.collections_bookmark_rounded,
-                      color: Color(0xFF059669),
-                      size: 22,
-                    ),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF059669), Color(0xFF10B981)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  const SizedBox(width: 12),
-                  Flexible(
-                    child: Text(
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF059669).withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.collections_bookmark_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
                       'Storefront Collections & Taxonomy',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 22,
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        letterSpacing: -0.5,
+                        letterSpacing: -0.3,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Padding(
-                padding: const EdgeInsets.only(left: 42),
-                child: Text(
-                  'Manage top-level curated collections, seasonal crop categories, and pest & disease navigation paths.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                  ),
+                    Text(
+                      'Organize products into store shelves so buyers find them easily.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 12),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             OutlinedButton.icon(
               onPressed: () {
                 context.read<CollectionBloc>().add(const FetchCollections(isRefresh: true));
               },
-              icon: const Icon(Icons.refresh_rounded, size: 16),
+              icon: const Icon(Icons.sync_rounded, size: 16),
               label: Text(
                 'Sync Collections',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF059669),
                 side: BorderSide(color: borderColor),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                minimumSize: const Size(0, 36),
               ),
             ),
             ElevatedButton.icon(
               onPressed: () => _openCreateCollectionDialog(context),
-              icon: const Icon(Icons.add_rounded, size: 18),
+              icon: const Icon(Icons.add_rounded, size: 17),
               label: Text(
                 'Create Collection',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -391,8 +420,9 @@ class _CollectionsViewState extends State<CollectionsView> {
                 backgroundColor: const Color(0xFF059669),
                 foregroundColor: Colors.white,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                minimumSize: const Size(0, 36),
               ),
             ),
           ],
@@ -404,7 +434,7 @@ class _CollectionsViewState extends State<CollectionsView> {
   Widget _buildMetricsRow(CollectionState state, ProductState prodState, bool isDark, Color surfaceColor, Color borderColor) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 720;
+        final isCompact = constraints.maxWidth < 640;
         final count = state.totalCollections;
         final subCount = state.totalSubCollections;
         final activeCount = state.activeCollectionsCount;
@@ -412,42 +442,38 @@ class _CollectionsViewState extends State<CollectionsView> {
         final mappedProducts = totalAssignedCount > 0 ? totalAssignedCount : state.totalMappedProducts;
 
         final items = [
-          _buildMetricCard(
+          _buildCompactMetricItem(
             title: 'Total Collections',
             value: '$count',
-            subtitle: 'Root groupings active',
-            icon: Icons.category_rounded,
-            iconColor: const Color(0xFF2563EB),
+            icon: Icons.folder_rounded,
+            color: const Color(0xFF2563EB),
             isDark: isDark,
             surfaceColor: surfaceColor,
             borderColor: borderColor,
           ),
-          _buildMetricCard(
+          _buildCompactMetricItem(
             title: 'Sub-Collections',
             value: '$subCount',
-            subtitle: 'Leaf filter nodes',
-            icon: Icons.subdirectory_arrow_right_rounded,
-            iconColor: const Color(0xFF7C3AED),
+            icon: Icons.account_tree_rounded,
+            color: const Color(0xFF7C3AED),
             isDark: isDark,
             surfaceColor: surfaceColor,
             borderColor: borderColor,
           ),
-          _buildMetricCard(
+          _buildCompactMetricItem(
             title: 'Live Published',
             value: '$activeCount',
-            subtitle: 'Storefront visible',
             icon: Icons.check_circle_rounded,
-            iconColor: const Color(0xFF059669),
+            color: const Color(0xFF059669),
             isDark: isDark,
             surfaceColor: surfaceColor,
             borderColor: borderColor,
           ),
-          _buildMetricCard(
+          _buildCompactMetricItem(
             title: 'Mapped Products',
             value: '$mappedProducts',
-            subtitle: 'Catalog SKU linkages',
             icon: Icons.inventory_2_rounded,
-            iconColor: const Color(0xFFD97706),
+            color: const Color(0xFFD97706),
             isDark: isDark,
             surfaceColor: surfaceColor,
             borderColor: borderColor,
@@ -457,9 +483,9 @@ class _CollectionsViewState extends State<CollectionsView> {
         if (isCompact) {
           return GridView.count(
             crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 2.2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 3.2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: items,
@@ -468,69 +494,63 @@ class _CollectionsViewState extends State<CollectionsView> {
 
         return Row(
           children: items
-              .map((it) => Expanded(child: Padding(padding: const EdgeInsets.only(right: 12), child: it)))
+              .map((it) => Expanded(child: Padding(padding: const EdgeInsets.only(right: 8), child: it)))
               .toList(),
         );
       },
     );
   }
 
-  Widget _buildMetricCard({
+  Widget _buildCompactMetricItem({
     required String title,
     required String value,
-    required String subtitle,
     required IconData icon,
-    required Color iconColor,
+    required Color color,
     required bool isDark,
     required Color surfaceColor,
     required Color borderColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(icon, color: iconColor, size: 20),
+            child: Icon(icon, color: color, size: 16),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
+                  value,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    height: 1.1,
+                  ),
+                ),
+                Text(
                   title,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10.5,
-                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -542,33 +562,45 @@ class _CollectionsViewState extends State<CollectionsView> {
 
   Widget _buildSearchBar(bool isDark, Color surfaceColor, Color borderColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: borderColor),
       ),
-      child: TextField(
-        controller: _searchController,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 13.5,
-          color: isDark ? Colors.white : const Color(0xFF0F172A),
-        ),
-        decoration: InputDecoration(
-          icon: Icon(Icons.search_rounded, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8), size: 20),
-          hintText: 'Search collections by title, slug, or child sub-collection names (e.g. Rice, Maize, Aphids)...',
-          hintStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+      child: Row(
+        children: [
+          Icon(Icons.search_rounded, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search collections by title, slug, or child categories (e.g. Rice, Pest)...',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
           ),
-          border: InputBorder.none,
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear_rounded, size: 16),
-                  onPressed: () => _searchController.clear(),
-                )
-              : null,
-        ),
+          if (_searchQuery.isNotEmpty)
+            GestureDetector(
+              onTap: () => _searchController.clear(),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(Icons.close_rounded, size: 16, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -589,52 +621,59 @@ class _CollectionsViewState extends State<CollectionsView> {
         p.assignedCollections.any((id) => allSubIds.contains(id))
     ).length;
     final displayProductCount = liveProductCount > 0 ? liveProductCount : item.productCount;
+    final themeColor = _getCollectionColor(item.name, item.slug);
+    final themeIcon = _getCollectionIcon(item.name, item.slug);
 
     return Container(
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isExpanded ? themeColor.withValues(alpha: 0.5) : borderColor,
+          width: isExpanded ? 1.5 : 1,
+        ),
+        boxShadow: isExpanded
+            ? [
+                BoxShadow(
+                  color: themeColor.withValues(alpha: 0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header / Main Card Tap Target
+          // Header Row / Tap Target
           InkWell(
             onTap: () => _toggleExpanded(item.id),
             child: Padding(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Priority Badge / Icon
+                  // Collection Theme Icon
                   Container(
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: borderColor),
+                      color: themeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
-                      child: Text(
-                        '#${item.priority}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF059669),
-                        ),
-                      ),
+                      child: Icon(themeIcon, color: themeColor, size: 20),
                     ),
                   ),
 
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
 
-                  // Title, Slug & Description
+                  // Title & Friendly Description
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Wrap(
                           crossAxisAlignment: WrapCrossAlignment.center,
@@ -644,14 +683,13 @@ class _CollectionsViewState extends State<CollectionsView> {
                             Text(
                               item.name,
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w800,
                                 color: isDark ? Colors.white : const Color(0xFF0F172A),
                               ),
                             ),
-                            // Slug Pill
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                               decoration: BoxDecoration(
                                 color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(4),
@@ -659,14 +697,14 @@ class _CollectionsViewState extends State<CollectionsView> {
                               child: Text(
                                 '/${item.slug}',
                                 style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 11,
+                                  fontSize: 10.5,
                                   color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                                 ),
                               ),
                             ),
                             if (item.bannerTitle != null && item.bannerTitle!.isNotEmpty)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF2563EB).withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(4),
@@ -682,86 +720,85 @@ class _CollectionsViewState extends State<CollectionsView> {
                               ),
                           ],
                         ),
-
                         if (item.description.isNotEmpty) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             item.description,
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.5,
+                              fontSize: 11.5,
                               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ],
                     ),
                   ),
 
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 10),
 
-                  // Status, Count & Expansion Controls
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  // Compact Status & Action Controls
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      // Sub-Collection Count Pill
+                      // Sub-Collections badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                          color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.25)),
+                          border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.2)),
                         ),
                         child: Text(
                           '${item.subCollections.length} Sub-Collections',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
+                            fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: const Color(0xFF7C3AED),
                           ),
                         ),
                       ),
 
-                      const SizedBox(width: 8),
-
-                      // Product Count Pill
+                      // Products count badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF059669).withValues(alpha: 0.1),
+                          color: const Color(0xFF059669).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
+                          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.2)),
                         ),
                         child: Text(
                           '$displayProductCount Products',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
+                            fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: const Color(0xFF059669),
                           ),
                         ),
                       ),
 
-                      const SizedBox(width: 8),
-
-                      // Active Pill
+                      // Active / Inactive Badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
                           color: (item.isActive ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
                           item.isActive ? 'Active' : 'Inactive',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w800,
                             color: item.isActive ? const Color(0xFF10B981) : const Color(0xFFEF4444),
                           ),
                         ),
                       ),
 
-                      const SizedBox(width: 4),
-
+                      // Assign Products Button
                       IconButton(
                         icon: const Icon(Icons.playlist_add_rounded, size: 20),
                         tooltip: 'Assign Products',
@@ -769,6 +806,7 @@ class _CollectionsViewState extends State<CollectionsView> {
                         onPressed: () => _openAssignProductsDialog(context, item),
                       ),
 
+                      // Edit button
                       IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 18),
                         tooltip: 'Edit Collection',
@@ -776,6 +814,7 @@ class _CollectionsViewState extends State<CollectionsView> {
                         onPressed: () => _openEditCollectionDialog(context, item),
                       ),
 
+                      // Deactivate button
                       if (item.isActive)
                         IconButton(
                           icon: const Icon(Icons.power_settings_new_rounded, size: 18),
@@ -784,10 +823,11 @@ class _CollectionsViewState extends State<CollectionsView> {
                           onPressed: () => _confirmDeactivateCollection(context, item),
                         ),
 
+                      // Expand Chevron
                       Icon(
                         isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        size: 22,
+                        size: 20,
                       ),
                     ],
                   ),
@@ -796,37 +836,39 @@ class _CollectionsViewState extends State<CollectionsView> {
             ),
           ),
 
-          // Expanded Sub-Collections Shelf
+          // Expanded Shelf
           if (isExpanded) ...[
             Divider(height: 1, color: borderColor),
             Container(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(14),
               color: cardBgColor,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Sub-Collections Header
                   Row(
                     children: [
-                      const Icon(Icons.account_tree_outlined, size: 16, color: Color(0xFF7C3AED)),
+                      const Icon(Icons.account_tree_outlined, size: 15, color: Color(0xFF7C3AED)),
                       const SizedBox(width: 6),
                       Text(
                         'Mapped Sub-Collections & Category Taxonomy',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+
                   if (!hasSubs)
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Text(
-                        'No sub-collections mapped. This is a direct single-level product collection.',
+                        'No sub-collections mapped. Products are assigned directly to this collection.',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
+                          fontSize: 12,
                           fontStyle: FontStyle.italic,
                           color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                         ),
@@ -834,15 +876,16 @@ class _CollectionsViewState extends State<CollectionsView> {
                     )
                   else
                     Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                      spacing: 8,
+                      runSpacing: 8,
                       children: item.subCollections.map((sub) {
                         return _buildSubCollectionPill(sub, prodState, isDark, surfaceColor, borderColor);
                       }).toList(),
                     ),
-                  const SizedBox(height: 18),
+
+                  const SizedBox(height: 14),
                   Divider(height: 1, color: borderColor),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   // Assigned Products Shelf
                   BlocBuilder<ProductBloc, ProductState>(
@@ -861,12 +904,12 @@ class _CollectionsViewState extends State<CollectionsView> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.inventory_2_outlined, size: 16, color: Color(0xFF059669)),
+                                  const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xFF059669)),
                                   const SizedBox(width: 6),
                                   Text(
                                     'Assigned Catalog Products (${assigned.length})',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12.5,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w800,
                                       color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
                                     ),
@@ -875,28 +918,30 @@ class _CollectionsViewState extends State<CollectionsView> {
                               ),
                               OutlinedButton.icon(
                                 onPressed: () => _openAssignProductsDialog(context, item),
-                                icon: const Icon(Icons.playlist_add_rounded, size: 15),
+                                icon: const Icon(Icons.tune_rounded, size: 14),
                                 label: Text(
-                                  'Assign / Manage Products',
+                                  'Manage Assigned Products',
                                   style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11.5,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFF059669),
                                   side: const BorderSide(color: Color(0xFF059669)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 28),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
+
                           if (assigned.isEmpty)
                             Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(14),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               decoration: BoxDecoration(
                                 color: surfaceColor,
                                 borderRadius: BorderRadius.circular(8),
@@ -904,13 +949,13 @@ class _CollectionsViewState extends State<CollectionsView> {
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.info_outline_rounded, size: 18, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                  Icon(Icons.info_outline_rounded, size: 16, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      'No products assigned to this collection yet. Click "Assign / Manage Products" to link items from your catalog.',
+                                      'No products assigned yet. Click "Assign Products" to link items to this shelf.',
                                       style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 12,
+                                        fontSize: 11.5,
                                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                                       ),
                                     ),
@@ -920,11 +965,11 @@ class _CollectionsViewState extends State<CollectionsView> {
                             )
                           else
                             Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
+                              spacing: 8,
+                              runSpacing: 8,
                               children: assigned.map((p) {
                                 return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                                   decoration: BoxDecoration(
                                     color: surfaceColor,
                                     borderRadius: BorderRadius.circular(8),
@@ -936,18 +981,18 @@ class _CollectionsViewState extends State<CollectionsView> {
                                       ClipRRect(
                                         borderRadius: BorderRadius.circular(4),
                                         child: SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: AppProductImage(imageUrl: p.image, width: 24, height: 24),
+                                          width: 22,
+                                          height: 22,
+                                          child: AppProductImage(imageUrl: p.image, width: 22, height: 22),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
+                                      const SizedBox(width: 6),
                                       ConstrainedBox(
-                                        constraints: const BoxConstraints(maxWidth: 180),
+                                        constraints: const BoxConstraints(maxWidth: 160),
                                         child: Text(
                                           p.title,
                                           style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 12,
+                                            fontSize: 11.5,
                                             fontWeight: FontWeight.w700,
                                             color: isDark ? Colors.white : const Color(0xFF0F172A),
                                           ),
@@ -959,7 +1004,7 @@ class _CollectionsViewState extends State<CollectionsView> {
                                       Text(
                                         '₹${p.price.toStringAsFixed(0)}',
                                         style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 11.5,
+                                          fontSize: 11,
                                           fontWeight: FontWeight.w800,
                                           color: const Color(0xFF059669),
                                         ),
@@ -995,11 +1040,11 @@ class _CollectionsViewState extends State<CollectionsView> {
     final displaySubCount = liveSubCount > 0 ? liveSubCount : sub.productCount;
 
     return Container(
-      constraints: const BoxConstraints(minWidth: 200, maxWidth: 300),
-      padding: const EdgeInsets.all(10),
+      constraints: const BoxConstraints(minWidth: 160, maxWidth: 240),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: borderColor),
       ),
       child: Row(
@@ -1009,25 +1054,25 @@ class _CollectionsViewState extends State<CollectionsView> {
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: SizedBox(
-              width: 38,
-              height: 38,
+              width: 32,
+              height: 32,
               child: sub.image != null && sub.image!.isNotEmpty
                   ? AppProductImage(
                       imageUrl: sub.image!,
-                      width: 38,
-                      height: 38,
+                      width: 32,
+                      height: 32,
                       borderRadius: 6,
                       fit: BoxFit.cover,
                     )
                   : Container(
                       color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
                       child: const Center(
-                        child: Icon(Icons.grass_rounded, size: 20, color: Color(0xFF059669)),
+                        child: Icon(Icons.grass_rounded, size: 16, color: Color(0xFF059669)),
                       ),
                     ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1036,35 +1081,22 @@ class _CollectionsViewState extends State<CollectionsView> {
                 Text(
                   sub.name,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Text(
-                      '$displaySubCount SKUs',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: displaySubCount > 0 ? const Color(0xFF059669) : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '• /${sub.slug}',
-                      style: GoogleFonts.jetBrainsMono(
-                        fontSize: 10,
-                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                Text(
+                  '$displaySubCount SKUs • /${sub.slug}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: displaySubCount > 0 ? const Color(0xFF059669) : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -1077,15 +1109,15 @@ class _CollectionsViewState extends State<CollectionsView> {
   Widget _buildLoadingState(bool isDark) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(40),
+        padding: const EdgeInsets.all(32),
         child: Column(
           children: [
             const CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF059669)),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Text(
-              'Loading collections catalog from server...',
+              'Loading collections...',
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
+                fontSize: 12.5,
                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
             ),
@@ -1097,35 +1129,36 @@ class _CollectionsViewState extends State<CollectionsView> {
 
   Widget _buildErrorState(BuildContext context, String message, bool isDark, Color surfaceColor, Color borderColor) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor),
       ),
       child: Center(
         child: Column(
           children: [
-            const Icon(Icons.cloud_off_rounded, size: 48, color: Color(0xFFEF4444)),
-            const SizedBox(height: 12),
+            const Icon(Icons.cloud_off_rounded, size: 40, color: Color(0xFFEF4444)),
+            const SizedBox(height: 10),
             Text(
               'Unable to Load Collections',
-              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+              style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w800, color: isDark ? Colors.white : const Color(0xFF0F172A)),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               message,
-              style: GoogleFonts.plusJakartaSans(fontSize: 13, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             ElevatedButton.icon(
               onPressed: () => context.read<CollectionBloc>().add(const FetchCollections(isRefresh: true)),
-              icon: const Icon(Icons.refresh_rounded, size: 16),
+              icon: const Icon(Icons.refresh_rounded, size: 15),
               label: const Text('Retry Fetch'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF059669),
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               ),
             ),
           ],
@@ -1136,25 +1169,25 @@ class _CollectionsViewState extends State<CollectionsView> {
 
   Widget _buildEmptyState(bool isDark, Color surfaceColor, Color borderColor) {
     return Container(
-      padding: const EdgeInsets.all(36),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor),
       ),
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.search_off_rounded, size: 48, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-            const SizedBox(height: 12),
+            Icon(Icons.search_off_rounded, size: 40, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+            const SizedBox(height: 10),
             Text(
               'No collections matching "$_searchQuery"',
-              style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+              style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF0F172A)),
             ),
             const SizedBox(height: 4),
             Text(
               'Try clearing your search query or check spelling.',
-              style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
             ),
           ],
         ),

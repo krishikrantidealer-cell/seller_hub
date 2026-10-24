@@ -8,7 +8,7 @@ import '../../../logic/collection/collection_state.dart';
 import '../widgets/app_product_image.dart';
 import '../widgets/create_collection_dialog.dart';
 import '../widgets/edit_collection_dialog.dart';
-import '../widgets/assign_products_to_collection_dialog.dart';
+import 'assign_products_view.dart';
 import '../../../logic/product/product_bloc.dart';
 import '../../../logic/product/product_state.dart';
 
@@ -70,9 +70,10 @@ class _CollectionsViewState extends State<CollectionsView> {
   }
 
   void _openAssignProductsDialog(BuildContext context, CollectionItem item) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AssignProductsToCollectionDialog(collection: item),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => AssignProductsView(collection: item),
+      ),
     );
   }
 

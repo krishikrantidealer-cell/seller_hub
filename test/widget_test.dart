@@ -1317,5 +1317,62 @@ void main() {
     // Verify dialog is closed
     expect(find.text('Assign Products to Collection'), findsNothing);
   });
+
+  testWidgets('AssignProductsView renders as a dedicated screen with multi-criteria filters, search, and navigation', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Navigate to Collections
+    await tester.tap(find.text('Collections'));
+    await tester.pumpAndSettle();
+
+    // Open Assign Products View
+    final assignProductsBtn = find.byTooltip('Assign Products').first;
+    await tester.ensureVisible(assignProductsBtn);
+    await tester.tap(assignProductsBtn);
+    await tester.pumpAndSettle();
+
+    // 1. Verify Screen Header & Navigation
+    expect(find.text('Assign Products to Collection'), findsOneWidget);
+    expect(find.byTooltip('Back to Collections'), findsOneWidget);
+    expect(find.text('Save Product Assignments'), findsOneWidget);
+
+    // 2. Verify Filters Toolbar Presence
+    expect(find.widgetWithText(TextField, ''), findsWidgets);
+    expect(find.text('All Categories'), findsOneWidget);
+    expect(find.text('All Sellers'), findsOneWidget);
+    expect(find.textContaining('All Products'), findsOneWidget);
+    expect(find.text('All Stock'), findsOneWidget);
+
+    // 3. Verify Selection Actions
+    expect(find.textContaining('Select All Filtered'), findsOneWidget);
+    expect(find.text('Deselect All'), findsOneWidget);
+
+    // 4. Test Search Bar
+    final searchInput = find.byType(TextField).first;
+    await tester.enterText(searchInput, 'Rice');
+    await tester.pumpAndSettle();
+
+    // 5. Verify Back Button navigates back to Collections
+    await tester.tap(find.byTooltip('Back to Collections'));
+    await tester.pumpAndSettle();
+    expect(find.text('Assign Products to Collection'), findsNothing);
+    expect(find.text('Shop By Crop'), findsOneWidget);
+  });
 }
 

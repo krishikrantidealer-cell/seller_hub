@@ -128,13 +128,15 @@ class _AssignProductsToCollectionDialogState extends State<AssignProductsToColle
 
         // Separate root vs sub collection ids using all known collections in state
         final colState = context.read<CollectionBloc>().state;
-        final allKnownRootIds = colState.collections.map((c) => c.id).toSet();
-        final allKnownSubIds = <String>{};
-        for (final c in colState.collections) {
-          for (final s in c.subCollections) {
-            allKnownSubIds.add(s.id);
-          }
-        }
+        final allKnownRootIds = {
+          widget.collection.id,
+          ...colState.collections.map((c) => c.id),
+        };
+        final allKnownSubIds = {
+          ...widget.collection.subCollections.map((s) => s.id),
+          for (final c in colState.collections)
+            for (final s in c.subCollections) s.id,
+        };
 
         final rootIds = currentCollections.where((id) => allKnownRootIds.contains(id)).toList();
         final subIds = currentCollections.where((id) => allKnownSubIds.contains(id)).toList();

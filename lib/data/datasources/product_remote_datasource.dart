@@ -60,10 +60,18 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
 
     Map<String, dynamic> response;
     try {
-      response = await _apiClient.post(path, body: body, requiresAuth: true);
+      response = await _apiClient.put(path, body: body, requiresAuth: true);
     } on ApiException catch (e) {
-      if (e.statusCode == 404 || e.statusCode == 405) {
-        response = await _apiClient.put(path, body: body, requiresAuth: true);
+      if (e.statusCode == 404 || e.statusCode == 405 || e.statusCode == 500) {
+        try {
+          response = await _apiClient.patch(path, body: body, requiresAuth: true);
+        } on ApiException catch (patchErr) {
+          if (patchErr.statusCode == 404 || patchErr.statusCode == 405 || patchErr.statusCode == 500) {
+            response = await _apiClient.post(path, body: body, requiresAuth: true);
+          } else {
+            rethrow;
+          }
+        }
       } else {
         rethrow;
       }

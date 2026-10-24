@@ -900,38 +900,15 @@ class _CollectionsViewState extends State<CollectionsView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xFF059669)),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Assigned Catalog Products (${assigned.length})',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: () => _openAssignProductsDialog(context, item),
-                                icon: const Icon(Icons.tune_rounded, size: 14),
-                                label: Text(
-                                  'Manage Assigned Products',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF059669),
-                                  side: const BorderSide(color: Color(0xFF059669)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  minimumSize: const Size(0, 28),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xFF059669)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Assigned Catalog Products (${assigned.length})',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
                                 ),
                               ),
                             ],

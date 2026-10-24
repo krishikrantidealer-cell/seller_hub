@@ -624,33 +624,39 @@ class _CollectionsViewState extends State<CollectionsView> {
     final themeColor = _getCollectionColor(item.name, item.slug);
     final themeIcon = _getCollectionIcon(item.name, item.slug);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isExpanded ? themeColor.withValues(alpha: 0.5) : borderColor,
-          width: isExpanded ? 1.5 : 1,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: surfaceColor,
+          borderRadius: BorderRadius.circular(12),
+          border: isExpanded ? null : Border.all(color: borderColor),
+          boxShadow: isExpanded
+              ? [
+                  BoxShadow(
+                    color: themeColor.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
-        boxShadow: isExpanded
-            ? [
-                BoxShadow(
-                  color: themeColor.withValues(alpha: 0.06),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row / Tap Target
-          InkWell(
-            onTap: () => _toggleExpanded(item.id),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Material(
+          color: surfaceColor,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Row / Tap Target
+              InkWell(
+                onTap: () => _toggleExpanded(item.id),
+                borderRadius: isExpanded
+                    ? const BorderRadius.vertical(top: Radius.circular(12))
+                    : BorderRadius.circular(12),
+                hoverColor: isDark
+                    ? const Color(0xFF1E293B).withValues(alpha: 0.6)
+                    : const Color(0xFFF1F5F9),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -838,7 +844,6 @@ class _CollectionsViewState extends State<CollectionsView> {
 
           // Expanded Shelf
           if (isExpanded) ...[
-            Divider(height: 1, color: borderColor),
             Container(
               padding: const EdgeInsets.all(14),
               color: cardBgColor,
@@ -884,8 +889,6 @@ class _CollectionsViewState extends State<CollectionsView> {
                     ),
 
                   const SizedBox(height: 14),
-                  Divider(height: 1, color: borderColor),
-                  const SizedBox(height: 12),
 
                   // Assigned Products Shelf
                   BlocBuilder<ProductBloc, ProductState>(
@@ -1001,7 +1004,9 @@ class _CollectionsViewState extends State<CollectionsView> {
           ],
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildSubCollectionPill(

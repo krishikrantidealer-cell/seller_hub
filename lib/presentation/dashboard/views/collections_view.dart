@@ -233,68 +233,72 @@ class _CollectionsViewState extends State<CollectionsView> {
           },
         ),
       ],
-      child: BlocBuilder<CollectionBloc, CollectionState>(
-      builder: (context, state) {
-        final allItems = state.collections;
-        final filteredItems = allItems.where((c) {
-          if (_searchQuery.isEmpty) return true;
-          final matchName = c.name.toLowerCase().contains(_searchQuery);
-          final matchSlug = c.slug.toLowerCase().contains(_searchQuery);
-          final matchDesc = c.description.toLowerCase().contains(_searchQuery);
-          final matchSubs = c.subCollections.any((s) =>
-              s.name.toLowerCase().contains(_searchQuery) ||
-              s.slug.toLowerCase().contains(_searchQuery));
-          return matchName || matchSlug || matchDesc || matchSubs;
-        }).toList();
+      child: BlocBuilder<ProductBloc, ProductState>(
+        builder: (context, prodState) {
+          return BlocBuilder<CollectionBloc, CollectionState>(
+            builder: (context, state) {
+              final allItems = state.collections;
+              final filteredItems = allItems.where((c) {
+                if (_searchQuery.isEmpty) return true;
+                final matchName = c.name.toLowerCase().contains(_searchQuery);
+                final matchSlug = c.slug.toLowerCase().contains(_searchQuery);
+                final matchDesc = c.description.toLowerCase().contains(_searchQuery);
+                final matchSubs = c.subCollections.any((s) =>
+                    s.name.toLowerCase().contains(_searchQuery) ||
+                    s.slug.toLowerCase().contains(_searchQuery));
+                return matchName || matchSlug || matchDesc || matchSubs;
+              }).toList();
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Header & Actions Row
-              _buildHeader(context, state, isDark, borderColor),
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Header & Actions Row
+                    _buildHeader(context, state, isDark, borderColor),
 
-              const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-              // 2. Overview Metrics Row
-              _buildMetricsRow(state, isDark, surfaceColor, borderColor),
+                    // 2. Overview Metrics Row
+                    _buildMetricsRow(state, prodState, isDark, surfaceColor, borderColor),
 
-              const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-              // 3. Search & Filter Bar
-              _buildSearchBar(isDark, surfaceColor, borderColor),
+                    // 3. Search & Filter Bar
+                    _buildSearchBar(isDark, surfaceColor, borderColor),
 
-              const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-              // 4. Content Area: Loading, Error, Empty, or Collections List
-              if (state.status == CollectionStatus.loading && allItems.isEmpty)
-                _buildLoadingState(isDark)
-              else if (state.status == CollectionStatus.error && allItems.isEmpty)
-                _buildErrorState(context, state.errorMessage ?? 'Failed to load collections', isDark, surfaceColor, borderColor)
-              else if (filteredItems.isEmpty)
-                _buildEmptyState(isDark, surfaceColor, borderColor)
-              else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredItems.length,
-                  separatorBuilder: (_, index) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) {
-                    final item = filteredItems[index];
-                    // By default, expand if user expanded or if it has subcollections and less than 3 total collections
-                    final isExpanded = _expandedCollectionIds.contains(item.id) ||
-                        (_searchQuery.isNotEmpty && item.subCollections.isNotEmpty);
-                    return _buildCollectionCard(item, isExpanded, isDark, surfaceColor, borderColor, cardBgColor);
-                  },
+                    // 4. Content Area: Loading, Error, Empty, or Collections List
+                    if (state.status == CollectionStatus.loading && allItems.isEmpty)
+                      _buildLoadingState(isDark)
+                    else if (state.status == CollectionStatus.error && allItems.isEmpty)
+                      _buildErrorState(context, state.errorMessage ?? 'Failed to load collections', isDark, surfaceColor, borderColor)
+                    else if (filteredItems.isEmpty)
+                      _buildEmptyState(isDark, surfaceColor, borderColor)
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: filteredItems.length,
+                        separatorBuilder: (_, index) => const SizedBox(height: 16),
+                        itemBuilder: (context, index) {
+                          final item = filteredItems[index];
+                          // By default, expand if user expanded or if it has subcollections and less than 3 total collections
+                          final isExpanded = _expandedCollectionIds.contains(item.id) ||
+                              (_searchQuery.isNotEmpty && item.subCollections.isNotEmpty);
+                          return _buildCollectionCard(item, prodState, isExpanded, isDark, surfaceColor, borderColor, cardBgColor);
+                        },
+                      ),
+                  ],
                 ),
-            ],
-          ),
-        );
-      },
-    ),
-  );
-}
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 
   Widget _buildHeader(BuildContext context, CollectionState state, bool isDark, Color borderColor) {
     return Row(
@@ -397,14 +401,15 @@ class _CollectionsViewState extends State<CollectionsView> {
     );
   }
 
-  Widget _buildMetricsRow(CollectionState state, bool isDark, Color surfaceColor, Color borderColor) {
+  Widget _buildMetricsRow(CollectionState state, ProductState prodState, bool isDark, Color surfaceColor, Color borderColor) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 720;
         final count = state.totalCollections;
         final subCount = state.totalSubCollections;
         final activeCount = state.activeCollectionsCount;
-        final mappedProducts = state.totalMappedProducts;
+        final totalAssignedCount = prodState.products.where((p) => p.assignedCollections.isNotEmpty).length;
+        final mappedProducts = totalAssignedCount > 0 ? totalAssignedCount : state.totalMappedProducts;
 
         final items = [
           _buildMetricCard(
@@ -570,6 +575,7 @@ class _CollectionsViewState extends State<CollectionsView> {
 
   Widget _buildCollectionCard(
     CollectionItem item,
+    ProductState prodState,
     bool isExpanded,
     bool isDark,
     Color surfaceColor,
@@ -577,6 +583,12 @@ class _CollectionsViewState extends State<CollectionsView> {
     Color cardBgColor,
   ) {
     final hasSubs = item.subCollections.isNotEmpty;
+    final allSubIds = item.subCollections.map((s) => s.id).toSet();
+    final liveProductCount = prodState.products.where((p) =>
+        p.assignedCollections.contains(item.id) ||
+        p.assignedCollections.any((id) => allSubIds.contains(id))
+    ).length;
+    final displayProductCount = liveProductCount > 0 ? liveProductCount : item.productCount;
 
     return Container(
       decoration: BoxDecoration(
@@ -720,7 +732,7 @@ class _CollectionsViewState extends State<CollectionsView> {
                           border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
                         ),
                         child: Text(
-                          '${item.productCount} Products',
+                          '$displayProductCount Products',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,
@@ -825,7 +837,7 @@ class _CollectionsViewState extends State<CollectionsView> {
                       spacing: 12,
                       runSpacing: 12,
                       children: item.subCollections.map((sub) {
-                        return _buildSubCollectionPill(sub, isDark, surfaceColor, borderColor);
+                        return _buildSubCollectionPill(sub, prodState, isDark, surfaceColor, borderColor);
                       }).toList(),
                     ),
                   const SizedBox(height: 18),
@@ -972,10 +984,16 @@ class _CollectionsViewState extends State<CollectionsView> {
 
   Widget _buildSubCollectionPill(
     SubCollectionItem sub,
+    ProductState prodState,
     bool isDark,
     Color surfaceColor,
     Color borderColor,
   ) {
+    final liveSubCount = prodState.products.where((p) =>
+        p.assignedCollections.contains(sub.id)
+    ).length;
+    final displaySubCount = liveSubCount > 0 ? liveSubCount : sub.productCount;
+
     return Container(
       constraints: const BoxConstraints(minWidth: 200, maxWidth: 300),
       padding: const EdgeInsets.all(10),
@@ -1029,11 +1047,11 @@ class _CollectionsViewState extends State<CollectionsView> {
                 Row(
                   children: [
                     Text(
-                      '${sub.productCount} SKUs',
+                      '$displaySubCount SKUs',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: sub.productCount > 0 ? const Color(0xFF059669) : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                        color: displaySubCount > 0 ? const Color(0xFF059669) : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                       ),
                     ),
                     const SizedBox(width: 6),

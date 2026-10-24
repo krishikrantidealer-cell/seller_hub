@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/collection.dart';
 import '../../../core/models/product.dart';
+import '../../../logic/collection/collection_bloc.dart';
+import '../../../logic/collection/collection_event.dart';
 import '../../../logic/product/product_bloc.dart';
 import '../../../logic/product/product_event.dart';
 import '../../../logic/product/product_state.dart';
@@ -24,6 +26,7 @@ class _AssignProductsToCollectionDialogState extends State<AssignProductsToColle
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _selectedProductIds = {};
   String? _selectedSubCollectionId;
+  bool _includeRootCollection = true;
   String _searchQuery = '';
   bool _isSaving = false;
 
@@ -105,11 +108,15 @@ class _AssignProductsToCollectionDialogState extends State<AssignProductsToColle
         final currentCollections = List<String>.from(product.assignedCollections);
 
         if (isNowSelected) {
-          // Add root collection
-          if (!currentCollections.contains(widget.collection.id)) {
-            currentCollections.add(widget.collection.id);
+          // If sub-collection chosen and includeRoot is false, map to sub-collection only
+          if (_selectedSubCollectionId == null || _includeRootCollection) {
+            if (!currentCollections.contains(widget.collection.id)) {
+              currentCollections.add(widget.collection.id);
+            }
+          } else {
+            currentCollections.remove(widget.collection.id);
           }
-          // If sub-collection chosen, add it
+
           if (_selectedSubCollectionId != null && !currentCollections.contains(_selectedSubCollectionId)) {
             currentCollections.add(_selectedSubCollectionId!);
           }
@@ -119,9 +126,18 @@ class _AssignProductsToCollectionDialogState extends State<AssignProductsToColle
           currentCollections.removeWhere((id) => collectionSubIds.contains(id));
         }
 
-        // Separate root vs sub collection ids
-        final rootIds = currentCollections.where((id) => !collectionSubIds.contains(id)).toList();
-        final subIds = currentCollections.where((id) => collectionSubIds.contains(id)).toList();
+        // Separate root vs sub collection ids using all known collections in state
+        final colState = context.read<CollectionBloc>().state;
+        final allKnownRootIds = colState.collections.map((c) => c.id).toSet();
+        final allKnownSubIds = <String>{};
+        for (final c in colState.collections) {
+          for (final s in c.subCollections) {
+            allKnownSubIds.add(s.id);
+          }
+        }
+
+        final rootIds = currentCollections.where((id) => allKnownRootIds.contains(id)).toList();
+        final subIds = currentCollections.where((id) => allKnownSubIds.contains(id)).toList();
 
         productBloc.add(
           AssignProductCollections(
@@ -134,6 +150,7 @@ class _AssignProductsToCollectionDialogState extends State<AssignProductsToColle
     }
 
     if (mounted) {
+      context.read<CollectionBloc>().add(const FetchCollections(isRefresh: true));
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -274,52 +291,82 @@ class _AssignProductsToCollectionDialogState extends State<AssignProductsToColle
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     color: cardBgColor,
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.account_tree_outlined, size: 16, color: Color(0xFF7C3AED)),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Map to Sub-Collection:',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                ChoiceChip(
-                                  label: const Text('Direct Only (None)'),
-                                  selected: _selectedSubCollectionId == null,
-                                  onSelected: (val) {
-                                    if (val) setState(() => _selectedSubCollectionId = null);
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                ...widget.collection.subCollections.map((sub) {
-                                  final isSub = _selectedSubCollectionId == sub.id;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: ChoiceChip(
-                                      label: Text(sub.name),
-                                      selected: isSub,
-                                      selectedColor: const Color(0xFF7C3AED),
+                        Row(
+                          children: [
+                            const Icon(Icons.account_tree_outlined, size: 16, color: Color(0xFF7C3AED)),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Map to Sub-Collection:',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    ChoiceChip(
+                                      label: const Text('Direct Only (None)'),
+                                      selected: _selectedSubCollectionId == null,
                                       onSelected: (val) {
-                                        setState(() {
-                                          _selectedSubCollectionId = val ? sub.id : null;
-                                        });
+                                        if (val) setState(() => _selectedSubCollectionId = null);
                                       },
                                     ),
-                                  );
-                                }),
-                              ],
+                                    const SizedBox(width: 8),
+                                    ...widget.collection.subCollections.map((sub) {
+                                      final isSub = _selectedSubCollectionId == sub.id;
+                                      return Padding(
+                                        padding: const EdgeInsets.only(right: 8),
+                                        child: ChoiceChip(
+                                          label: Text(sub.name),
+                                          selected: isSub,
+                                          selectedColor: const Color(0xFF7C3AED),
+                                          onSelected: (val) {
+                                            setState(() {
+                                              _selectedSubCollectionId = val ? sub.id : null;
+                                            });
+                                          },
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
+                        if (_selectedSubCollectionId != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: Checkbox(
+                                  value: _includeRootCollection,
+                                  activeColor: const Color(0xFF059669),
+                                  onChanged: (val) => setState(() => _includeRootCollection = val ?? true),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Also assign to parent collection (${widget.collection.name})',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

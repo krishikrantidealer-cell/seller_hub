@@ -42,9 +42,26 @@ class _AssignCollectionsDialogState extends State<AssignCollectionsDialog> {
         ? widget.product.assignedCollections
         : [...widget.product.collectionIds, ...widget.product.subCollectionIds];
 
+    final allKnownRootIds = colState.collections.map((c) => c.id).toSet();
+    final allKnownSubIds = <String>{};
+    for (final c in colState.collections) {
+      for (final s in c.subCollections) {
+        allKnownSubIds.add(s.id);
+      }
+    }
+
     for (final id in initialAssigned) {
-      _selectedCollectionIds.add(id);
-      _selectedSubCollectionIds.add(id);
+      if (allKnownRootIds.contains(id)) {
+        _selectedCollectionIds.add(id);
+      } else if (allKnownSubIds.contains(id)) {
+        _selectedSubCollectionIds.add(id);
+      } else {
+        if (widget.product.collectionIds.contains(id)) {
+          _selectedCollectionIds.add(id);
+        } else {
+          _selectedSubCollectionIds.add(id);
+        }
+      }
     }
   }
 
@@ -52,15 +69,8 @@ class _AssignCollectionsDialogState extends State<AssignCollectionsDialog> {
     setState(() {
       if (isChecked == true) {
         _selectedCollectionIds.add(collection.id);
-        // By default check all its sub-collections as well for convenience
-        for (final sub in collection.subCollections) {
-          _selectedSubCollectionIds.add(sub.id);
-        }
       } else {
         _selectedCollectionIds.remove(collection.id);
-        for (final sub in collection.subCollections) {
-          _selectedSubCollectionIds.remove(sub.id);
-        }
       }
     });
   }
@@ -69,7 +79,6 @@ class _AssignCollectionsDialogState extends State<AssignCollectionsDialog> {
     setState(() {
       if (isChecked == true) {
         _selectedSubCollectionIds.add(subCollectionId);
-        _selectedCollectionIds.add(collectionId);
       } else {
         _selectedSubCollectionIds.remove(subCollectionId);
       }
@@ -113,6 +122,7 @@ class _AssignCollectionsDialogState extends State<AssignCollectionsDialog> {
       listener: (context, state) {
         final updated = state.lastAssignedProduct!;
         widget.onProductUpdated?.call(updated);
+        context.read<CollectionBloc>().add(const FetchCollections(isRefresh: true));
         Navigator.of(context).pop(updated);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

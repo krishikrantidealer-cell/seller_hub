@@ -61,7 +61,7 @@ class SellerHubApp extends StatelessWidget {
           BlocProvider<CollectionBloc>(
             create: (ctx) => CollectionBloc(
               collectionRepository: ctx.read<CollectionRepository>(),
-            )..add(const FetchCollections()),
+            )..add(const InitializeCollections()),
           ),
         ],
         child: BlocBuilder<ThemeBloc, ThemeState>(

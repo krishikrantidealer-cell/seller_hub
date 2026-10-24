@@ -9,6 +9,7 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
   final CollectionRepository collectionRepository;
 
   CollectionBloc({required this.collectionRepository}) : super(const CollectionState()) {
+    on<InitializeCollections>(_onInitializeCollections);
     on<FetchCollections>(_onFetchCollections);
     on<CreateCollection>(_onCreateCollection);
     on<ResetCreateCollectionState>(_onResetCreateCollectionState);
@@ -197,13 +198,33 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
     }
   }
 
+  Future<void> _onInitializeCollections(
+    InitializeCollections event,
+    Emitter<CollectionState> emit,
+  ) async {
+    // 1. Immediately hydrate with locally cached collections (0ms instant render)
+    final cached = await collectionRepository.getCachedCollections();
+    if (cached != null && cached.items.isNotEmpty) {
+      emit(state.copyWith(
+        status: CollectionStatus.loaded,
+        data: cached,
+        errorMessage: null,
+      ));
+      // 2. Background silent freshness sync
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    } else {
+      // No local cache yet: standard initial fetch
+      add(const FetchCollections(isRefresh: false, isBackground: false));
+    }
+  }
+
   Future<void> _onFetchCollections(
     FetchCollections event,
     Emitter<CollectionState> emit,
   ) async {
-    final hasExistingData = state.status == CollectionStatus.loaded && state.collections.isNotEmpty;
+    final hasExistingData = (state.status == CollectionStatus.loaded && state.collections.isNotEmpty) || event.isBackground;
 
-    if (!hasExistingData || event.isRefresh) {
+    if (!hasExistingData || (event.isRefresh && !event.isBackground)) {
       emit(state.copyWith(
         status: CollectionStatus.loading,
         errorMessage: null,

@@ -1,15 +1,33 @@
 import '../../core/models/collection.dart';
 import '../../domain/repositories/collection_repository.dart';
+import '../datasources/collection_local_datasource.dart';
 import '../datasources/collection_remote_datasource.dart';
 
 class CollectionRepositoryImpl implements CollectionRepository {
   final CollectionRemoteDataSource remoteDataSource;
+  final CollectionLocalDataSource? localDataSource;
 
-  CollectionRepositoryImpl({required this.remoteDataSource});
+  CollectionRepositoryImpl({
+    required this.remoteDataSource,
+    this.localDataSource,
+  });
 
   @override
   Future<CollectionsData> getCollections() async {
-    return await remoteDataSource.getCollections();
+    final data = await remoteDataSource.getCollections();
+    // Asynchronously update local cache so next restarts load with 0ms delay
+    localDataSource?.cacheCollections(data);
+    return data;
+  }
+
+  @override
+  Future<CollectionsData?> getCachedCollections() async {
+    return localDataSource?.getCachedCollections();
+  }
+
+  @override
+  Future<void> updateLocalCollection(CollectionItem collection) async {
+    await localDataSource?.updateCachedCollection(collection);
   }
 
   @override
@@ -22,7 +40,7 @@ class CollectionRepositoryImpl implements CollectionRepository {
     List<Map<String, dynamic>> subCollections = const [],
     String? bannerTitle,
   }) async {
-    return await remoteDataSource.createCollection(
+    final newItem = await remoteDataSource.createCollection(
       name: name,
       slug: slug,
       description: description,
@@ -31,6 +49,8 @@ class CollectionRepositoryImpl implements CollectionRepository {
       subCollections: subCollections,
       bannerTitle: bannerTitle,
     );
+    await localDataSource?.updateCachedCollection(newItem);
+    return newItem;
   }
 
   @override
@@ -38,14 +58,18 @@ class CollectionRepositoryImpl implements CollectionRepository {
     required String id,
     required CollectionItem collection,
   }) async {
-    return await remoteDataSource.updateCollection(
+    final updatedItem = await remoteDataSource.updateCollection(
       id: id,
       collection: collection,
     );
+    await localDataSource?.updateCachedCollection(updatedItem);
+    return updatedItem;
   }
 
   @override
   Future<CollectionItem> deactivateCollection(String id) async {
-    return await remoteDataSource.deactivateCollection(id);
+    final deactivatedItem = await remoteDataSource.deactivateCollection(id);
+    await localDataSource?.updateCachedCollection(deactivatedItem);
+    return deactivatedItem;
   }
 }

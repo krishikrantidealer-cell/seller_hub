@@ -8,13 +8,21 @@ abstract class CollectionEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+class InitializeCollections extends CollectionEvent {
+  const InitializeCollections();
+}
+
 class FetchCollections extends CollectionEvent {
   final bool isRefresh;
+  final bool isBackground;
 
-  const FetchCollections({this.isRefresh = false});
+  const FetchCollections({
+    this.isRefresh = false,
+    this.isBackground = false,
+  });
 
   @override
-  List<Object?> get props => [isRefresh];
+  List<Object?> get props => [isRefresh, isBackground];
 }
 
 class CreateCollection extends CollectionEvent {

@@ -4,6 +4,7 @@ import '../network/api_client.dart';
 import '../network/websocket_service.dart';
 import '../storage/token_storage.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/datasources/collection_local_datasource.dart';
 import '../../data/datasources/collection_remote_datasource.dart';
 import '../../data/datasources/product_local_datasource.dart';
 import '../../data/datasources/product_remote_datasource.dart';
@@ -25,6 +26,7 @@ class InjectionContainer {
   ProductLocalDataSource? _productLocalDataSource;
   ProductRemoteDataSource? _productRemoteDataSource;
   ProductRepository? _productRepository;
+  CollectionLocalDataSource? _collectionLocalDataSource;
   CollectionRemoteDataSource? _collectionRemoteDataSource;
   CollectionRepository? _collectionRepository;
 
@@ -72,9 +74,11 @@ class InjectionContainer {
       remoteDataSource: _productRemoteDataSource!,
       localDataSource: _productLocalDataSource,
     );
+    _collectionLocalDataSource ??= CollectionLocalDataSourceImpl(prefs);
     _collectionRemoteDataSource ??= CollectionRemoteDataSourceImpl(_apiClient!);
     _collectionRepository ??= CollectionRepositoryImpl(
       remoteDataSource: _collectionRemoteDataSource!,
+      localDataSource: _collectionLocalDataSource,
     );
     _initialized = true;
   }
@@ -122,6 +126,7 @@ class InjectionContainer {
   }
 
   ProductLocalDataSource? get productLocalDataSource => _productLocalDataSource;
+  CollectionLocalDataSource? get collectionLocalDataSource => _collectionLocalDataSource;
 
   void _ensureInitialized() {
     if (!_initialized) {
@@ -141,6 +146,7 @@ class InjectionContainer {
       _collectionRemoteDataSource = CollectionRemoteDataSourceImpl(_apiClient!);
       _collectionRepository = CollectionRepositoryImpl(
         remoteDataSource: _collectionRemoteDataSource!,
+        localDataSource: _collectionLocalDataSource,
       );
       _initialized = true;
     }
@@ -155,6 +161,7 @@ class InjectionContainer {
     _productLocalDataSource = null;
     _productRemoteDataSource = null;
     _productRepository = null;
+    _collectionLocalDataSource = null;
     _collectionRemoteDataSource = null;
     _collectionRepository = null;
   }

@@ -1,7 +1,14 @@
 import '../../core/models/collection.dart';
 
 abstract class CollectionRepository {
+  /// Retrieve collections from server and update local cache
   Future<CollectionsData> getCollections();
+
+  /// Retrieve locally cached collections (0ms instant startup)
+  Future<CollectionsData?> getCachedCollections();
+
+  /// Update collection in local persistent cache
+  Future<void> updateLocalCollection(CollectionItem collection);
   Future<CollectionItem> createCollection({
     required String name,
     required String slug,

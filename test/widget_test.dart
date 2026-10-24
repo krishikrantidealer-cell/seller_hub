@@ -10,6 +10,7 @@ import 'package:seller_hub/core/router/app_router.dart';
 import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/presentation/auth/views/login_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/dashboard_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/collections_view.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/product_hover_preview_thumbnail.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/app_html_view.dart';
 
@@ -333,6 +334,180 @@ void main() {
             "count": paginated.length,
           },
           "timestamp": "2026-10-23T10:39:17.659095962"
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path == '/api/v1/collections') {
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Collections retrieved",
+          "data": {
+            "count": 5,
+            "items": [
+              {
+                "id": "6ad9b313fa32055b18fcb292",
+                "name": "Shop By Crop",
+                "slug": "shop-by-crop",
+                "description": "Shop accordingly to crop",
+                "isActive": true,
+                "priority": 0,
+                "subCollections": [
+                  {
+                    "id": "6ad9b313fa32055b18fcb290",
+                    "name": "Rice",
+                    "slug": "rice",
+                    "isActive": true,
+                    "image": "https://example.com/rice.webp",
+                    "productCount": 1
+                  },
+                  {
+                    "id": "6ad9b313fa32055b18fcb291",
+                    "name": "Maize",
+                    "slug": "maize",
+                    "isActive": true,
+                    "image": "https://example.com/maize.webp",
+                    "productCount": 0
+                  }
+                ],
+                "subCollectionCount": 2,
+                "createdAt": "2026-10-22T06:54:11.346Z",
+                "updatedAt": "2026-10-22T06:54:11.346Z",
+                "productCount": 1,
+                "bannerTitle": "Shop By Crop"
+              },
+              {
+                "id": "6ad9ba15fa32055b18fcb29c",
+                "name": "Shop By Disease & Pest",
+                "slug": "shop-by-disease-pest",
+                "description": "Browse products by the pests and diseases they target.",
+                "isActive": true,
+                "priority": 1,
+                "subCollections": [
+                  {
+                    "id": "6ad9ba15fa32055b18fcb293",
+                    "name": "Aphids",
+                    "slug": "aphids",
+                    "isActive": true,
+                    "image": null,
+                    "productCount": 0
+                  }
+                ],
+                "subCollectionCount": 1,
+                "createdAt": "2026-10-22T07:24:05.652Z",
+                "updatedAt": "2026-10-22T07:24:05.652Z",
+                "productCount": 0,
+                "bannerTitle": null
+              },
+              {
+                "id": "6ad9bab2fa32055b18fcb29d",
+                "name": "Best Sellers",
+                "slug": "best-sellers",
+                "description": "Selected products.",
+                "isActive": true,
+                "priority": 2,
+                "subCollections": [],
+                "subCollectionCount": 0,
+                "createdAt": "2026-10-22T07:26:42.990Z",
+                "updatedAt": "2026-10-22T07:26:42.990Z",
+                "productCount": 0,
+                "bannerTitle": null
+              }
+            ]
+          },
+          "timestamp": "2026-10-24T05:26:03.205261204"
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path == '/api/v1/admin/collections' && request.method == 'POST') {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Collection created",
+          "data": {
+            "id": "6adc44120338b30717b3debc",
+            "name": body["name"] ?? "New Arrivalss",
+            "slug": body["slug"] ?? "new-arrivalss",
+            "description": body["description"] ?? "Recently added products selected for display.",
+            "isActive": body["isActive"] ?? true,
+            "priority": body["priority"] ?? 4,
+            "subCollections": body["subCollections"] ?? [],
+            "subCollectionCount": (body["subCollections"] as List?)?.length ?? 0,
+            "createdAt": "2026-10-24T05:37:22.817028994Z",
+            "updatedAt": "2026-10-24T05:37:22.817028994Z",
+            "productCount": 0,
+            "bannerTitle": body["bannerTitle"]
+          },
+          "timestamp": "2026-10-24T05:37:23.831649844"
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.startsWith('/api/v1/admin/collections/') && request.method == 'PUT') {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final id = request.url.pathSegments.last;
+      return http.Response(
+        jsonEncode({
+          "id": id,
+          "name": body["name"] ?? "Shop By Crops",
+          "slug": body["slug"] ?? "shop-by-crops",
+          "description": body["description"] ?? "Shop accordingly to crop",
+          "isActive": body["isActive"] ?? true,
+          "priority": body["priority"] ?? 0,
+          "subCollections": body["subCollections"] ?? [],
+          "subCollectionCount": (body["subCollections"] as List?)?.length ?? 0,
+          "createdAt": body["createdAt"] ?? "2026-10-22T06:54:11.346Z",
+          "updatedAt": DateTime.now().toUtc().toIso8601String(),
+          "productCount": body["productCount"] ?? 1,
+          "bannerTitle": body["bannerTitle"]
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.contains('/api/v1/admin/products/') &&
+        request.url.path.endsWith('/collections')) {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final collectionIds = List<String>.from(body['collectionIds'] ?? []);
+      final subCollectionIds = List<String>.from(body['subCollectionIds'] ?? []);
+      final combined = [...collectionIds, ...subCollectionIds];
+
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Product collections updated",
+          "data": {
+            "id": "6ad871a31df71c7f599dd954",
+            "sku": "KKR - 35",
+            "productCode": "PRD-6AB4ADA822033F1670582BDA-000035",
+            "hsnCode": "3808",
+            "sellerId": "6ab4ada822033f1670582bda",
+            "title": "Beauveria Bassiana - Bio Pesticide",
+            "technicalName": "Beauveria bassiana",
+            "vendor": "Essential Bio Crop Science",
+            "description": "<p>Beauveria Bassiana Bio Pesticide</p>",
+            "images": [],
+            "productImages": [],
+            "technicalContent": "5x10^8 CFU/ml",
+            "features": ["Biological insecticide"],
+            "benefits": ["Controls whiteflies"],
+            "modeOfAction": "Contact action",
+            "dosage": "2 ml/L",
+            "applicationMethod": "Foliar spray",
+            "category": "Bio Pesticide",
+            "categoryId": "6ad8582568a1edff7a609fee",
+            "assignedCollections": combined,
+            "isAvailable": true,
+            "isFeatured": true,
+            "variants": []
+          },
+          "timestamp": "2026-10-24T06:03:33.914384719"
         }),
         200,
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -668,7 +843,9 @@ void main() {
     expect(find.text('Edit Variants'), findsOneWidget);
 
     // Tap Edit Variants to activate editing mode
-    await tester.tap(find.text('Edit Variants'));
+    final editVariantsFinder = find.text('Edit Variants');
+    await tester.ensureVisible(editVariantsFinder);
+    await tester.tap(editVariantsFinder);
     await tester.pumpAndSettle();
 
     // Verify Active Variant Editor is shown
@@ -758,6 +935,235 @@ void main() {
 
     // Verify collapsed back to "more..."
     expect(find.text('more...'), findsOneWidget);
+  });
+
+  testWidgets('Tapping Collections nav in sidebar loads CollectionsView, displays metrics, and allows expanding sub-collections', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Verify redirected to DashboardView
+    expect(find.byType(DashboardView), findsOneWidget);
+
+    // Tap Collections nav in sidebar (placed directly below Products)
+    await tester.tap(find.text('Collections').first);
+    await tester.pumpAndSettle();
+
+    // Verify CollectionsView is displayed
+    expect(find.byType(CollectionsView), findsOneWidget);
+    expect(find.text('Storefront Collections & Taxonomy'), findsOneWidget);
+    expect(find.text('Total Collections'), findsOneWidget);
+    expect(find.text('Shop By Crop'), findsOneWidget);
+    expect(find.text('Shop By Disease & Pest'), findsOneWidget);
+    expect(find.text('Best Sellers'), findsOneWidget);
+
+    // Initially sub-collections are collapsed
+    expect(find.text('Rice'), findsNothing);
+
+    // Tap "Shop By Crop" card header to expand its sub-collections
+    await tester.tap(find.text('Shop By Crop'));
+    await tester.pumpAndSettle();
+
+    // Verify sub-collections "Rice" and "Maize" are rendered
+    expect(find.text('Rice'), findsOneWidget);
+    expect(find.text('Maize'), findsOneWidget);
+    expect(find.text('Mapped Sub-Collections & Category Taxonomy'), findsOneWidget);
+
+    // Filter using search box
+    final searchInput = find.byWidgetPredicate(
+      (w) => w is TextField && w.decoration?.hintText?.startsWith('Search collections') == true,
+    );
+    expect(searchInput, findsOneWidget);
+    await tester.enterText(searchInput, 'Disease');
+    await tester.pumpAndSettle();
+
+    // Verify filtered result
+    expect(find.text('Shop By Disease & Pest'), findsOneWidget);
+    expect(find.text('Shop By Crop'), findsNothing);
+  });
+
+  testWidgets('Creating a collection via CreateCollectionDialog integrates with POST /api/v1/admin/collections', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Tap Collections nav in sidebar
+    await tester.tap(find.text('Collections').first);
+    await tester.pumpAndSettle();
+
+    // Tap "Create Collection" button
+    expect(find.text('Create Collection'), findsOneWidget);
+    await tester.tap(find.text('Create Collection'));
+    await tester.pumpAndSettle();
+
+    // Verify Create Collection Dialog is open
+    expect(find.text('Create New Collection'), findsOneWidget);
+    expect(find.text('POST /api/v1/admin/collections'), findsOneWidget);
+
+    // Fill in form fields
+    // Find text fields inside the dialog
+    final nameField = find.widgetWithText(TextFormField, 'e.g. New Arrivals');
+    await tester.enterText(nameField, 'New Arrivals');
+    await tester.pumpAndSettle();
+
+    // Verify auto-generated slug
+    expect(find.text('new-arrivals'), findsOneWidget);
+
+    // Enter description
+    final descField = find.widgetWithText(TextFormField, 'Recently added products selected for display.');
+    await tester.enterText(descField, 'Recently added products selected for display.');
+    await tester.pumpAndSettle();
+
+    // Submit collection creation
+    final submitButton = find.widgetWithText(ElevatedButton, 'Create Collection').last;
+    await tester.tap(submitButton);
+    await tester.pumpAndSettle();
+
+    // Verify dialog is dismissed and collection appears in list
+    expect(find.text('Create New Collection'), findsNothing);
+    expect(find.text('New Arrivals'), findsWidgets);
+  });
+
+  testWidgets('Updating a collection via EditCollectionDialog integrates with PUT /api/v1/admin/collections/{id}', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Tap Collections nav in sidebar
+    await tester.tap(find.text('Collections').first);
+    await tester.pumpAndSettle();
+
+    // Verify initial "Shop By Crop" exists
+    expect(find.text('Shop By Crop'), findsOneWidget);
+
+    // Tap Edit button on "Shop By Crop"
+    final editButton = find.byTooltip('Edit Collection').first;
+    expect(editButton, findsOneWidget);
+    await tester.tap(editButton);
+    await tester.pumpAndSettle();
+
+    // Verify Edit Collection Dialog opens with pre-populated data
+    expect(find.text('Update Collection'), findsOneWidget);
+    expect(find.text('PUT /api/v1/admin/collections/6ad9b313fa32055b18fcb292'), findsOneWidget);
+
+    // Modify title to "Shop By Crops" and slug to "shop-by-crops"
+    final nameField = find.widgetWithText(TextFormField, 'Shop By Crop').first;
+    await tester.enterText(nameField, 'Shop By Crops');
+    await tester.pumpAndSettle();
+
+    final slugField = find.widgetWithText(TextFormField, 'shop-by-crop');
+    await tester.enterText(slugField, 'shop-by-crops');
+    await tester.pumpAndSettle();
+
+    // Save changes
+    final saveButton = find.widgetWithText(ElevatedButton, 'Save Collection');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    // Verify dialog is dismissed and collection title is updated
+    expect(find.text('Update Collection'), findsNothing);
+    expect(find.text('Shop By Crops'), findsOneWidget);
+    expect(find.text('/shop-by-crops'), findsOneWidget);
+  });
+
+  testWidgets('Assigning collections to a product via AssignCollectionsDialog integrates with /api/v1/admin/products/{productId}/collections', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Tap Products nav in sidebar
+    await tester.tap(find.text('Products').first);
+    await tester.pumpAndSettle();
+
+    // Tap first product title to open ProductDetailsView
+    await tester.tap(find.text('Beauveria Bassiana - Bio Pesticide'));
+    await tester.pumpAndSettle();
+
+    // Verify Product Details View contains Storefront Collections Assignment section
+    expect(find.text('Storefront Collections Assignment'), findsOneWidget);
+
+    // Tap "Assign / Manage Collections"
+    final assignButton = find.text('Assign / Manage Collections');
+    expect(assignButton, findsOneWidget);
+    await tester.ensureVisible(assignButton);
+    await tester.tap(assignButton);
+    await tester.pumpAndSettle();
+
+    // Verify AssignCollectionsDialog opens with collection items
+    expect(find.text('Assign Storefront Collections'), findsOneWidget);
+    expect(find.text('Shop By Crop'), findsOneWidget);
+
+    // Select "Shop By Crop" collection checkbox
+    final cropCheckbox = find.widgetWithText(CheckboxListTile, 'Shop By Crop');
+    expect(cropCheckbox, findsOneWidget);
+    await tester.tap(cropCheckbox);
+    await tester.pumpAndSettle();
+
+    // Save collections assignment
+    final saveButton = find.widgetWithText(ElevatedButton, 'Save Collections Assignment');
+    expect(saveButton, findsOneWidget);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    // Verify dialog is dismissed and assigned collections section displays the assigned badge
+    expect(find.text('Assign Storefront Collections'), findsNothing);
+    expect(find.text('#6ad9b313fa32055b18fcb292'), findsOneWidget);
   });
 }
 

@@ -343,6 +343,7 @@ class Product extends Equatable {
   final List<String> collectionIds;
   final String subCollections;
   final List<String> subCollectionIds;
+  final List<String> assignedCollections;
   final bool isAvailable;
   final bool isFeatured;
   final List<ProductVariant> variants;
@@ -403,6 +404,7 @@ class Product extends Equatable {
     this.collectionIds = const [],
     this.subCollections = '',
     this.subCollectionIds = const [],
+    this.assignedCollections = const [],
     required this.isAvailable,
     required this.isFeatured,
     this.variants = const [],
@@ -632,6 +634,7 @@ class Product extends Equatable {
     final collectionIds = _parseListString(json['collectionIds'] ?? json['collection_ids']);
     final subCollections = _parseString(json['subCollections'] ?? json['Sub Collections']);
     final subCollectionIds = _parseListString(json['subCollectionIds'] ?? json['sub_collection_ids']);
+    final assignedCollections = _parseListString(json['assignedCollections'] ?? json['assigned_collections']);
 
     final isAvailable = json['isAvailable'] as bool? ?? json['Is_Available'] as bool? ?? true;
     final isFeatured = json['isFeatured'] as bool? ?? json['Is_featured'] as bool? ?? false;
@@ -695,6 +698,9 @@ class Product extends Equatable {
       collectionIds: collectionIds,
       subCollections: subCollections,
       subCollectionIds: subCollectionIds,
+      assignedCollections: assignedCollections.isNotEmpty
+          ? assignedCollections
+          : [...collectionIds, ...subCollectionIds],
       isAvailable: isAvailable,
       isFeatured: isFeatured,
       variants: parsedVariants,
@@ -749,6 +755,7 @@ class Product extends Equatable {
     'categoryId': categoryId,
     'collectionIds': collectionIds,
     'subCollectionIds': subCollectionIds,
+    'assignedCollections': assignedCollections,
     'dimensions': productDimensions.toJson(),
     'isAvailable': isAvailable,
     'isFeatured': isFeatured,
@@ -785,6 +792,7 @@ class Product extends Equatable {
     'Category': category,
     'Collections': collections,
     'Sub Collections': subCollections,
+    'assignedCollections': assignedCollections,
     'Is_Available': isAvailable,
     'Is_featured': isFeatured,
     'Varient': variant,
@@ -838,6 +846,7 @@ class Product extends Equatable {
     List<String>? collectionIds,
     String? subCollections,
     List<String>? subCollectionIds,
+    List<String>? assignedCollections,
     bool? isAvailable,
     bool? isFeatured,
     List<ProductVariant>? variants,
@@ -920,6 +929,7 @@ class Product extends Equatable {
       collectionIds: collectionIds ?? this.collectionIds,
       subCollections: subCollections ?? this.subCollections,
       subCollectionIds: subCollectionIds ?? this.subCollectionIds,
+      assignedCollections: assignedCollections ?? this.assignedCollections,
       isAvailable: isAvailable ?? this.isAvailable,
       isFeatured: isFeatured ?? this.isFeatured,
       variants: updatedVariants,
@@ -972,6 +982,7 @@ class Product extends Equatable {
     status,
     version,
     productImages,
+    assignedCollections,
   ];
 }
 

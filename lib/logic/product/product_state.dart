@@ -10,6 +10,9 @@ class ProductState extends Equatable {
   final int pageSize;
   final String? errorMessage;
   final bool isBackgroundSyncing;
+  final bool isAssigningCollections;
+  final String? assignCollectionsError;
+  final Product? lastAssignedProduct;
 
   const ProductState({
     this.status = ProductStatus.initial,
@@ -18,6 +21,9 @@ class ProductState extends Equatable {
     this.pageSize = 20,
     this.errorMessage,
     this.isBackgroundSyncing = false,
+    this.isAssigningCollections = false,
+    this.assignCollectionsError,
+    this.lastAssignedProduct,
   });
 
   List<Product> get products => pageData.content;
@@ -32,6 +38,10 @@ class ProductState extends Equatable {
     int? pageSize,
     String? errorMessage,
     bool? isBackgroundSyncing,
+    bool? isAssigningCollections,
+    String? assignCollectionsError,
+    Product? lastAssignedProduct,
+    bool clearLastAssignedProduct = false,
   }) {
     return ProductState(
       status: status ?? this.status,
@@ -40,6 +50,11 @@ class ProductState extends Equatable {
       pageSize: pageSize ?? this.pageSize,
       errorMessage: errorMessage,
       isBackgroundSyncing: isBackgroundSyncing ?? this.isBackgroundSyncing,
+      isAssigningCollections: isAssigningCollections ?? this.isAssigningCollections,
+      assignCollectionsError: assignCollectionsError,
+      lastAssignedProduct: clearLastAssignedProduct
+          ? null
+          : (lastAssignedProduct ?? this.lastAssignedProduct),
     );
   }
 
@@ -51,5 +66,8 @@ class ProductState extends Equatable {
     pageSize,
     errorMessage,
     isBackgroundSyncing,
+    isAssigningCollections,
+    assignCollectionsError,
+    lastAssignedProduct,
   ];
 }

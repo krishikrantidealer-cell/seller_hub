@@ -4,9 +4,12 @@ import 'core/di/injection_container.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'domain/repositories/auth_repository.dart';
+import 'domain/repositories/collection_repository.dart';
 import 'domain/repositories/product_repository.dart';
 import 'logic/auth/auth_bloc.dart';
 import 'logic/auth/auth_event.dart';
+import 'logic/collection/collection_bloc.dart';
+import 'logic/collection/collection_event.dart';
 import 'logic/product/product_bloc.dart';
 import 'logic/product/product_event.dart';
 import 'logic/theme/theme_bloc.dart';
@@ -21,22 +24,26 @@ void main() async {
 class SellerHubApp extends StatelessWidget {
   final AuthRepository? authRepository;
   final ProductRepository? productRepository;
+  final CollectionRepository? collectionRepository;
 
   const SellerHubApp({
     super.key,
     this.authRepository,
     this.productRepository,
+    this.collectionRepository,
   });
 
   @override
   Widget build(BuildContext context) {
     final authRepo = authRepository ?? InjectionContainer.instance.authRepository;
     final productRepo = productRepository ?? InjectionContainer.instance.productRepository;
+    final collectionRepo = collectionRepository ?? InjectionContainer.instance.collectionRepository;
 
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>.value(value: authRepo),
         RepositoryProvider<ProductRepository>.value(value: productRepo),
+        RepositoryProvider<CollectionRepository>.value(value: collectionRepo),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -50,6 +57,11 @@ class SellerHubApp extends StatelessWidget {
             create: (ctx) => ProductBloc(
               productRepository: ctx.read<ProductRepository>(),
             )..add(const InitializeProducts(page: 0, size: 20)),
+          ),
+          BlocProvider<CollectionBloc>(
+            create: (ctx) => CollectionBloc(
+              collectionRepository: ctx.read<CollectionRepository>(),
+            )..add(const FetchCollections()),
           ),
         ],
         child: BlocBuilder<ThemeBloc, ThemeState>(

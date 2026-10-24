@@ -90,6 +90,48 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> put(
+    String path, {
+    Map<String, dynamic>? body,
+    bool requiresAuth = false,
+  }) async {
+    try {
+      final uri = _buildUri(path);
+      final headers = await _buildHeaders(requiresAuth: requiresAuth);
+
+      final response = await _client
+          .put(
+            uri,
+            headers: headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(_timeout);
+
+      return _processResponse(response);
+    } on SocketException catch (e) {
+      throw NetworkException(
+        message: 'No internet connection or server unreachable: ${e.message}',
+        details: e,
+      );
+    } on TimeoutException {
+      throw const NetworkException(
+        message: 'The server took too long to respond. The backend may be waking up from cold standby. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      throw NetworkException(
+        message: 'Network communication failure: ${e.message}',
+        details: e,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Unexpected error occurred: $e',
+        details: e,
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParameters,

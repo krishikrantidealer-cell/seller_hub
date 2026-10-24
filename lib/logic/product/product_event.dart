@@ -79,3 +79,18 @@ class WebSocketProductUpdateReceived extends ProductEvent {
   @override
   List<Object?> get props => [payload];
 }
+
+class AssignProductCollections extends ProductEvent {
+  final String productId;
+  final List<String> collectionIds;
+  final List<String> subCollectionIds;
+
+  const AssignProductCollections({
+    required this.productId,
+    required this.collectionIds,
+    required this.subCollectionIds,
+  });
+
+  @override
+  List<Object?> get props => [productId, collectionIds, subCollectionIds];
+}

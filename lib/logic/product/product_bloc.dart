@@ -23,6 +23,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<ChangeProductPageSize>(_onChangeProductPageSize);
     on<UpdateLocalProduct>(_onUpdateLocalProduct);
     on<WebSocketProductUpdateReceived>(_onWebSocketProductUpdateReceived);
+    on<AssignProductCollections>(_onAssignProductCollections);
 
     // Subscribe to live WebSocket product and inventory events
     _wsSubscription = _webSocketService.productUpdates.listen((payload) {
@@ -231,6 +232,61 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         page: state.currentPage,
         size: state.pageSize,
         isBackground: true,
+      ));
+    }
+  }
+
+  Future<void> _onAssignProductCollections(
+    AssignProductCollections event,
+    Emitter<ProductState> emit,
+  ) async {
+    emit(state.copyWith(
+      isAssigningCollections: true,
+      assignCollectionsError: null,
+      clearLastAssignedProduct: true,
+    ));
+
+    try {
+      final updatedProduct = await productRepository.assignCollections(
+        productId: event.productId,
+        collectionIds: event.collectionIds,
+        subCollectionIds: event.subCollectionIds,
+      );
+
+      final currentList = List<Product>.from(state.products);
+      final index = currentList.indexWhere((p) => p.id == updatedProduct.id);
+      if (index != -1) {
+        currentList[index] = updatedProduct;
+      } else {
+        currentList.insert(0, updatedProduct);
+      }
+
+      final updatedPageData = ProductPageData(
+        content: currentList,
+        page: state.pageData.page,
+        size: state.pageData.size,
+        totalElements: state.pageData.totalElements,
+        totalPages: state.pageData.totalPages,
+        first: state.pageData.first,
+        last: state.pageData.last,
+        count: currentList.length,
+      );
+
+      emit(state.copyWith(
+        status: ProductStatus.loaded,
+        pageData: updatedPageData,
+        isAssigningCollections: false,
+        lastAssignedProduct: updatedProduct,
+      ));
+    } on ApiException catch (e) {
+      emit(state.copyWith(
+        isAssigningCollections: false,
+        assignCollectionsError: e.message,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isAssigningCollections: false,
+        assignCollectionsError: 'Failed to assign collections: $e',
       ));
     }
   }

@@ -8,6 +8,7 @@ class DashboardSidebar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onNavItemSelected;
   final int productsCount;
+  final int collectionsCount;
   final int sellersCount;
   final int ordersCount;
   final bool isDrawer;
@@ -18,6 +19,7 @@ class DashboardSidebar extends StatelessWidget {
     required this.selectedIndex,
     required this.onNavItemSelected,
     required this.productsCount,
+    this.collectionsCount = 0,
     required this.sellersCount,
     this.ordersCount = 0,
     this.isDrawer = false,
@@ -146,10 +148,21 @@ class DashboardSidebar extends StatelessWidget {
             badgeText: '$productsCount',
           ),
 
-          // Sidebar Nav Item: Sellers
+          // Sidebar Nav Item: Collections
           _buildSidebarNavItem(
             context: context,
             index: 2,
+            title: 'Collections',
+            subtitle: 'Crop & disease taxonomy',
+            icon: Icons.collections_bookmark_rounded,
+            isDark: isDark,
+            badgeText: collectionsCount > 0 ? '$collectionsCount' : null,
+          ),
+
+          // Sidebar Nav Item: Sellers
+          _buildSidebarNavItem(
+            context: context,
+            index: 3,
             title: 'Sellers',
             subtitle: 'Multi-tenant directory',
             icon: Icons.storefront_rounded,
@@ -160,7 +173,7 @@ class DashboardSidebar extends StatelessWidget {
           // Sidebar Nav Item: Orders
           _buildSidebarNavItem(
             context: context,
-            index: 3,
+            index: 4,
             title: 'Orders',
             subtitle: 'Dispatches & logistics',
             icon: Icons.receipt_long_rounded,

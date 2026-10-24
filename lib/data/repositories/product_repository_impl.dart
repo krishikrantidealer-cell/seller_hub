@@ -39,4 +39,19 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<void> updateLocalProduct(Product product) async {
     await localDataSource?.updateCachedProduct(product);
   }
+
+  @override
+  Future<Product> assignCollections({
+    required String productId,
+    required List<String> collectionIds,
+    required List<String> subCollectionIds,
+  }) async {
+    final updatedProduct = await remoteDataSource.assignCollections(
+      productId: productId,
+      collectionIds: collectionIds,
+      subCollectionIds: subCollectionIds,
+    );
+    await localDataSource?.updateCachedProduct(updatedProduct);
+    return updatedProduct;
+  }
 }

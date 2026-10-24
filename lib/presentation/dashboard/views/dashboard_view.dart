@@ -9,8 +9,10 @@ import 'package:seller_hub/core/network/websocket_service.dart';
 import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/logic/auth/auth_bloc.dart';
 import 'package:seller_hub/logic/auth/auth_event.dart';
+import 'package:seller_hub/logic/collection/collection_bloc.dart';
 import 'package:seller_hub/logic/product/product_bloc.dart';
 import 'package:seller_hub/logic/product/product_event.dart';
+import 'package:seller_hub/presentation/dashboard/views/collections_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/orders_view.dart';
@@ -77,6 +79,9 @@ class _DashboardViewState extends State<DashboardView> {
         ? productBloc.state.totalProducts
         : products.length;
 
+    final collectionBloc = context.watch<CollectionBloc>();
+    final collectionsCount = collectionBloc.state.totalCollections;
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
@@ -88,6 +93,7 @@ class _DashboardViewState extends State<DashboardView> {
                 selectedIndex: _selectedNavIndex,
                 onNavItemSelected: _onNavItemSelected,
                 productsCount: totalProductsCount,
+                collectionsCount: collectionsCount,
                 sellersCount: _sellers.length,
                 ordersCount: _orders.length,
                 isDrawer: true,
@@ -109,6 +115,7 @@ class _DashboardViewState extends State<DashboardView> {
                   selectedIndex: _selectedNavIndex,
                   onNavItemSelected: _onNavItemSelected,
                   productsCount: totalProductsCount,
+                  collectionsCount: collectionsCount,
                   sellersCount: _sellers.length,
                   ordersCount: _orders.length,
                   isDrawer: false,
@@ -164,17 +171,18 @@ class _DashboardViewState extends State<DashboardView> {
           _viewingProduct = null;
         }),
         onNavigateToSellers: () => setState(() {
-          _selectedNavIndex = 2;
+          _selectedNavIndex = 3;
           _viewingSeller = null;
         }),
         onNavigateToOrders: () => setState(() {
-          _selectedNavIndex = 3;
+          _selectedNavIndex = 4;
           _viewingOrder = null;
         }),
         onOpenAddProduct: () => _openAddProductDialog(context),
       );
     }
 
+    // Nav Index 1: Products
     if (_selectedNavIndex == 1) {
       if (_viewingProduct != null) {
         return ProductDetailsView(
@@ -211,8 +219,13 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
-    // Nav Index 2: Sellers Directory & Profile
+    // Nav Index 2: Collections & Sub-Collections
     if (_selectedNavIndex == 2) {
+      return CollectionsView(isWide: isWide);
+    }
+
+    // Nav Index 3: Sellers Directory & Profile
+    if (_selectedNavIndex == 3) {
       if (_viewingSeller != null) {
         return SellerProfileView(
           seller: _viewingSeller!,
@@ -256,25 +269,29 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
-    // Nav Index 3: Orders Directory & Order Detail
-    if (_viewingOrder != null) {
-      return OrderDetailView(
-        order: _viewingOrder!,
-        onBack: () => setState(() => _viewingOrder = null),
-        onOrderUpdated: (updated) {
-          setState(() {
-            final idx = _orders.indexWhere((o) => o.id == updated.id);
-            if (idx != -1) _orders[idx] = updated;
-            _viewingOrder = updated;
-          });
-        },
+    // Nav Index 4: Orders Directory & Order Detail
+    if (_selectedNavIndex == 4) {
+      if (_viewingOrder != null) {
+        return OrderDetailView(
+          order: _viewingOrder!,
+          onBack: () => setState(() => _viewingOrder = null),
+          onOrderUpdated: (updated) {
+            setState(() {
+              final idx = _orders.indexWhere((o) => o.id == updated.id);
+              if (idx != -1) _orders[idx] = updated;
+              _viewingOrder = updated;
+            });
+          },
+        );
+      }
+
+      return OrdersView(
+        orders: _orders,
+        onSelectOrder: (order) => setState(() => _viewingOrder = order),
       );
     }
 
-    return OrdersView(
-      orders: _orders,
-      onSelectOrder: (order) => setState(() => _viewingOrder = order),
-    );
+    return const SizedBox.shrink();
   }
 
   void _onNavItemSelected(int index) {

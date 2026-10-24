@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/product.dart';
 import '../widgets/app_product_image.dart';
 import '../widgets/app_html_view.dart';
+import '../widgets/assign_collections_dialog.dart';
 
 class ProductDetailsView extends StatefulWidget {
   final Product product;
@@ -320,6 +321,21 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _editIsAvailable = _currentProduct.isAvailable;
     });
     widget.onProductUpdated?.call(_currentProduct);
+  }
+
+  void _openAssignCollectionsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AssignCollectionsDialog(
+        product: _currentProduct,
+        onProductUpdated: (updatedProduct) {
+          setState(() {
+            _currentProduct = updatedProduct;
+          });
+          widget.onProductUpdated?.call(updatedProduct);
+        },
+      ),
+    );
   }
 
   /*
@@ -853,6 +869,95 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ],
             ),
             const SizedBox(height: 14),
+
+            // Storefront Collections & Taxonomy Management
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.collections_bookmark_rounded, size: 18, color: Color(0xFF059669)),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Storefront Collections Assignment',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _openAssignCollectionsDialog(context),
+                        icon: const Icon(Icons.tune_rounded, size: 15),
+                        label: Text(
+                          'Assign / Manage Collections',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF059669),
+                          side: const BorderSide(color: Color(0xFF059669)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (_currentProduct.assignedCollections.isEmpty)
+                    Text(
+                      'No storefront collections assigned yet. Click "Assign / Manage Collections" to link this product to crop, pest, or offer collections.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _currentProduct.assignedCollections.map((colId) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
+                          ),
+                          child: Text(
+                            '#$colId',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF059669),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
@@ -1016,6 +1121,97 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               if (p.subCollections.isNotEmpty)
                 _buildBadgePill('Sub Collection', p.subCollections, isDark, borderColor),
             ],
+          ),
+          const SizedBox(height: 16),
+          Divider(height: 1, color: borderColor),
+          const SizedBox(height: 14),
+
+          // Storefront Collections Assignment Card (in Read-Only View)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.collections_bookmark_rounded, size: 18, color: Color(0xFF059669)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Storefront Collections Assignment',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _openAssignCollectionsDialog(context),
+                      icon: const Icon(Icons.tune_rounded, size: 15),
+                      label: Text(
+                        'Assign / Manage Collections',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF059669),
+                        side: const BorderSide(color: Color(0xFF059669)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (p.assignedCollections.isEmpty)
+                  Text(
+                    'No storefront collections assigned yet. Click "Assign / Manage Collections" to link this product to crop, pest, or offer collections.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: p.assignedCollections.map((colId) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF059669).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
+                        ),
+                        child: Text(
+                          '#$colId',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF059669),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
           ),
         ],
       ),

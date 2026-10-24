@@ -4,11 +4,14 @@ import '../network/api_client.dart';
 import '../network/websocket_service.dart';
 import '../storage/token_storage.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/datasources/collection_remote_datasource.dart';
 import '../../data/datasources/product_local_datasource.dart';
 import '../../data/datasources/product_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
+import '../../data/repositories/collection_repository_impl.dart';
 import '../../data/repositories/product_repository_impl.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../domain/repositories/collection_repository.dart';
 import '../../domain/repositories/product_repository.dart';
 
 class InjectionContainer {
@@ -22,6 +25,8 @@ class InjectionContainer {
   ProductLocalDataSource? _productLocalDataSource;
   ProductRemoteDataSource? _productRemoteDataSource;
   ProductRepository? _productRepository;
+  CollectionRemoteDataSource? _collectionRemoteDataSource;
+  CollectionRepository? _collectionRepository;
 
   bool _initialized = false;
 
@@ -31,6 +36,7 @@ class InjectionContainer {
     String? baseUrl,
     AuthRepository? mockAuthRepository,
     ProductRepository? mockProductRepository,
+    CollectionRepository? mockCollectionRepository,
   }) async {
     if (mockAuthRepository != null) {
       _authRepository = mockAuthRepository;
@@ -38,7 +44,10 @@ class InjectionContainer {
     if (mockProductRepository != null) {
       _productRepository = mockProductRepository;
     }
-    if (mockAuthRepository != null && mockProductRepository != null) {
+    if (mockCollectionRepository != null) {
+      _collectionRepository = mockCollectionRepository;
+    }
+    if (mockAuthRepository != null && mockProductRepository != null && mockCollectionRepository != null) {
       _initialized = true;
       return;
     }
@@ -62,6 +71,10 @@ class InjectionContainer {
     _productRepository ??= ProductRepositoryImpl(
       remoteDataSource: _productRemoteDataSource!,
       localDataSource: _productLocalDataSource,
+    );
+    _collectionRemoteDataSource ??= CollectionRemoteDataSourceImpl(_apiClient!);
+    _collectionRepository ??= CollectionRepositoryImpl(
+      remoteDataSource: _collectionRemoteDataSource!,
     );
     _initialized = true;
   }
@@ -98,6 +111,16 @@ class InjectionContainer {
     return _productRepository!;
   }
 
+  CollectionRemoteDataSource get collectionRemoteDataSource {
+    _ensureInitialized();
+    return _collectionRemoteDataSource!;
+  }
+
+  CollectionRepository get collectionRepository {
+    _ensureInitialized();
+    return _collectionRepository!;
+  }
+
   ProductLocalDataSource? get productLocalDataSource => _productLocalDataSource;
 
   void _ensureInitialized() {
@@ -115,6 +138,10 @@ class InjectionContainer {
         remoteDataSource: _productRemoteDataSource!,
         localDataSource: _productLocalDataSource,
       );
+      _collectionRemoteDataSource = CollectionRemoteDataSourceImpl(_apiClient!);
+      _collectionRepository = CollectionRepositoryImpl(
+        remoteDataSource: _collectionRemoteDataSource!,
+      );
       _initialized = true;
     }
   }
@@ -128,5 +155,7 @@ class InjectionContainer {
     _productLocalDataSource = null;
     _productRemoteDataSource = null;
     _productRepository = null;
+    _collectionRemoteDataSource = null;
+    _collectionRepository = null;
   }
 }

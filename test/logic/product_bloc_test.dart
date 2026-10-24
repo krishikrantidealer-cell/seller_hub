@@ -27,6 +27,40 @@ class MockProductRepository implements ProductRepository {
   }
 
   @override
+  Future<Product> assignCollections({
+    required String productId,
+    required List<String> collectionIds,
+    required List<String> subCollectionIds,
+  }) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+    return (lastUpdatedProduct ??
+            Product(
+              id: productId,
+              productCode: 'PRD-TEST',
+              hsnCode: '3808',
+              title: 'Test',
+              technicalName: '',
+              vendor: '',
+              description: '',
+              images: const [],
+              technicalContent: '',
+              modeOfAction: '',
+              dosage: '',
+              applicationMethod: '',
+              category: '',
+              isAvailable: true,
+              isFeatured: false,
+              ratings: 0,
+              refundPolicy: '',
+              productWeight: 0,
+              productWeightUnit: 'kg',
+            ))
+        .copyWith(assignedCollections: [...collectionIds, ...subCollectionIds]);
+  }
+
+  @override
   Future<ProductPageData> getProducts({
     int page = 0,
     int size = 20,

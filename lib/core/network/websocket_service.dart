@@ -31,12 +31,19 @@ class WebSocketService {
 
   TokenStorage? _tokenStorage;
 
+  /// Global toggle: Disabled until backend developer implements `/ws` on Render.
+  static bool enabled = false;
+
   void setTokenStorage(TokenStorage storage) {
     _tokenStorage = storage;
   }
 
   /// Connects to the WebSocket server using authentication credentials.
   Future<void> connect({String? customUrl, String? token, String? userId}) async {
+    if (!enabled) {
+      // WebSocket is paused pending backend developer implementation.
+      return;
+    }
     if (_isConnected || _isConnecting) return;
 
     _isConnecting = true;
@@ -173,6 +180,7 @@ class WebSocketService {
 
   /// Broadcasts an updated product to all connected seller clients and servers
   void broadcastProductChange(Product product) {
+    if (!enabled) return;
     final payload = {
       'type': 'PRODUCT_UPDATE',
       'data': product.toJson(),
@@ -188,6 +196,7 @@ class WebSocketService {
 
   /// Broadcasts a live stock count update for instant multi-user table synchronization
   void broadcastStockUpdate(String productId, int newStock) {
+    if (!enabled) return;
     final payload = {
       'type': 'STOCK_UPDATED',
       'data': {

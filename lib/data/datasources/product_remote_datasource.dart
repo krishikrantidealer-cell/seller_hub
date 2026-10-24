@@ -1,4 +1,5 @@
 import '../../core/constants/api_endpoints.dart';
+import '../../core/models/product.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
 import '../models/api/product_response_dto.dart';
@@ -7,6 +8,11 @@ abstract class ProductRemoteDataSource {
   Future<ProductResponseDto> getProducts({
     int page = 0,
     int size = 20,
+  });
+  Future<Product> assignCollections({
+    required String productId,
+    required List<String> collectionIds,
+    required List<String> subCollectionIds,
   });
 }
 
@@ -38,5 +44,38 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
     }
 
     return dto;
+  }
+
+  @override
+  Future<Product> assignCollections({
+    required String productId,
+    required List<String> collectionIds,
+    required List<String> subCollectionIds,
+  }) async {
+    final body = {
+      'collectionIds': collectionIds,
+      'subCollectionIds': subCollectionIds,
+    };
+    final path = ApiEndpoints.productCollections(productId);
+
+    Map<String, dynamic> response;
+    try {
+      response = await _apiClient.put(path, body: body, requiresAuth: true);
+    } on ApiException catch (e) {
+      if (e.statusCode == 405) {
+        response = await _apiClient.post(path, body: body, requiresAuth: true);
+      } else {
+        rethrow;
+      }
+    }
+
+    final rawData = response['data'] ?? response;
+    if (rawData is Map<String, dynamic>) {
+      return Product.fromJson(rawData);
+    }
+
+    throw const ApiException(
+      message: 'Unexpected product collections response format from server.',
+    );
   }
 }

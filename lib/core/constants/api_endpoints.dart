@@ -10,4 +10,10 @@ class ApiEndpoints {
 
   /// Products
   static const String products = '/api/v1/products';
+
+  /// Collections
+  static const String collections = '/api/v1/collections';
+  static const String adminCollections = '/api/v1/admin/collections';
+  static String productCollections(String productId) =>
+      '/api/v1/admin/products/$productId/collections';
 }

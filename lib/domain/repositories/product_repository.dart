@@ -15,4 +15,11 @@ abstract class ProductRepository {
 
   /// Update cached product locally in persistent storage
   Future<void> updateLocalProduct(Product product);
+
+  /// Assign storefront collections and sub-collections to a product
+  Future<Product> assignCollections({
+    required String productId,
+    required List<String> collectionIds,
+    required List<String> subCollectionIds,
+  });
 }

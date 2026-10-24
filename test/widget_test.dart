@@ -850,6 +850,24 @@ void main() {
 
     // Verify catalog remains stable and responsive
     expect(find.text('Agricultural Catalog & Master Inventory'), findsOneWidget);
+
+    // Test search bar by SKU and title
+    final searchField = find.byWidgetPredicate(
+      (w) => w is TextField && w.decoration?.hintText?.startsWith('Search by SKU') == true,
+    );
+    expect(searchField, findsOneWidget);
+
+    await tester.enterText(searchField, 'Beauveria');
+    await tester.pumpAndSettle();
+    expect(find.text('Beauveria Bassiana - Bio Pesticide'), findsOneWidget);
+
+    // Clear search using clear button
+    final clearButton = find.byTooltip('Clear search');
+    expect(clearButton, findsOneWidget);
+    await tester.tap(clearButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Beauveria Bassiana - Bio Pesticide'), findsOneWidget);
   });
 
   testWidgets('Product Details View allows editing multi-variants, adding new SKUs, and displays original image', (WidgetTester tester) async {

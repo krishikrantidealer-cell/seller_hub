@@ -35,6 +35,7 @@ class ProductCatalogView extends StatefulWidget {
 }
 
 class _ProductCatalogViewState extends State<ProductCatalogView> {
+  final TextEditingController _searchController = TextEditingController();
   late String _selectedSellerFilter;
   String _searchQuery = '';
   String _selectedCategoryFilter = 'All';
@@ -65,6 +66,21 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
   void initState() {
     super.initState();
     _selectedSellerFilter = widget.initialSellerFilter;
+    _searchController.addListener(() {
+      final q = _searchController.text.trim();
+      if (_searchQuery != q) {
+        setState(() {
+          _searchQuery = q;
+          _currentPage = 1;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -137,13 +153,16 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
 
     // Filter products by search, category, seller, stock, and availability
     final filtered = widget.products.where((p) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          p.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p.productCode.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p.technicalName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p.hsnCode.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p.vendor.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          p.sellerId.toLowerCase().contains(_searchQuery.toLowerCase());
+      final query = _searchQuery.toLowerCase();
+      final words = query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+
+      final searchableText = '${p.title} ${p.sku} ${p.productCode} ${p.technicalName} '
+          '${p.category} ${p.vendor} ${p.hsnCode} ${p.sellerId} ${p.id} '
+          '${p.assignedCollections.join(' ')} '
+          '${p.variants.map((v) => '${v.label} ${v.packSize}${v.unit}').join(' ')}'
+          .toLowerCase();
+
+      final matchesSearch = words.isEmpty || words.every((word) => searchableText.contains(word));
 
       final matchesCategory = _selectedCategoryFilter == 'All' ||
           p.category.toLowerCase() == _selectedCategoryFilter.toLowerCase();
@@ -243,17 +262,14 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
               child: SizedBox(
                 height: 40,
                 child: TextField(
-                  onChanged: (val) => setState(() {
-                    _searchQuery = val.trim();
-                    _currentPage = 1;
-                  }),
+                  controller: _searchController,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Search by SKU, Title, Technical Name, HSN or Seller...',
+                    hintText: 'Search by SKU, Title, Technical Name, Category, HSN or Seller...',
                     hintStyle: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
@@ -261,9 +277,23 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                     ),
                     prefixIcon: Icon(
                       Icons.search_rounded,
-                      size: 16,
+                      size: 17,
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                     ),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 16),
+                            tooltip: 'Clear search',
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                                _currentPage = 1;
+                              });
+                            },
+                          )
+                        : null,
                     filled: true,
                     fillColor: surfaceColor,
                     border: OutlineInputBorder(
@@ -521,14 +551,17 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                   ),
                 ),
                 InkWell(
-                  onTap: () => setState(() {
-                    _selectedSellerFilter = 'All Sellers';
-                    _selectedCategoryFilter = 'All';
-                    _selectedStockFilter = 'All Stock';
-                    _selectedAvailabilityFilter = 'All Status';
-                    _searchQuery = '';
-                    _currentPage = 1;
-                  }),
+                  onTap: () {
+                    _searchController.clear();
+                    setState(() {
+                      _selectedSellerFilter = 'All Sellers';
+                      _selectedCategoryFilter = 'All';
+                      _selectedStockFilter = 'All Stock';
+                      _selectedAvailabilityFilter = 'All Status';
+                      _searchQuery = '';
+                      _currentPage = 1;
+                    });
+                  },
                   borderRadius: BorderRadius.circular(6),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

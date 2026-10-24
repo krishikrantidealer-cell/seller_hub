@@ -509,6 +509,9 @@ class Product extends Equatable {
     return 'Agri Inputs';
   }
 
+  String get image => thumbnailUrl;
+  double get price => displayRate;
+
   String get thumbnailUrl {
     if (productImages.isNotEmpty) {
       final first = productImages.first;

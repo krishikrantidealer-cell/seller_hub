@@ -8,6 +8,9 @@ import '../../../logic/collection/collection_state.dart';
 import '../widgets/app_product_image.dart';
 import '../widgets/create_collection_dialog.dart';
 import '../widgets/edit_collection_dialog.dart';
+import '../widgets/assign_products_to_collection_dialog.dart';
+import '../../../logic/product/product_bloc.dart';
+import '../../../logic/product/product_state.dart';
 
 class CollectionsView extends StatefulWidget {
   final bool isWide;
@@ -63,6 +66,13 @@ class _CollectionsViewState extends State<CollectionsView> {
     showDialog(
       context: context,
       builder: (ctx) => EditCollectionDialog(collection: item),
+    );
+  }
+
+  void _openAssignProductsDialog(BuildContext context, CollectionItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AssignProductsToCollectionDialog(collection: item),
     );
   }
 
@@ -741,6 +751,13 @@ class _CollectionsViewState extends State<CollectionsView> {
                       const SizedBox(width: 4),
 
                       IconButton(
+                        icon: const Icon(Icons.playlist_add_rounded, size: 20),
+                        tooltip: 'Assign Products',
+                        color: const Color(0xFF059669),
+                        onPressed: () => _openAssignProductsDialog(context, item),
+                      ),
+
+                      IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 18),
                         tooltip: 'Edit Collection',
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -811,6 +828,139 @@ class _CollectionsViewState extends State<CollectionsView> {
                         return _buildSubCollectionPill(sub, isDark, surfaceColor, borderColor);
                       }).toList(),
                     ),
+                  const SizedBox(height: 18),
+                  Divider(height: 1, color: borderColor),
+                  const SizedBox(height: 16),
+
+                  // Assigned Products Shelf
+                  BlocBuilder<ProductBloc, ProductState>(
+                    builder: (context, prodState) {
+                      final allSubIds = item.subCollections.map((s) => s.id).toSet();
+                      final assigned = prodState.products.where((p) {
+                        return p.assignedCollections.contains(item.id) ||
+                            p.assignedCollections.any((id) => allSubIds.contains(id));
+                      }).toList();
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.inventory_2_outlined, size: 16, color: Color(0xFF059669)),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Assigned Catalog Products (${assigned.length})',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () => _openAssignProductsDialog(context, item),
+                                icon: const Icon(Icons.playlist_add_rounded, size: 15),
+                                label: Text(
+                                  'Assign / Manage Products',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF059669),
+                                  side: const BorderSide(color: Color(0xFF059669)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          if (assigned.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: surfaceColor,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline_rounded, size: 18, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'No products assigned to this collection yet. Click "Assign / Manage Products" to link items from your catalog.',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: assigned.map((p) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: surfaceColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: borderColor),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: AppProductImage(imageUrl: p.image, width: 24, height: 24),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 180),
+                                        child: Text(
+                                          p.title,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '₹${p.price.toStringAsFixed(0)}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: const Color(0xFF059669),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

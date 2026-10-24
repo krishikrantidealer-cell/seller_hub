@@ -1257,5 +1257,47 @@ void main() {
     expect(find.text('Deactivate Collection'), findsNothing);
     expect(find.textContaining('deactivated successfully'), findsOneWidget);
   });
+
+  testWidgets('Assigning products to a collection from CollectionsView opens AssignProductsToCollectionDialog and dispatches product assignment', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Tap Collections nav in sidebar
+    await tester.tap(find.text('Collections'));
+    await tester.pumpAndSettle();
+
+    // Find and tap "Assign Products" icon on the first collection card
+    final assignProductsBtn = find.byTooltip('Assign Products').first;
+    await tester.ensureVisible(assignProductsBtn);
+    await tester.tap(assignProductsBtn);
+    await tester.pumpAndSettle();
+
+    // Verify AssignProductsToCollectionDialog is opened
+    expect(find.text('Assign Products to Collection'), findsOneWidget);
+    expect(find.text('Save Product Assignments'), findsOneWidget);
+
+    // Tap "Save Product Assignments"
+    final saveButton = find.widgetWithText(ElevatedButton, 'Save Product Assignments');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    // Verify dialog is closed
+    expect(find.text('Assign Products to Collection'), findsNothing);
+  });
 }
 

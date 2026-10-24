@@ -18,6 +18,7 @@ abstract class CollectionRemoteDataSource {
     required String id,
     required CollectionItem collection,
   });
+  Future<CollectionItem> deactivateCollection(String id);
 }
 
 class CollectionRemoteDataSourceImpl implements CollectionRemoteDataSource {
@@ -100,5 +101,38 @@ class CollectionRemoteDataSourceImpl implements CollectionRemoteDataSource {
     throw const ApiException(
       message: 'Unexpected update collection response format from server.',
     );
+  }
+
+  @override
+  Future<CollectionItem> deactivateCollection(String id) async {
+    final path = '${ApiEndpoints.adminCollections}/$id';
+    try {
+      final response = await apiClient.delete(
+        path,
+        requiresAuth: true,
+      );
+
+      final rawData = response['data'] ?? response;
+      if (rawData is Map<String, dynamic>) {
+        return CollectionItem.fromJson(rawData);
+      }
+
+      throw const ApiException(
+        message: 'Unexpected deactivate collection response format from server.',
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 404 || e.statusCode == 405) {
+        final response = await apiClient.patch(
+          path,
+          body: {'isActive': false},
+          requiresAuth: true,
+        );
+        final rawData = response['data'] ?? response;
+        if (rawData is Map<String, dynamic>) {
+          return CollectionItem.fromJson(rawData);
+        }
+      }
+      rethrow;
+    }
   }
 }

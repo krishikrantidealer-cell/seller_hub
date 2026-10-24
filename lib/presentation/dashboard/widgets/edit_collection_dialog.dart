@@ -682,43 +682,67 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
 
                     // Action Buttons (Pinned Footer)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          if (widget.collection.isActive) ...[
+                            OutlinedButton.icon(
+                              onPressed: (isUpdating || state.isDeactivating)
+                                  ? null
+                                  : () {
+                                      Navigator.of(context).pop();
+                                      context.read<CollectionBloc>().add(DeactivateCollection(widget.collection.id));
+                                    },
+                              icon: const Icon(Icons.power_settings_new_rounded, size: 15, color: Color(0xFFEF4444)),
+                              label: Text(
+                                'Deactivate',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFEF4444),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFFEF4444)),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
                           OutlinedButton(
                             onPressed: isUpdating ? null : () => Navigator.of(context).pop(),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                               side: BorderSide(color: borderColor),
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                             child: Text(
                               'Cancel',
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           ElevatedButton.icon(
                             onPressed: isUpdating ? null : _handleSubmit,
                             icon: isUpdating
                                 ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
+                                    width: 14,
+                                    height: 14,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Icon(Icons.save_rounded, size: 18),
+                                : const Icon(Icons.save_rounded, size: 16),
                             label: Text(
-                              isUpdating ? 'Saving Changes...' : 'Save Collection',
+                              isUpdating ? 'Saving...' : 'Save Collection',
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -726,7 +750,7 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
                               backgroundColor: const Color(0xFF2563EB),
                               foregroundColor: Colors.white,
                               elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                           ),

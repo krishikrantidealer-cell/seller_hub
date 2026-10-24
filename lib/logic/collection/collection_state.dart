@@ -13,6 +13,9 @@ class CollectionState extends Equatable {
   final bool isUpdating;
   final String? updateError;
   final CollectionItem? updatedCollection;
+  final bool isDeactivating;
+  final String? deactivateError;
+  final CollectionItem? deactivatedCollection;
 
   const CollectionState({
     this.status = CollectionStatus.initial,
@@ -24,6 +27,9 @@ class CollectionState extends Equatable {
     this.isUpdating = false,
     this.updateError,
     this.updatedCollection,
+    this.isDeactivating = false,
+    this.deactivateError,
+    this.deactivatedCollection,
   });
 
   List<CollectionItem> get collections => data.items;
@@ -47,6 +53,10 @@ class CollectionState extends Equatable {
     String? updateError,
     CollectionItem? updatedCollection,
     bool clearUpdatedCollection = false,
+    bool? isDeactivating,
+    String? deactivateError,
+    CollectionItem? deactivatedCollection,
+    bool clearDeactivatedCollection = false,
   }) {
     return CollectionState(
       status: status ?? this.status,
@@ -62,6 +72,11 @@ class CollectionState extends Equatable {
       updatedCollection: clearUpdatedCollection
           ? null
           : (updatedCollection ?? this.updatedCollection),
+      isDeactivating: isDeactivating ?? this.isDeactivating,
+      deactivateError: deactivateError,
+      deactivatedCollection: clearDeactivatedCollection
+          ? null
+          : (deactivatedCollection ?? this.deactivatedCollection),
     );
   }
 
@@ -76,5 +91,8 @@ class CollectionState extends Equatable {
         isUpdating,
         updateError,
         updatedCollection,
+        isDeactivating,
+        deactivateError,
+        deactivatedCollection,
       ];
 }

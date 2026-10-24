@@ -471,6 +471,49 @@ void main() {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path.startsWith('/api/v1/admin/collections/') && request.method == 'DELETE') {
+      final id = request.url.pathSegments.last;
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Collection deactivated",
+          "data": {
+            "id": id,
+            "name": "Shop By Crops",
+            "slug": "shop-by-crops",
+            "description": "Shop accordingly to crop",
+            "isActive": false,
+            "priority": 0,
+            "subCollections": [
+              {
+                "id": "6ad9b313fa32055b18fcb290",
+                "name": "Rice",
+                "slug": "rice",
+                "isActive": true,
+                "image": "https://example.com/rice.webp",
+                "productCount": 1
+              },
+              {
+                "id": "6ad9b313fa32055b18fcb291",
+                "name": "Maize",
+                "slug": "maize",
+                "isActive": true,
+                "image": "https://example.com/maize.webp",
+                "productCount": 0
+              }
+            ],
+            "subCollectionCount": 2,
+            "createdAt": "2026-10-22T06:54:11.346Z",
+            "updatedAt": "2026-10-24T06:05:47.898263721Z",
+            "productCount": 1,
+            "bannerTitle": "Shop By Crop"
+          },
+          "timestamp": "2026-10-24T06:05:49.00084301"
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     if (request.url.path.contains('/api/v1/admin/products/') &&
         request.url.path.endsWith('/collections')) {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -1164,6 +1207,55 @@ void main() {
     // Verify dialog is dismissed and assigned collections section displays the assigned badge
     expect(find.text('Assign Storefront Collections'), findsNothing);
     expect(find.text('#6ad9b313fa32055b18fcb292'), findsOneWidget);
+  });
+
+  testWidgets('Deactivating a collection via CollectionsView integrates with DELETE /api/v1/admin/collections/{collectionId}', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Tap Collections nav in sidebar
+    await tester.tap(find.text('Collections'));
+    await tester.pumpAndSettle();
+
+    // Verify initial "Shop By Crop" exists and is Active
+    expect(find.text('Shop By Crop'), findsOneWidget);
+    expect(find.text('Active'), findsWidgets);
+
+    // Find and tap the Deactivate icon button for "Shop By Crop"
+    final deactivateIconFinder = find.byIcon(Icons.power_settings_new_rounded).first;
+    await tester.ensureVisible(deactivateIconFinder);
+    await tester.tap(deactivateIconFinder);
+    await tester.pumpAndSettle();
+
+    // Verify confirmation dialog is displayed
+    expect(find.text('Deactivate Collection'), findsOneWidget);
+    expect(find.textContaining('Are you sure you want to deactivate'), findsOneWidget);
+    expect(find.text('DELETE /api/v1/admin/collections/6ad9b313fa32055b18fcb292'), findsOneWidget);
+
+    // Tap "Deactivate" button in dialog
+    final confirmDeactivateBtn = find.widgetWithText(ElevatedButton, 'Deactivate');
+    expect(confirmDeactivateBtn, findsOneWidget);
+    await tester.tap(confirmDeactivateBtn);
+    await tester.pumpAndSettle();
+
+    // Verify confirmation dialog is dismissed and success snackbar or inactive state is displayed
+    expect(find.text('Deactivate Collection'), findsNothing);
+    expect(find.textContaining('deactivated successfully'), findsOneWidget);
   });
 }
 

@@ -43,4 +43,9 @@ class CollectionRepositoryImpl implements CollectionRepository {
       collection: collection,
     );
   }
+
+  @override
+  Future<CollectionItem> deactivateCollection(String id) async {
+    return await remoteDataSource.deactivateCollection(id);
+  }
 }

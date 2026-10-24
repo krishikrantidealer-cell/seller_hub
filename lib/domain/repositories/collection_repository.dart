@@ -15,4 +15,5 @@ abstract class CollectionRepository {
     required String id,
     required CollectionItem collection,
   });
+  Future<CollectionItem> deactivateCollection(String id);
 }

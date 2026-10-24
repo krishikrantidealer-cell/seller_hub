@@ -64,3 +64,16 @@ class UpdateCollection extends CollectionEvent {
 class ResetUpdateCollectionState extends CollectionEvent {
   const ResetUpdateCollectionState();
 }
+
+class DeactivateCollection extends CollectionEvent {
+  final String collectionId;
+
+  const DeactivateCollection(this.collectionId);
+
+  @override
+  List<Object?> get props => [collectionId];
+}
+
+class ResetDeactivateCollectionState extends CollectionEvent {
+  const ResetDeactivateCollectionState();
+}

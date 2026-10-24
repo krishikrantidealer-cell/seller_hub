@@ -14,6 +14,19 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
     on<ResetCreateCollectionState>(_onResetCreateCollectionState);
     on<UpdateCollection>(_onUpdateCollection);
     on<ResetUpdateCollectionState>(_onResetUpdateCollectionState);
+    on<DeactivateCollection>(_onDeactivateCollection);
+    on<ResetDeactivateCollectionState>(_onResetDeactivateCollectionState);
+  }
+
+  void _onResetDeactivateCollectionState(
+    ResetDeactivateCollectionState event,
+    Emitter<CollectionState> emit,
+  ) {
+    emit(state.copyWith(
+      isDeactivating: false,
+      deactivateError: null,
+      clearDeactivatedCollection: true,
+    ));
   }
 
   void _onResetCreateCollectionState(
@@ -82,6 +95,57 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
       emit(state.copyWith(
         isUpdating: false,
         updateError: 'Failed to update collection: $e',
+      ));
+    }
+  }
+
+  Future<void> _onDeactivateCollection(
+    DeactivateCollection event,
+    Emitter<CollectionState> emit,
+  ) async {
+    emit(state.copyWith(
+      isDeactivating: true,
+      deactivateError: null,
+      clearDeactivatedCollection: true,
+    ));
+
+    try {
+      final deactivatedItem = await collectionRepository.deactivateCollection(
+        event.collectionId,
+      );
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      final index = currentItems.indexWhere((c) => c.id == deactivatedItem.id);
+      if (index != -1) {
+        currentItems[index] = deactivatedItem;
+      } else {
+        // In case id matching uses event.collectionId
+        final fallbackIdx = currentItems.indexWhere((c) => c.id == event.collectionId);
+        if (fallbackIdx != -1) {
+          currentItems[fallbackIdx] = currentItems[fallbackIdx].copyWith(isActive: false);
+        }
+      }
+
+      final updatedData = CollectionsData(
+        count: currentItems.length,
+        items: currentItems,
+      );
+
+      emit(state.copyWith(
+        status: CollectionStatus.loaded,
+        data: updatedData,
+        isDeactivating: false,
+        deactivatedCollection: deactivatedItem,
+      ));
+    } on ApiException catch (e) {
+      emit(state.copyWith(
+        isDeactivating: false,
+        deactivateError: e.message,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        isDeactivating: false,
+        deactivateError: 'Failed to deactivate collection: $e',
       ));
     }
   }

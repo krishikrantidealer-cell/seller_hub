@@ -66,6 +66,108 @@ class _CollectionsViewState extends State<CollectionsView> {
     );
   }
 
+  void _confirmDeactivateCollection(BuildContext context, CollectionItem item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Deactivate Collection',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to deactivate "${item.name}"?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This collection will be marked inactive and hidden from storefront buyers. Products assigned to it will retain their assignment metadata.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                'DELETE /api/v1/admin/collections/${item.id}',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11,
+                  color: const Color(0xFFEF4444),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<CollectionBloc>().add(DeactivateCollection(item.id));
+            },
+            child: Text(
+              'Deactivate',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -73,7 +175,55 @@ class _CollectionsViewState extends State<CollectionsView> {
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
     final cardBgColor = isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC);
 
-    return BlocBuilder<CollectionBloc, CollectionState>(
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<CollectionBloc, CollectionState>(
+          listenWhen: (prev, curr) =>
+              prev.deactivatedCollection != curr.deactivatedCollection &&
+              curr.deactivatedCollection != null,
+          listener: (context, state) {
+            final deactivated = state.deactivatedCollection!;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Collection "${deactivated.name}" deactivated successfully.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                backgroundColor: const Color(0xFFEF4444),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                margin: const EdgeInsets.all(20),
+              ),
+            );
+          },
+        ),
+        BlocListener<CollectionBloc, CollectionState>(
+          listenWhen: (prev, curr) =>
+              prev.deactivateError != curr.deactivateError &&
+              curr.deactivateError != null,
+          listener: (context, state) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Failed to deactivate collection: ${state.deactivateError}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                backgroundColor: const Color(0xFFEF4444),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                margin: const EdgeInsets.all(20),
+              ),
+            );
+          },
+        ),
+      ],
+      child: BlocBuilder<CollectionBloc, CollectionState>(
       builder: (context, state) {
         final allItems = state.collections;
         final filteredItems = allItems.where((c) {
@@ -132,8 +282,9 @@ class _CollectionsViewState extends State<CollectionsView> {
           ),
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHeader(BuildContext context, CollectionState state, bool isDark, Color borderColor) {
     return Row(
@@ -595,6 +746,14 @@ class _CollectionsViewState extends State<CollectionsView> {
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                         onPressed: () => _openEditCollectionDialog(context, item),
                       ),
+
+                      if (item.isActive)
+                        IconButton(
+                          icon: const Icon(Icons.power_settings_new_rounded, size: 18),
+                          tooltip: 'Deactivate Collection',
+                          color: const Color(0xFFEF4444),
+                          onPressed: () => _confirmDeactivateCollection(context, item),
+                        ),
 
                       Icon(
                         isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,

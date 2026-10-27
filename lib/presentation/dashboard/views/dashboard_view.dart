@@ -18,7 +18,9 @@ import 'package:seller_hub/logic/admin_user/seller_bloc.dart';
 import 'package:seller_hub/presentation/dashboard/views/categories_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/catalog_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/collections_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/customer_profile_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/customers_view.dart';
+import 'package:seller_hub/core/models/admin_user.dart';
 import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/orders_view.dart';
@@ -55,6 +57,9 @@ class _DashboardViewState extends State<DashboardView> {
   // Orders management state
   final List<MarketplaceOrder> _orders = List.from(MockOrders.sampleOrders);
   MarketplaceOrder? _viewingOrder;
+
+  // Customers management state
+  AdminUser? _viewingCustomer;
 
   @override
   void initState() {
@@ -155,6 +160,7 @@ class _DashboardViewState extends State<DashboardView> {
                   viewingProduct: _viewingProduct,
                   viewingSeller: _viewingSeller,
                   viewingOrder: _viewingOrder,
+                  viewingCustomer: _viewingCustomer,
                   isWide: isWide,
                   onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 ),
@@ -346,7 +352,28 @@ class _DashboardViewState extends State<DashboardView> {
 
     // Nav Index 6: Customers Directory & Buyer Management
     if (_selectedNavIndex == 6) {
-      return CustomersView(isWide: isWide);
+      if (_viewingCustomer != null) {
+        return CustomerProfileView(
+          customer: _viewingCustomer!,
+          allOrders: _orders,
+          onBack: () => setState(() => _viewingCustomer = null),
+          onCustomerUpdated: (updated) {
+            setState(() => _viewingCustomer = updated);
+          },
+          onSelectOrder: (order) {
+            setState(() {
+              _selectedNavIndex = 5;
+              _viewingCustomer = null;
+              _viewingOrder = order;
+            });
+          },
+        );
+      }
+
+      return CustomersView(
+        isWide: isWide,
+        onSelectCustomer: (customer) => setState(() => _viewingCustomer = customer),
+      );
     }
 
     return const SizedBox.shrink();
@@ -359,6 +386,7 @@ class _DashboardViewState extends State<DashboardView> {
       _openInEditMode = false;
       _viewingSeller = null;
       _viewingOrder = null;
+      _viewingCustomer = null;
     });
   }
 

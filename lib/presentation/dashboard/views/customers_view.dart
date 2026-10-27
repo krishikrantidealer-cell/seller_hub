@@ -8,10 +8,12 @@ import '../../../logic/admin_user/customer_bloc.dart';
 
 class CustomersView extends StatefulWidget {
   final bool isWide;
+  final ValueChanged<AdminUser>? onSelectCustomer;
 
   const CustomersView({
     super.key,
     required this.isWide,
+    this.onSelectCustomer,
   });
 
   @override
@@ -517,7 +519,13 @@ class _CustomersViewState extends State<CustomersView> {
             itemBuilder: (context, index) {
                 final user = customers[index];
                 return InkWell(
-                  onTap: () => _showCustomerDetailsDialog(context, user, isDark, surfaceColor, borderColor),
+                  onTap: () {
+                    if (widget.onSelectCustomer != null) {
+                      widget.onSelectCustomer!(user);
+                    } else {
+                      _showCustomerDetailsDialog(context, user, isDark, surfaceColor, borderColor);
+                    }
+                  },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
@@ -694,13 +702,19 @@ class _CustomersViewState extends State<CustomersView> {
                                 tooltip: 'View details',
                                 padding: const EdgeInsets.all(6),
                                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                onPressed: () => _showCustomerDetailsDialog(
-                                  context,
-                                  user,
-                                  isDark,
-                                  surfaceColor,
-                                  borderColor,
-                                ),
+                                onPressed: () {
+                                  if (widget.onSelectCustomer != null) {
+                                    widget.onSelectCustomer!(user);
+                                  } else {
+                                    _showCustomerDetailsDialog(
+                                      context,
+                                      user,
+                                      isDark,
+                                      surfaceColor,
+                                      borderColor,
+                                    );
+                                  }
+                                },
                               ),
                               IconButton(
                                 icon: Icon(
@@ -838,13 +852,19 @@ class _CustomersViewState extends State<CustomersView> {
                   Row(
                     children: [
                       TextButton.icon(
-                        onPressed: () => _showCustomerDetailsDialog(
-                          context,
-                          user,
-                          isDark,
-                          surfaceColor,
-                          borderColor,
-                        ),
+                        onPressed: () {
+                          if (widget.onSelectCustomer != null) {
+                            widget.onSelectCustomer!(user);
+                          } else {
+                            _showCustomerDetailsDialog(
+                              context,
+                              user,
+                              isDark,
+                              surfaceColor,
+                              borderColor,
+                            );
+                          }
+                        },
                         icon: const Icon(Icons.info_outline_rounded, size: 14),
                         label: const Text('Details'),
                         style: TextButton.styleFrom(

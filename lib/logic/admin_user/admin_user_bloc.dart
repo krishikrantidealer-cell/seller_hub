@@ -20,6 +20,7 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     on<FilterAdminUsersStatus>(_onFilterStatus);
     on<ToggleBlockAdminUser>(_onToggleBlock);
     on<ToggleDeleteAdminUser>(_onToggleDelete);
+    on<UpdateLocalAdminUser>(_onUpdateLocalUser);
   }
 
   Future<void> _onInitialize(
@@ -183,5 +184,16 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
         errorMessage: e is ApiException ? e.message : 'Failed to update user deleted status',
       ));
     }
+  }
+
+  void _onUpdateLocalUser(
+    UpdateLocalAdminUser event,
+    Emitter<AdminUserState> emit,
+  ) {
+    final updatedList = state.users.map((u) {
+      return u.id == event.user.id ? event.user : u;
+    }).toList();
+
+    emit(state.copyWith(users: updatedList));
   }
 }

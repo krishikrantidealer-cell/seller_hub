@@ -174,6 +174,52 @@ class AdminUser extends Equatable {
     return 'ACTIVE';
   }
 
+  AdminUser copyWith({
+    String? id,
+    String? phoneNumber,
+    String? email,
+    String? firstName,
+    String? lastName,
+    String? shopName,
+    String? role,
+    UserAddress? address,
+    bool? isVerified,
+    bool? isProfileComplete,
+    String? kycStatus,
+    bool? isKycComplete,
+    String? gstNumber,
+    String? licenceImage,
+    String? shopImage,
+    List<UserAddress>? shippingAddresses,
+    bool? isBlocked,
+    bool? isDeleted,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return AdminUser(
+      id: id ?? this.id,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      email: email ?? this.email,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      shopName: shopName ?? this.shopName,
+      role: role ?? this.role,
+      address: address ?? this.address,
+      isVerified: isVerified ?? this.isVerified,
+      isProfileComplete: isProfileComplete ?? this.isProfileComplete,
+      kycStatus: kycStatus ?? this.kycStatus,
+      isKycComplete: isKycComplete ?? this.isKycComplete,
+      gstNumber: gstNumber ?? this.gstNumber,
+      licenceImage: licenceImage ?? this.licenceImage,
+      shopImage: shopImage ?? this.shopImage,
+      shippingAddresses: shippingAddresses ?? this.shippingAddresses,
+      isBlocked: isBlocked ?? this.isBlocked,
+      isDeleted: isDeleted ?? this.isDeleted,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   @override
   List<Object?> get props => [
         id,

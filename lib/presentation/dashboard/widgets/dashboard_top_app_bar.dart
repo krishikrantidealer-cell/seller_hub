@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:seller_hub/core/models/admin_user.dart';
 import 'package:seller_hub/core/models/order.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/core/models/seller.dart';
@@ -12,6 +13,7 @@ class DashboardTopAppBar extends StatelessWidget {
   final Product? viewingProduct;
   final SellerProfile? viewingSeller;
   final MarketplaceOrder? viewingOrder;
+  final AdminUser? viewingCustomer;
   final bool isWide;
   final VoidCallback onMenuPressed;
 
@@ -21,6 +23,7 @@ class DashboardTopAppBar extends StatelessWidget {
     this.viewingProduct,
     this.viewingSeller,
     this.viewingOrder,
+    this.viewingCustomer,
     required this.isWide,
     required this.onMenuPressed,
   });
@@ -60,8 +63,13 @@ class DashboardTopAppBar extends StatelessWidget {
         subtitle = 'Onboarded merchants, legal compliance, KYC & commission agreements';
       }
     } else if (selectedNavIndex == 6) {
-      title = 'Customers & Buyer Directory';
-      subtitle = 'Registered farmers, buyer accounts, delivery addresses & verification';
+      if (viewingCustomer != null) {
+        title = 'Customer Profile & Account Details';
+        subtitle = '${viewingCustomer!.fullName.isNotEmpty ? viewingCustomer!.fullName : viewingCustomer!.displayName} • Phone: ${viewingCustomer!.phoneNumber} • Role: ${viewingCustomer!.role}';
+      } else {
+        title = 'Customers & Buyer Directory';
+        subtitle = 'Registered farmers, buyer accounts, delivery addresses & verification';
+      }
     } else {
       if (viewingOrder != null) {
         title = 'Order ${viewingOrder!.orderNumber} • ${viewingOrder!.company}';

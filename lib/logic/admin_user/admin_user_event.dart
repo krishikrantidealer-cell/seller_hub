@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../core/models/admin_user.dart';
 
 abstract class AdminUserEvent extends Equatable {
   const AdminUserEvent();
@@ -80,4 +81,12 @@ class ToggleDeleteAdminUser extends AdminUserEvent {
 
   @override
   List<Object?> get props => [userId, deleted];
+}
+
+class UpdateLocalAdminUser extends AdminUserEvent {
+  final AdminUser user;
+  const UpdateLocalAdminUser(this.user);
+
+  @override
+  List<Object?> get props => [user];
 }

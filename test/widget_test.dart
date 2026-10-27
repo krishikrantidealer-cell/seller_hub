@@ -1751,21 +1751,61 @@ void main() {
     expect(find.text('9876543244'), findsOneWidget);
     expect(find.textContaining('Plot 42, Kisan Nagar'), findsOneWidget);
 
-    // Tap Details icon button to open customer details modal
+    // Tap Details icon button to open dedicated customer profile
     final detailsBtn = find.byTooltip('View details');
     expect(detailsBtn, findsOneWidget);
     await tester.tap(detailsBtn);
     await tester.pumpAndSettle();
 
-    // Verify dialog content
-    expect(find.text('PRIMARY ADDRESS'), findsOneWidget);
-    expect(find.text('ACCOUNT STATUS & VERIFICATION'), findsOneWidget);
-    expect(find.text('Indore'), findsWidgets);
-    expect(find.text('Close'), findsOneWidget);
+    // Verify Customer Profile view opens just like Seller Profile
+    expect(find.text('Customer Profile & Account Details'), findsOneWidget);
+    expect(find.text('Back to Customers Directory'), findsOneWidget);
+    expect(find.text('Edit Profile'), findsOneWidget);
+    expect(find.text('PERSONAL PROFILE'), findsOneWidget);
+    expect(find.text('CONTACT DETAILS'), findsOneWidget);
 
-    // Close dialog
-    await tester.tap(find.text('Close'));
+    // Switch to Delivery Addresses tab
+    await tester.tap(find.text('Delivery Addresses'));
     await tester.pumpAndSettle();
+    expect(find.text('PRIMARY BILLING & DELIVERY ADDRESS'), findsOneWidget);
+    expect(find.text('Indore'), findsWidgets);
+
+    // Switch to KYC & Compliance tab
+    await tester.tap(find.text('KYC & Compliance'));
+    await tester.pumpAndSettle();
+    expect(find.text('KYC & VERIFICATION STATUS'), findsOneWidget);
+
+    // Switch to Orders History tab
+    await tester.tap(find.text('Orders History'));
+    await tester.pumpAndSettle();
+
+    // Switch back to Personal tab and test Edit mode
+    await tester.tap(find.text('Personal & Account'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Edit Profile'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Save Profile'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+
+    // Cancel edit
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit Profile'), findsOneWidget);
+
+    // Test Block Account action dialog
+    await tester.tap(find.text('Block Account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Block Customer Account?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Tap back to return to Customers Directory
+    await tester.tap(find.text('Back to Customers Directory'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Customers & Buyer Directory'), findsOneWidget);
   });
 }
 

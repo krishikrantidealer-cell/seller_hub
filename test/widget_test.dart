@@ -982,7 +982,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify Sellers directory table loads
-    expect(find.text('Onboard Seller'), findsOneWidget);
+    expect(find.text('Onboard Seller'), findsNothing);
     expect(find.text('Krishi Kranti Organics'), findsWidgets);
     expect(find.text('Bharat Agro Chemicals Ltd'), findsWidgets);
 
@@ -1836,7 +1836,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Multi-Tenant Sellers Directory'), findsOneWidget);
-    expect(find.text('Onboard Seller'), findsOneWidget);
+    expect(find.text('Onboard Seller'), findsNothing);
 
     // Switch to Customers via top segmented control
     await tester.tap(find.text('Customers'));

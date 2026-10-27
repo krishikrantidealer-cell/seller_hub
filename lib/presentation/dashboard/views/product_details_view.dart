@@ -2257,6 +2257,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 children: [
                   AppProductImage(
                     imageUrl: previewUrl,
+                    fallbackUrls: p.candidateImageUrls,
                     width: double.infinity,
                     height: 344,
                     borderRadius: 10,

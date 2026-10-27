@@ -1093,6 +1093,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
 
                     return widget.isWide
                         ? ProductTableRow(
+                            key: ValueKey(p.id.isNotEmpty ? p.id : p.productCode),
                             product: p,
                             isSelected: isSelected,
                             sellerName: sellerName,

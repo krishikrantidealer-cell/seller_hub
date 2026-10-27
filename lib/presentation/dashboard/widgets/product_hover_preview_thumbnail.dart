@@ -90,6 +90,7 @@ class _ProductHoverPreviewThumbnailState extends State<ProductHoverPreviewThumbn
                         width: double.infinity,
                         child: AppProductImage(
                           imageUrl: highResUrl,
+                          fallbackUrls: widget.product.candidateImageUrls,
                           width: double.infinity,
                           height: 250,
                           borderRadius: 0,
@@ -189,6 +190,7 @@ class _ProductHoverPreviewThumbnailState extends State<ProductHoverPreviewThumbn
         cursor: SystemMouseCursors.click,
         child: AppProductImage(
           imageUrl: widget.product.thumbnailUrl,
+          fallbackUrls: widget.product.candidateImageUrls,
           width: widget.size,
           height: widget.size,
           categoryColor: widget.categoryColor,

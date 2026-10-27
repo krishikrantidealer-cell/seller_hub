@@ -60,6 +60,7 @@ class ProductMobileCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 AppProductImage(
                   imageUrl: product.thumbnailUrl,
+                  fallbackUrls: product.candidateImageUrls,
                   width: 36,
                   height: 36,
                   borderRadius: 6,

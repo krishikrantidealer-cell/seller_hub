@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 /// Resilient Enterprise Product Image Widget
-/// Handles network loading, CORS/GCS restrictions, expired tokens, and neutral styling.
-class AppProductImage extends StatelessWidget {
+/// Handles network loading, CORS/GCS restrictions, candidate fallback URLs, and expiration resilience.
+class AppProductImage extends StatefulWidget {
   final String imageUrl;
+  final List<String> fallbackUrls;
   final double width;
   final double height;
   final double borderRadius;
@@ -17,6 +18,7 @@ class AppProductImage extends StatelessWidget {
   const AppProductImage({
     super.key,
     required this.imageUrl,
+    this.fallbackUrls = const [],
     this.width = 40,
     this.height = 40,
     this.borderRadius = 8,
@@ -29,42 +31,110 @@ class AppProductImage extends StatelessWidget {
   });
 
   @override
+  State<AppProductImage> createState() => _AppProductImageState();
+}
+
+class _AppProductImageState extends State<AppProductImage> {
+  int _candidateIndex = 0;
+  List<String> _candidates = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _recomputeCandidates();
+  }
+
+  @override
+  void didUpdateWidget(covariant AppProductImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.fallbackUrls != widget.fallbackUrls) {
+      _recomputeCandidates();
+    }
+  }
+
+  void _recomputeCandidates() {
+    final list = <String>[];
+    final primary = widget.imageUrl.trim();
+    if (primary.isNotEmpty && (primary.startsWith('http://') || primary.startsWith('https://'))) {
+      list.add(primary);
+    }
+    for (final fb in widget.fallbackUrls) {
+      final trimmed = fb.trim();
+      if (trimmed.isNotEmpty &&
+          (trimmed.startsWith('http://') || trimmed.startsWith('https://')) &&
+          !list.contains(trimmed)) {
+        list.add(trimmed);
+      }
+    }
+    _candidates = list;
+    _candidateIndex = 0;
+  }
+
+  String? get _currentUrl {
+    if (_candidates.isEmpty || _candidateIndex >= _candidates.length) return null;
+    return _candidates[_candidateIndex];
+  }
+
+  void _onImageError() {
+    if (_candidateIndex + 1 < _candidates.length) {
+      if (mounted) {
+        setState(() {
+          _candidateIndex++;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final validUrl = imageUrl.trim();
-    final hasUrl = validUrl.isNotEmpty && (validUrl.startsWith('http://') || validUrl.startsWith('https://'));
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final neutralBorder = borderColor ?? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0));
+    final neutralBorder = widget.borderColor ?? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0));
     final defaultBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final activeUrl = _currentUrl;
 
     return Container(
-      width: width,
-      height: height,
-      padding: padding,
+      width: widget.width,
+      height: widget.height,
+      padding: widget.padding,
       decoration: BoxDecoration(
-        color: backgroundColor ?? defaultBg,
-        borderRadius: BorderRadius.circular(borderRadius),
+        color: widget.backgroundColor ?? defaultBg,
+        borderRadius: BorderRadius.circular(widget.borderRadius),
         border: Border.all(
           color: neutralBorder,
           width: 1,
         ),
       ),
       clipBehavior: Clip.antiAlias,
-      child: hasUrl
+      child: activeUrl != null
           ? Image.network(
-              validUrl,
-              width: width.isFinite ? width : double.infinity,
-              height: height.isFinite ? height : double.infinity,
-              fit: fit,
+              activeUrl,
+              key: ValueKey(activeUrl),
+              width: widget.width.isFinite ? widget.width : double.infinity,
+              height: widget.height.isFinite ? widget.height : double.infinity,
+              fit: widget.fit,
               filterQuality: FilterQuality.high,
               webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
+                // If small thumbnail (like in catalog table), show clean placeholder instead of tiny spinner
+                if (widget.width < 45 || widget.height < 45) {
+                  return Container(
+                    color: widget.backgroundColor ?? defaultBg,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      widget.fallbackIcon,
+                      size: (widget.width < 36 ? 16 : 20),
+                      color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                    ),
+                  );
+                }
                 return Center(
                   child: SizedBox(
-                    width: width.isFinite ? width * 0.4 : 40,
-                    height: height.isFinite ? height * 0.4 : 40,
+                    width: 32,
+                    height: 32,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: 2.2,
                       valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF059669)),
                       value: loadingProgress.expectedTotalBytes != null
                           ? loadingProgress.cumulativeBytesLoaded / (loadingProgress.expectedTotalBytes ?? 1)
@@ -74,6 +144,10 @@ class AppProductImage extends StatelessWidget {
                 );
               },
               errorBuilder: (context, error, stackTrace) {
+                // If there's another candidate URL, try it automatically
+                if (_candidateIndex + 1 < _candidates.length) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) => _onImageError());
+                }
                 return _buildFallback(isDark);
               },
             )
@@ -84,9 +158,9 @@ class AppProductImage extends StatelessWidget {
   Widget _buildFallback(bool isDark) {
     return Center(
       child: Icon(
-        fallbackIcon,
+        widget.fallbackIcon,
         color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-        size: (width < 36 ? 16 : (width < 64 ? 20 : 36)),
+        size: (widget.width < 36 ? 16 : (widget.width < 64 ? 20 : 36)),
       ),
     );
   }

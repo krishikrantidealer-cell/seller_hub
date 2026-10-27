@@ -44,7 +44,7 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
   Future<List<CategoryItem>> getCategories({int? level, String? parentId}) async {
     final queryParams = <String, String>{
       'page': '0',
-      'size': '500',
+      'size': '100',
     };
     if (level != null) queryParams['level'] = level.toString();
     if (parentId != null && parentId.isNotEmpty) queryParams['parentId'] = parentId;

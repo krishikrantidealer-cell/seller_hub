@@ -48,6 +48,8 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     );
 
     if (cached != null && cached.content.isNotEmpty) {
+      final bool hasExpired = cached.hasExpiredImages;
+
       emit(state.copyWith(
         status: ProductStatus.loaded,
         pageData: cached,
@@ -56,11 +58,11 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         isBackgroundSyncing: true,
       ));
 
-      // 2. Perform silent background freshness sync without blocking user interaction
+      // 2. Refresh from server. If cached signed URLs are expired, actively refresh
       add(FetchProducts(
         page: event.page,
         size: event.size,
-        isBackground: true,
+        isBackground: !hasExpired,
       ));
     } else {
       // No local cache yet: standard initial fetch with loading indicator

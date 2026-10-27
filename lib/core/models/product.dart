@@ -74,17 +74,48 @@ class ProductImage extends Equatable {
 
   static const String defaultGcsBucketBase = 'https://storage.googleapis.com/sellerhub-prod-media-us';
 
+  /// Determines whether a signed Google Cloud Storage URL has expired.
+  static bool isUrlExpired(String? url) {
+    if (url == null || url.isEmpty) return false;
+    if (!url.contains('X-Goog-Date=') || !url.contains('X-Goog-Expires=')) return false;
+    try {
+      final uri = Uri.parse(url);
+      final dateStr = uri.queryParameters['X-Goog-Date'];
+      final expiresStr = uri.queryParameters['X-Goog-Expires'];
+      if (dateStr == null || expiresStr == null || dateStr.length < 15) return false;
+      final expiresSec = int.tryParse(expiresStr) ?? 900;
+      final year = int.parse(dateStr.substring(0, 4));
+      final month = int.parse(dateStr.substring(4, 6));
+      final day = int.parse(dateStr.substring(6, 8));
+      final hour = int.parse(dateStr.substring(9, 11));
+      final min = int.parse(dateStr.substring(11, 13));
+      final sec = int.parse(dateStr.substring(13, 15));
+      final signedUtc = DateTime.utc(year, month, day, hour, min, sec);
+      // 60-second grace window before hard expiration
+      final expireUtc = signedUtc.add(Duration(seconds: expiresSec - 60));
+      return DateTime.now().toUtc().isAfter(expireUtc);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Whether any signed asset in this ProductImage is expired
+  bool get isExpired {
+    final candidate = midUrl.isNotEmpty ? midUrl : lowUrl;
+    return isUrlExpired(candidate);
+  }
+
   factory ProductImage.fromJson(Map<String, dynamic> json) {
     final id = _parseString(json['id'] ?? json['_id']);
-    final displayOrder = _parseInt(json['displayOrder'], 0);
+    final displayOrder = _parseInt(json['displayOrder'] ?? json['DisplayOrder'], 0);
 
-    final originalObj = _parseString(json['originalObjectName']);
-    final midObj = _parseString(json['midObjectName']);
-    final lowObj = _parseString(json['lowObjectName']);
+    final originalObj = _parseString(json['originalObjectName'] ?? json['OriginalObjectName']);
+    final midObj = _parseString(json['midObjectName'] ?? json['MidObjectName']);
+    final lowObj = _parseString(json['lowObjectName'] ?? json['LowObjectName']);
 
-    String mid = _parseString(json['midUrl']);
-    String low = _parseString(json['lowUrl']);
-    String original = _parseString(json['originalUrl']);
+    String mid = _parseString(json['midUrl'] ?? json['MidUrl']);
+    String low = _parseString(json['lowUrl'] ?? json['LowUrl']);
+    String original = _parseString(json['originalUrl'] ?? json['OriginalUrl']);
 
     // If signed URLs are not present, synthesize from GCS object name paths
     if (mid.isEmpty && midObj.isNotEmpty) {
@@ -512,53 +543,132 @@ class Product extends Equatable {
   String get image => thumbnailUrl;
   double get price => displayRate;
 
+  /// Returns true if any image associated with this product is expired
+  bool get hasExpiredImages {
+    if (productImages.isEmpty) return false;
+    return productImages.any((img) => img.isExpired);
+  }
+
+  /// All valid candidate image URLs in order of preference
+  List<String> get candidateImageUrls {
+    final list = <String>[];
+    for (final img in productImages) {
+      if (!img.isExpired) {
+        if (img.midUrl.isNotEmpty && !list.contains(img.midUrl)) list.add(img.midUrl);
+        if (img.lowUrl.isNotEmpty && !list.contains(img.lowUrl)) list.add(img.lowUrl);
+        if (img.originalUrl.isNotEmpty && !list.contains(img.originalUrl)) list.add(img.originalUrl);
+      }
+    }
+    for (final img in images) {
+      if (!ProductImage.isUrlExpired(img) && !list.contains(img)) list.add(img);
+    }
+    // Fallback if all were flagged expired
+    if (list.isEmpty) {
+      for (final img in productImages) {
+        if (img.midUrl.isNotEmpty && !list.contains(img.midUrl)) list.add(img.midUrl);
+        if (img.lowUrl.isNotEmpty && !list.contains(img.lowUrl)) list.add(img.lowUrl);
+      }
+      for (final img in images) {
+        if (!list.contains(img)) list.add(img);
+      }
+    }
+    return list;
+  }
+
   String get thumbnailUrl {
     if (productImages.isNotEmpty) {
+      // Prioritize non-expired images
+      for (final img in productImages) {
+        if (!img.isExpired) {
+          if (img.lowUrl.isNotEmpty) return img.lowUrl;
+          if (img.midUrl.isNotEmpty) return img.midUrl;
+          if (img.originalUrl.isNotEmpty) return img.originalUrl;
+        }
+      }
       final first = productImages.first;
       if (first.lowUrl.isNotEmpty) return first.lowUrl;
       if (first.midUrl.isNotEmpty) return first.midUrl;
     }
-    if (images.isNotEmpty) return images.first;
+    if (images.isNotEmpty) {
+      for (final img in images) {
+        if (!ProductImage.isUrlExpired(img)) return img;
+      }
+      return images.first;
+    }
     return '';
   }
 
   String get primaryImageUrl {
     if (productImages.isNotEmpty) {
+      for (final img in productImages) {
+        if (!img.isExpired) {
+          if (img.midUrl.isNotEmpty) return img.midUrl;
+          if (img.lowUrl.isNotEmpty) return img.lowUrl;
+          if (img.originalUrl.isNotEmpty) return img.originalUrl;
+        }
+      }
       final first = productImages.first;
       if (first.midUrl.isNotEmpty) return first.midUrl;
       if (first.lowUrl.isNotEmpty) return first.lowUrl;
     }
-    if (images.isNotEmpty) return images.first;
+    if (images.isNotEmpty) {
+      for (final img in images) {
+        if (!ProductImage.isUrlExpired(img)) return img;
+      }
+      return images.first;
+    }
     return '';
   }
 
   String get originalImageUrl {
     if (productImages.isNotEmpty) {
-      final first = productImages.first;
-      // If originalUrl has active pre-signed credentials or is an external CDN, prioritize it
-      if (first.originalUrl.isNotEmpty &&
-          (first.originalUrl.contains('X-Goog-Signature') ||
-              first.originalUrl.contains('token') ||
-              !first.originalUrl.contains('storage.googleapis.com'))) {
-        return first.originalUrl;
+      for (final img in productImages) {
+        if (!img.isExpired) {
+          if (img.originalUrl.isNotEmpty &&
+              (img.originalUrl.contains('X-Goog-Signature') ||
+                  img.originalUrl.contains('token') ||
+                  !img.originalUrl.contains('storage.googleapis.com'))) {
+            return img.originalUrl;
+          }
+          if (img.midUrl.isNotEmpty) return img.midUrl;
+          if (img.originalUrl.isNotEmpty) return img.originalUrl;
+          if (img.lowUrl.isNotEmpty) return img.lowUrl;
+        }
       }
-      // midUrl from backend is the 1200x1200px signed high-resolution asset
+      final first = productImages.first;
       if (first.midUrl.isNotEmpty) return first.midUrl;
       if (first.originalUrl.isNotEmpty) return first.originalUrl;
       if (first.lowUrl.isNotEmpty) return first.lowUrl;
     }
-    if (images.isNotEmpty) return images.first;
+    if (images.isNotEmpty) {
+      for (final img in images) {
+        if (!ProductImage.isUrlExpired(img)) return img;
+      }
+      return images.first;
+    }
     return '';
   }
 
   String get highResImageUrl {
     if (productImages.isNotEmpty) {
+      for (final img in productImages) {
+        if (!img.isExpired) {
+          if (img.midUrl.isNotEmpty) return img.midUrl;
+          if (img.originalUrl.isNotEmpty) return img.originalUrl;
+          if (img.lowUrl.isNotEmpty) return img.lowUrl;
+        }
+      }
       final first = productImages.first;
       if (first.midUrl.isNotEmpty) return first.midUrl;
       if (first.originalUrl.isNotEmpty) return first.originalUrl;
       if (first.lowUrl.isNotEmpty) return first.lowUrl;
     }
-    if (images.isNotEmpty) return images.first;
+    if (images.isNotEmpty) {
+      for (final img in images) {
+        if (!ProductImage.isUrlExpired(img)) return img;
+      }
+      return images.first;
+    }
     return '';
   }
 
@@ -606,8 +716,9 @@ class Product extends Equatable {
     final description = _parseString(json['description'] ?? json['Description']);
 
     List<ProductImage> parsedProductImages = [];
-    if (json['productImages'] is List) {
-      parsedProductImages = (json['productImages'] as List)
+    final rawImgs = json['productImages'] ?? json['ProductImages'];
+    if (rawImgs is List) {
+      parsedProductImages = rawImgs
           .whereType<Map<String, dynamic>>()
           .map((m) => ProductImage.fromJson(m))
           .toList();
@@ -773,16 +884,28 @@ class Product extends Equatable {
     'version': version,
   };
 
-  /// Exports in standard 38-field flat JSON for table exports and CSV/Excel interchange
+  /// Exports in standard 38-field flat JSON with canonical keys for loss-free caching and table exports
   Map<String, dynamic> toJson() => {
+    'id': id,
+    '_id': id,
+    'sku': sku,
+    'productCode': productCode,
     'Product Code': productCode,
+    'hsnCode': hsnCode,
     'HSN Code': hsnCode,
+    'sellerId': sellerId,
     'Title': title,
+    'title': title,
     'Technical Name': technicalName,
+    'technicalName': technicalName,
     'Vendor': vendor,
+    'vendor': vendor,
     'Description': description,
+    'description': description,
     'Images': images,
+    'images': images,
     'ProductImages': productImages.map((p) => p.toJson()).toList(),
+    'productImages': productImages.map((p) => p.toJson()).toList(),
     'Technical Content': technicalContent,
     'Features': features,
     'Benefites': benefits,
@@ -1067,6 +1190,9 @@ class ProductPageData extends Equatable {
       count: _parseInt(json['count'], products.length),
     );
   }
+
+  /// Whether any product in this page has expired signed images
+  bool get hasExpiredImages => content.any((p) => p.hasExpiredImages);
 
   Map<String, dynamic> toJson() => {
     'content': content.map((p) => p.toJson()).toList(),

@@ -38,4 +38,14 @@ abstract class CategoryRepository {
 
   /// Deactivates a category
   Future<CategoryItem> deactivateCategory(String id);
+
+  /// Uploads a category image (PNG or JPG) to Google Cloud Storage
+  Future<CategoryItem> uploadCategoryImage({
+    required String categoryId,
+    required List<int> fileBytes,
+    required String fileName,
+  });
+
+  /// Deletes a category image from Google Cloud Storage
+  Future<CategoryItem> deleteCategoryImage(String categoryId);
 }

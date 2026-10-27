@@ -121,3 +121,29 @@ class DeactivateCategory extends CategoryEvent {
   @override
   List<Object?> get props => [id];
 }
+
+/// Uploads an image/icon file for a category to GCS
+class UploadCategoryItemImage extends CategoryEvent {
+  final String categoryId;
+  final List<int> fileBytes;
+  final String fileName;
+
+  const UploadCategoryItemImage({
+    required this.categoryId,
+    required this.fileBytes,
+    required this.fileName,
+  });
+
+  @override
+  List<Object?> get props => [categoryId, fileName];
+}
+
+/// Deletes a category image from GCS
+class DeleteCategoryItemImage extends CategoryEvent {
+  final String categoryId;
+
+  const DeleteCategoryItemImage(this.categoryId);
+
+  @override
+  List<Object?> get props => [categoryId];
+}

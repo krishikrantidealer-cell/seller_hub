@@ -33,6 +33,16 @@ abstract class CategoryRemoteDataSource {
 
   /// Deactivates a category via admin API
   Future<CategoryItem> deactivateCategory(String id);
+
+  /// Uploads a category image via admin API
+  Future<CategoryItem> uploadCategoryImage({
+    required String categoryId,
+    required List<int> fileBytes,
+    required String fileName,
+  });
+
+  /// Deletes a category image via admin API
+  Future<CategoryItem> deleteCategoryImage(String categoryId);
 }
 
 class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
@@ -196,5 +206,43 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
       return CategoryItem.fromJson(rawData);
     }
     throw const ApiException(message: 'Failed to deactivate category.');
+  }
+
+  @override
+  Future<CategoryItem> uploadCategoryImage({
+    required String categoryId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    final extension = fileName.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+    final contentType = extension == 'png' ? 'image/png' : 'image/jpeg';
+    final response = await apiClient.postMultipart(
+      ApiEndpoints.adminCategoryImage(categoryId),
+      fileFieldName: 'file',
+      fileBytes: fileBytes,
+      fileName: fileName,
+      contentType: contentType,
+      requiresAuth: true,
+    );
+
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic>) {
+      return CategoryItem.fromJson(rawData);
+    }
+    throw const ApiException(message: 'Failed to upload category image.');
+  }
+
+  @override
+  Future<CategoryItem> deleteCategoryImage(String categoryId) async {
+    final response = await apiClient.delete(
+      ApiEndpoints.adminCategoryImage(categoryId),
+      requiresAuth: true,
+    );
+
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic>) {
+      return CategoryItem.fromJson(rawData);
+    }
+    throw const ApiException(message: 'Failed to delete category image.');
   }
 }

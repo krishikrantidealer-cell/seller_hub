@@ -20,6 +20,8 @@ class ApiEndpoints {
   /// Categories
   static const String categories = '/api/v1/categories';
   static const String adminCategories = '/api/v1/admin/categories';
+  static String adminCategoryImage(String categoryId) =>
+      '/api/v1/admin/categories/$categoryId/image';
   static String productsByCategory(String categoryId) =>
       '/api/v1/products/category/$categoryId';
 

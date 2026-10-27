@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../constants/api_endpoints.dart';
 import '../storage/token_storage.dart';
 import 'api_exception.dart';
@@ -85,6 +86,73 @@ class ApiClient {
     } catch (e) {
       throw ApiException(
         message: 'Unexpected error occurred: $e',
+        details: e,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required String fileFieldName,
+    required List<int> fileBytes,
+    required String fileName,
+    String? contentType,
+    Map<String, String>? fields,
+    bool requiresAuth = false,
+  }) async {
+    try {
+      final uri = _buildUri(path);
+      final request = http.MultipartRequest('POST', uri);
+
+      if (requiresAuth) {
+        final token = await _tokenStorage.getAccessToken();
+        if (token != null && token.isNotEmpty) {
+          request.headers['Authorization'] = 'Bearer $token';
+        }
+      }
+      request.headers['Accept'] = 'application/json';
+
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      MediaType? mediaType;
+      if (contentType != null) {
+        final parts = contentType.split('/');
+        if (parts.length == 2) {
+          mediaType = MediaType(parts[0], parts[1]);
+        }
+      }
+
+      request.files.add(http.MultipartFile.fromBytes(
+        fileFieldName,
+        fileBytes,
+        filename: fileName,
+        contentType: mediaType,
+      ));
+
+      final streamedResponse = await _client.send(request).timeout(_timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+      return _processResponse(response);
+    } on SocketException catch (e) {
+      throw NetworkException(
+        message: 'No internet connection or server unreachable: ${e.message}',
+        details: e,
+      );
+    } on TimeoutException {
+      throw const NetworkException(
+        message: 'The server took too long to respond while uploading. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      throw NetworkException(
+        message: 'Network communication failure during upload: ${e.message}',
+        details: e,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Unexpected error during upload: $e',
         details: e,
       );
     }

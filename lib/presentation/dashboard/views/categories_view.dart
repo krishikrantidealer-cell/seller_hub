@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -56,6 +57,74 @@ class _CategoriesViewState extends State<CategoriesView> {
       return const Color(0xFFEA580C);
     }
     return const Color(0xFF059669);
+  }
+
+  Future<void> _pickAndUploadCategoryImage(BuildContext context, CategoryItem category) async {
+    try {
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg'],
+      );
+
+      if (files.isNotEmpty) {
+        final file = files.first;
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) {
+          if (context.mounted) {
+            context.read<CategoryBloc>().add(
+                  UploadCategoryItemImage(
+                    categoryId: category.id,
+                    fileBytes: bytes,
+                    fileName: file.name,
+                  ),
+                );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Uploading image for ${category.name}...'),
+                duration: const Duration(seconds: 2),
+                backgroundColor: const Color(0xFF059669),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not pick image: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmDeleteCategoryImage(BuildContext context, CategoryItem category) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Remove Image',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        content: Text('Are you sure you want to remove the image for "${category.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<CategoryBloc>().add(DeleteCategoryItemImage(category.id));
+            },
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -571,6 +640,20 @@ class _CategoriesViewState extends State<CategoriesView> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                          tooltip: root.categoryImageUrl != null ? 'Change Category Image' : 'Upload Category Image',
+                          color: textSecondary,
+                          onPressed: () => _pickAndUploadCategoryImage(context, root),
+                        ),
+                        if (root.categoryImageUrl != null)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                            tooltip: 'Remove Category Image',
+                            color: const Color(0xFFEF4444),
+                            onPressed: () => _confirmDeleteCategoryImage(context, root),
+                          ),
                       ],
                     ),
                   ),
@@ -704,6 +787,24 @@ class _CategoriesViewState extends State<CategoriesView> {
                                               ),
                                             ),
                                           ),
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
+                                          tooltip: sub.categoryImageUrl != null ? 'Change Sub-Category Image' : 'Upload Sub-Category Image',
+                                          color: textSecondary,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                          onPressed: () => _pickAndUploadCategoryImage(context, sub),
+                                        ),
+                                        if (sub.categoryImageUrl != null)
+                                          IconButton(
+                                            icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                                            tooltip: 'Remove Sub-Category Image',
+                                            color: const Color(0xFFEF4444),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                            onPressed: () => _confirmDeleteCategoryImage(context, sub),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -734,6 +835,19 @@ class _CategoriesViewState extends State<CategoriesView> {
                                                 Padding(
                                                   padding: const EdgeInsets.only(right: 4),
                                                   child: Text(leaf.effectiveIcon!, style: const TextStyle(fontSize: 12)),
+                                                )
+                                              else if (leaf.hasIcon)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(right: 4),
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.circular(3),
+                                                    child: AppProductImage(
+                                                      imageUrl: leaf.effectiveIcon!,
+                                                      width: 14,
+                                                      height: 14,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  ),
                                                 )
                                               else
                                                 const Icon(Icons.eco_rounded, size: 12, color: Color(0xFF059669)),

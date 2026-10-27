@@ -46,8 +46,8 @@ class CategoryItem extends Equatable {
   int get displayOrder => sortOrder;
 
   /// Effective icon or image identifier.
-  /// iconUrl from DB ('🌾' or URL) takes precedence over categoryImageUrl.
-  String? get effectiveIcon => iconUrl ?? categoryImageUrl;
+  /// GCS categoryImageUrl takes primary precedence, falling back to iconUrl.
+  String? get effectiveIcon => categoryImageUrl ?? iconUrl;
 
   /// Whether any icon or image is configured.
   bool get hasIcon => effectiveIcon != null && effectiveIcon!.trim().isNotEmpty;

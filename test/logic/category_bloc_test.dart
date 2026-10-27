@@ -121,6 +121,32 @@ class MockCategoryRemoteDataSource implements CategoryRemoteDataSource {
       isActive: false,
     );
   }
+
+  @override
+  Future<CategoryItem> uploadCategoryImage({
+    required String categoryId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    return CategoryItem(
+      id: categoryId,
+      name: 'With Image',
+      slug: 'with-image',
+      categoryImageUrl: 'https://storage.googleapis.com/test-bucket/Categories/$categoryId/images/$fileName',
+      isActive: true,
+    );
+  }
+
+  @override
+  Future<CategoryItem> deleteCategoryImage(String categoryId) async {
+    return CategoryItem(
+      id: categoryId,
+      name: 'Without Image',
+      slug: 'without-image',
+      categoryImageUrl: null,
+      isActive: true,
+    );
+  }
 }
 
 void main() {
@@ -274,6 +300,35 @@ void main() {
       final serialized = cat.toJson();
       expect(serialized['iconUrl'], '🌾');
       expect(serialized['displayOrder'], 3);
+    });
+
+    test('UploadCategoryItemImage updates categoryImageUrl in state', () async {
+      categoryBloc.add(const FetchCategories());
+      await pumpEventQueue();
+
+      categoryBloc.add(const UploadCategoryItemImage(
+        categoryId: 'cat_root_1',
+        fileBytes: [1, 2, 3],
+        fileName: 'fertilizers.png',
+      ));
+      await pumpEventQueue();
+
+      final updated = categoryBloc.state.categoryById['cat_root_1'];
+      expect(updated, isNotNull);
+      expect(updated!.categoryImageUrl, contains('fertilizers.png'));
+      expect(updated.effectiveIcon, contains('fertilizers.png'));
+    });
+
+    test('DeleteCategoryItemImage clears categoryImageUrl in state', () async {
+      categoryBloc.add(const FetchCategories());
+      await pumpEventQueue();
+
+      categoryBloc.add(const DeleteCategoryItemImage('cat_root_1'));
+      await pumpEventQueue();
+
+      final updated = categoryBloc.state.categoryById['cat_root_1'];
+      expect(updated, isNotNull);
+      expect(updated!.categoryImageUrl, isNull);
     });
   });
 }

@@ -119,4 +119,26 @@ class CategoryRepositoryImpl implements CategoryRepository {
     _syncInBackground();
     return deactivated;
   }
+
+  @override
+  Future<CategoryItem> uploadCategoryImage({
+    required String categoryId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    final updated = await remoteDataSource.uploadCategoryImage(
+      categoryId: categoryId,
+      fileBytes: fileBytes,
+      fileName: fileName,
+    );
+    _syncInBackground();
+    return updated;
+  }
+
+  @override
+  Future<CategoryItem> deleteCategoryImage(String categoryId) async {
+    final updated = await remoteDataSource.deleteCategoryImage(categoryId);
+    _syncInBackground();
+    return updated;
+  }
 }

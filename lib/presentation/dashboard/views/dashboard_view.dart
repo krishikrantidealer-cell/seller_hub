@@ -231,44 +231,45 @@ class _DashboardViewState extends State<DashboardView> {
     // Nav Index 1, 2, 3: Unified Catalog (Products, Collections, Categories)
     if (_selectedNavIndex == 1 || _selectedNavIndex == 2 || _selectedNavIndex == 3) {
       Widget catalogChild;
-      if (_selectedNavIndex == 1) {
-        if (_viewingProduct != null) {
-          catalogChild = ProductDetailsView(
-            product: _viewingProduct!,
-            startInEditMode: _openInEditMode,
-            onBack: () => setState(() {
-              _viewingProduct = null;
-              _openInEditMode = false;
-            }),
-            onProductUpdated: (updated) {
-              context.read<ProductBloc>().add(UpdateLocalProduct(updated));
-              setState(() {
-                _viewingProduct = updated;
-              });
-            },
-          );
-        } else {
-          catalogChild = ProductCatalogView(
-            products: products,
-            sellers: sellers,
-            initialSellerFilter: _productCatalogSellerFilter,
-            isWide: isWide,
-            onOpenProductDetails: (product, {bool editMode = false}) {
-              setState(() {
-                _viewingProduct = product;
-                _openInEditMode = editMode;
-              });
-            },
-            onOpenAddProduct: () => _openAddProductDialog(context),
-            onProductUpdated: (updated) {
-              context.read<ProductBloc>().add(UpdateLocalProduct(updated));
-            },
-          );
-        }
-      } else if (_selectedNavIndex == 2) {
-        catalogChild = CollectionsView(isWide: isWide);
+      if (_selectedNavIndex == 1 && _viewingProduct != null) {
+        catalogChild = ProductDetailsView(
+          product: _viewingProduct!,
+          startInEditMode: _openInEditMode,
+          onBack: () => setState(() {
+            _viewingProduct = null;
+            _openInEditMode = false;
+          }),
+          onProductUpdated: (updated) {
+            context.read<ProductBloc>().add(UpdateLocalProduct(updated));
+            setState(() {
+              _viewingProduct = updated;
+            });
+          },
+        );
       } else {
-        catalogChild = CategoriesView(isWide: isWide);
+        catalogChild = IndexedStack(
+          index: (_selectedNavIndex - 1).clamp(0, 2),
+          children: [
+            ProductCatalogView(
+              products: products,
+              sellers: sellers,
+              initialSellerFilter: _productCatalogSellerFilter,
+              isWide: isWide,
+              onOpenProductDetails: (product, {bool editMode = false}) {
+                setState(() {
+                  _viewingProduct = product;
+                  _openInEditMode = editMode;
+                });
+              },
+              onOpenAddProduct: () => _openAddProductDialog(context),
+              onProductUpdated: (updated) {
+                context.read<ProductBloc>().add(UpdateLocalProduct(updated));
+              },
+            ),
+            CollectionsView(isWide: isWide),
+            CategoriesView(isWide: isWide),
+          ],
+        );
       }
 
       return CatalogView(
@@ -291,71 +292,71 @@ class _DashboardViewState extends State<DashboardView> {
     // Nav Index 4, 6: Unified Users (Sellers & Customers)
     if (_selectedNavIndex == 4 || _selectedNavIndex == 6) {
       Widget userChild;
-      if (_selectedNavIndex == 4) {
-        if (_viewingSeller != null) {
-          userChild = SellerProfileView(
-            seller: _viewingSeller!,
-            allProducts: products,
-            onBack: () => setState(() => _viewingSeller = null),
-            onSellerUpdated: (updated) {
-              setState(() {
-                final idx = _sellers.indexWhere((s) => s.id == updated.id);
-                if (idx != -1) _sellers[idx] = updated;
-                _viewingSeller = updated;
-              });
-            },
-            onViewSellerProducts: (sellerTradeName) {
-              setState(() {
-                _selectedNavIndex = 1;
-                _viewingSeller = null;
-                _viewingProduct = null;
-                _productCatalogSellerFilter = sellerTradeName;
-              });
-            },
-          );
-        } else {
-          userChild = SellersView(
-            sellers: sellers,
-            products: products,
-            onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
-            onViewSellerProducts: (sellerTradeName) {
-              setState(() {
-                _selectedNavIndex = 1;
-                _viewingSeller = null;
-                _viewingProduct = null;
-                _productCatalogSellerFilter = sellerTradeName;
-              });
-            },
-            onSellerAdded: (newSeller) {
-              setState(() {
-                _sellers.insert(0, newSeller);
-              });
-            },
-          );
-        }
+      if (_selectedNavIndex == 4 && _viewingSeller != null) {
+        userChild = SellerProfileView(
+          seller: _viewingSeller!,
+          allProducts: products,
+          onBack: () => setState(() => _viewingSeller = null),
+          onSellerUpdated: (updated) {
+            setState(() {
+              final idx = _sellers.indexWhere((s) => s.id == updated.id);
+              if (idx != -1) _sellers[idx] = updated;
+              _viewingSeller = updated;
+            });
+          },
+          onViewSellerProducts: (sellerTradeName) {
+            setState(() {
+              _selectedNavIndex = 1;
+              _viewingSeller = null;
+              _viewingProduct = null;
+              _productCatalogSellerFilter = sellerTradeName;
+            });
+          },
+        );
+      } else if (_selectedNavIndex == 6 && _viewingCustomer != null) {
+        userChild = CustomerProfileView(
+          customer: _viewingCustomer!,
+          allOrders: _orders,
+          onBack: () => setState(() => _viewingCustomer = null),
+          onCustomerUpdated: (updated) {
+            setState(() => _viewingCustomer = updated);
+          },
+          onSelectOrder: (order) {
+            setState(() {
+              _selectedNavIndex = 5;
+              _viewingCustomer = null;
+              _viewingOrder = order;
+            });
+          },
+        );
       } else {
-        if (_viewingCustomer != null) {
-          userChild = CustomerProfileView(
-            customer: _viewingCustomer!,
-            allOrders: _orders,
-            onBack: () => setState(() => _viewingCustomer = null),
-            onCustomerUpdated: (updated) {
-              setState(() => _viewingCustomer = updated);
-            },
-            onSelectOrder: (order) {
-              setState(() {
-                _selectedNavIndex = 5;
-                _viewingCustomer = null;
-                _viewingOrder = order;
-              });
-            },
-          );
-        } else {
-          userChild = CustomersView(
-            isWide: isWide,
-            onSelectCustomer: (customer) => setState(() => _viewingCustomer = customer),
-          );
-        }
+        userChild = IndexedStack(
+          index: _selectedNavIndex == 6 ? 1 : 0,
+          children: [
+            SellersView(
+              sellers: sellers,
+              products: products,
+              onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
+              onViewSellerProducts: (sellerTradeName) {
+                setState(() {
+                  _selectedNavIndex = 1;
+                  _viewingSeller = null;
+                  _viewingProduct = null;
+                  _productCatalogSellerFilter = sellerTradeName;
+                });
+              },
+              onSellerAdded: (newSeller) {
+                setState(() {
+                  _sellers.insert(0, newSeller);
+                });
+              },
+            ),
+            CustomersView(
+              isWide: isWide,
+              onSelectCustomer: (customer) => setState(() => _viewingCustomer = customer),
+            ),
+          ],
+        );
       }
 
       return UsersView(

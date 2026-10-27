@@ -48,15 +48,17 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
     FetchCategories event,
     Emitter<CategoryState> emit,
   ) async {
-    if (!event.isBackground && state.status != CategoryStatus.loaded) {
+    final hasData = state.allCategories.isNotEmpty || state.status == CategoryStatus.loaded;
+
+    if (!event.isBackground && !hasData) {
       emit(state.copyWith(status: CategoryStatus.loading));
     }
 
     try {
-      final categories = await categoryRepository.getCategories(forceRefresh: true);
+      final categories = await categoryRepository.getCategories(forceRefresh: event.isRefresh);
       final treeData = _buildTreeAndLookups(categories);
 
-      // Preserve existing expanded IDs or initialize with roots
+      // Preserve existing expanded IDs or initialize with default expanded
       final currentExpanded = Set<String>.from(state.expandedCategoryIds);
       if (currentExpanded.isEmpty) {
         currentExpanded.addAll(treeData.initialExpandedIds);
@@ -71,7 +73,7 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         expandedCategoryIds: currentExpanded,
       ));
     } catch (e) {
-      if (!event.isBackground || state.status != CategoryStatus.loaded) {
+      if (!event.isBackground || !hasData) {
         emit(state.copyWith(
           status: CategoryStatus.error,
           errorMessage: e.toString().replaceAll('ApiException: ', ''),
@@ -233,10 +235,12 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
     });
 
     final initialExpandedIds = <String>{};
+    // Expand the first 3 roots by default so initial view renders with 0ms lag
+    for (int i = 0; i < rootItems.length && i < 3; i++) {
+      initialExpandedIds.add(rootItems[i].id);
+    }
 
     final fullRoots = rootItems.map((root) {
-      initialExpandedIds.add(root.id);
-
       final l1Children = childrenByParentId[root.id] ?? [];
       final fullL1Children = l1Children.map((l1) {
         final l2Children = childrenByParentId[l1.id] ?? [];

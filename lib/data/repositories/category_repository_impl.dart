@@ -6,6 +6,7 @@ import '../datasources/category_remote_datasource.dart';
 class CategoryRepositoryImpl implements CategoryRepository {
   final CategoryRemoteDataSource remoteDataSource;
   final CategoryLocalDataSource? localDataSource;
+  List<CategoryItem>? _memoryCache;
 
   CategoryRepositoryImpl({
     required this.remoteDataSource,
@@ -18,17 +19,25 @@ class CategoryRepositoryImpl implements CategoryRepository {
     int? level,
     String? parentId,
   }) async {
-    if (!forceRefresh && level == null && (parentId == null || parentId.isEmpty)) {
+    final isFullCatalog = level == null && (parentId == null || parentId.isEmpty);
+
+    // 0ms instant cache hit if available and not forced
+    if (!forceRefresh && isFullCatalog) {
+      if (_memoryCache != null && _memoryCache!.isNotEmpty) {
+        _syncInBackground();
+        return _memoryCache!;
+      }
       final cached = await localDataSource?.getCachedCategories();
       if (cached != null && cached.isNotEmpty) {
-        // Return cached and trigger silent sync
+        _memoryCache = cached;
         _syncInBackground();
         return cached;
       }
     }
 
     final categories = await remoteDataSource.getCategories(level: level, parentId: parentId);
-    if (level == null && (parentId == null || parentId.isEmpty)) {
+    if (isFullCatalog) {
+      _memoryCache = categories;
       localDataSource?.cacheCategories(categories);
     }
     return categories;
@@ -37,13 +46,21 @@ class CategoryRepositoryImpl implements CategoryRepository {
   void _syncInBackground() async {
     try {
       final fresh = await remoteDataSource.getCategories();
+      _memoryCache = fresh;
       localDataSource?.cacheCategories(fresh);
     } catch (_) {}
   }
 
   @override
   Future<List<CategoryItem>?> getCachedCategories() async {
-    return localDataSource?.getCachedCategories();
+    if (_memoryCache != null && _memoryCache!.isNotEmpty) {
+      return _memoryCache;
+    }
+    final cached = await localDataSource?.getCachedCategories();
+    if (cached != null && cached.isNotEmpty) {
+      _memoryCache = cached;
+    }
+    return cached;
   }
 
   @override

@@ -4,10 +4,13 @@ import 'core/di/injection_container.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'domain/repositories/auth_repository.dart';
+import 'domain/repositories/category_repository.dart';
 import 'domain/repositories/collection_repository.dart';
 import 'domain/repositories/product_repository.dart';
 import 'logic/auth/auth_bloc.dart';
 import 'logic/auth/auth_event.dart';
+import 'logic/category/category_bloc.dart';
+import 'logic/category/category_event.dart';
 import 'logic/collection/collection_bloc.dart';
 import 'logic/collection/collection_event.dart';
 import 'logic/product/product_bloc.dart';
@@ -25,12 +28,14 @@ class SellerHubApp extends StatelessWidget {
   final AuthRepository? authRepository;
   final ProductRepository? productRepository;
   final CollectionRepository? collectionRepository;
+  final CategoryRepository? categoryRepository;
 
   const SellerHubApp({
     super.key,
     this.authRepository,
     this.productRepository,
     this.collectionRepository,
+    this.categoryRepository,
   });
 
   @override
@@ -38,12 +43,14 @@ class SellerHubApp extends StatelessWidget {
     final authRepo = authRepository ?? InjectionContainer.instance.authRepository;
     final productRepo = productRepository ?? InjectionContainer.instance.productRepository;
     final collectionRepo = collectionRepository ?? InjectionContainer.instance.collectionRepository;
+    final categoryRepo = categoryRepository ?? InjectionContainer.instance.categoryRepository;
 
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>.value(value: authRepo),
         RepositoryProvider<ProductRepository>.value(value: productRepo),
         RepositoryProvider<CollectionRepository>.value(value: collectionRepo),
+        RepositoryProvider<CategoryRepository>.value(value: categoryRepo),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -62,6 +69,11 @@ class SellerHubApp extends StatelessWidget {
             create: (ctx) => CollectionBloc(
               collectionRepository: ctx.read<CollectionRepository>(),
             )..add(const InitializeCollections()),
+          ),
+          BlocProvider<CategoryBloc>(
+            create: (ctx) => CategoryBloc(
+              categoryRepository: ctx.read<CategoryRepository>(),
+            )..add(const InitializeCategories()),
           ),
         ],
         child: BlocBuilder<ThemeBloc, ThemeState>(

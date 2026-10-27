@@ -46,6 +46,12 @@ class DashboardTopAppBar extends StatelessWidget {
         subtitle = '38-field agri schema with CIBRC chemical & HSN compliance';
       }
     } else if (selectedNavIndex == 2) {
+      title = 'Storefront Collections';
+      subtitle = 'Curated consumer discovery shelfs, banners & crop sub-collections';
+    } else if (selectedNavIndex == 3) {
+      title = 'Product Categories Hierarchy';
+      subtitle = '3-tier AgriBegri taxonomy: Major Roots, Sub-categories & Leaf nodes';
+    } else if (selectedNavIndex == 4) {
       if (viewingSeller != null) {
         title = 'Seller Profile & Commercial Terms';
         subtitle = '${viewingSeller!.tradeName} • ID: ${viewingSeller!.id} • GSTIN: ${viewingSeller!.gstin}';

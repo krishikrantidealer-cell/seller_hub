@@ -556,6 +556,71 @@ void main() {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path == '/api/v1/categories') {
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Categories retrieved successfully",
+          "data": {
+            "content": [
+              {
+                "id": "cat_crop_prot",
+                "name": "Crop Protection",
+                "slug": "crop-protection",
+                "parentId": null,
+                "level": 0,
+                "sortOrder": 0,
+                "isActive": true,
+                "createdAt": "2026-09-24T10:09:58.331Z",
+                "updatedAt": "2026-10-24T11:05:19.749Z"
+              },
+              {
+                "id": "cat_bio_pest",
+                "name": "Bio Pesticides",
+                "slug": "bio-pesticides",
+                "parentId": "cat_crop_prot",
+                "level": 1,
+                "sortOrder": 0,
+                "isActive": true,
+                "createdAt": "2026-10-21T10:01:51.906Z",
+                "updatedAt": "2026-10-21T10:01:51.906Z"
+              },
+              {
+                "id": "cat_bio_insect",
+                "name": "Bio Insecticide",
+                "slug": "bio-insecticide",
+                "parentId": "cat_bio_pest",
+                "level": 2,
+                "sortOrder": 0,
+                "isActive": true,
+                "createdAt": "2026-10-21T10:01:51.917Z",
+                "updatedAt": "2026-10-21T10:01:51.917Z"
+              },
+              {
+                "id": "cat_seeds",
+                "name": "Seeds",
+                "slug": "seeds",
+                "parentId": null,
+                "level": 0,
+                "sortOrder": 1,
+                "isActive": true,
+                "createdAt": "2026-09-30T06:11:11.258Z",
+                "updatedAt": "2026-10-21T10:01:51.905Z"
+              }
+            ],
+            "page": 0,
+            "size": 100,
+            "totalElements": 4,
+            "totalPages": 1,
+            "first": true,
+            "last": true
+          },
+          "timestamp": "2026-10-27T06:03:50.306364353"
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     return http.Response('{"error": "Not found"}', 404);
   });
 
@@ -1373,6 +1438,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Assign Products to Collection'), findsNothing);
     expect(find.text('Shop By Crop'), findsOneWidget);
+  });
+
+  testWidgets('Tapping Categories nav in sidebar loads CategoriesView with 3-tier hierarchy and metrics', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Tap Categories nav in sidebar
+    await tester.tap(find.text('Categories').first);
+    await tester.pumpAndSettle();
+
+    // 1. Verify Top App Bar Title
+    expect(find.text('Product Categories Hierarchy'), findsOneWidget);
+
+    // 2. Verify Metrics
+    expect(find.text('Total Taxonomy Nodes'), findsOneWidget);
+    expect(find.text('Major Roots (Level 0)'), findsOneWidget);
+    expect(find.text('Sub-Categories (Level 1)'), findsOneWidget);
+    expect(find.text('Leaf Nodes (Level 2)'), findsOneWidget);
+
+    // 3. Verify Level Filters
+    expect(find.text('All Levels (Tree View)'), findsOneWidget);
+    expect(find.text('Level 0 (Major Roots)'), findsOneWidget);
+
+    // 4. Verify Categories Tree loaded
+    expect(find.text('Crop Protection'), findsOneWidget);
+    expect(find.text('Seeds'), findsOneWidget);
   });
 }
 

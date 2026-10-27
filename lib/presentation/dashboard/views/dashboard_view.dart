@@ -9,9 +9,11 @@ import 'package:seller_hub/core/network/websocket_service.dart';
 import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/logic/auth/auth_bloc.dart';
 import 'package:seller_hub/logic/auth/auth_event.dart';
+import 'package:seller_hub/logic/category/category_bloc.dart';
 import 'package:seller_hub/logic/collection/collection_bloc.dart';
 import 'package:seller_hub/logic/product/product_bloc.dart';
 import 'package:seller_hub/logic/product/product_event.dart';
+import 'package:seller_hub/presentation/dashboard/views/categories_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/collections_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
@@ -82,6 +84,9 @@ class _DashboardViewState extends State<DashboardView> {
     final collectionBloc = context.watch<CollectionBloc>();
     final collectionsCount = collectionBloc.state.totalCollections;
 
+    final categoryBloc = context.watch<CategoryBloc>();
+    final categoriesCount = categoryBloc.state.totalCount;
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
@@ -94,6 +99,7 @@ class _DashboardViewState extends State<DashboardView> {
                 onNavItemSelected: _onNavItemSelected,
                 productsCount: totalProductsCount,
                 collectionsCount: collectionsCount,
+                categoriesCount: categoriesCount,
                 sellersCount: _sellers.length,
                 ordersCount: _orders.length,
                 isDrawer: true,
@@ -116,6 +122,7 @@ class _DashboardViewState extends State<DashboardView> {
                   onNavItemSelected: _onNavItemSelected,
                   productsCount: totalProductsCount,
                   collectionsCount: collectionsCount,
+                  categoriesCount: categoriesCount,
                   sellersCount: _sellers.length,
                   ordersCount: _orders.length,
                   isDrawer: false,
@@ -171,11 +178,11 @@ class _DashboardViewState extends State<DashboardView> {
           _viewingProduct = null;
         }),
         onNavigateToSellers: () => setState(() {
-          _selectedNavIndex = 3;
+          _selectedNavIndex = 4;
           _viewingSeller = null;
         }),
         onNavigateToOrders: () => setState(() {
-          _selectedNavIndex = 4;
+          _selectedNavIndex = 5;
           _viewingOrder = null;
         }),
         onOpenAddProduct: () => _openAddProductDialog(context),
@@ -224,8 +231,13 @@ class _DashboardViewState extends State<DashboardView> {
       return CollectionsView(isWide: isWide);
     }
 
-    // Nav Index 3: Sellers Directory & Profile
+    // Nav Index 3: Categories & 3-Tier Hierarchy
     if (_selectedNavIndex == 3) {
+      return CategoriesView(isWide: isWide);
+    }
+
+    // Nav Index 4: Sellers Directory & Profile
+    if (_selectedNavIndex == 4) {
       if (_viewingSeller != null) {
         return SellerProfileView(
           seller: _viewingSeller!,
@@ -269,8 +281,8 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
-    // Nav Index 4: Orders Directory & Order Detail
-    if (_selectedNavIndex == 4) {
+    // Nav Index 5: Orders Directory & Order Detail
+    if (_selectedNavIndex == 5) {
       if (_viewingOrder != null) {
         return OrderDetailView(
           order: _viewingOrder!,

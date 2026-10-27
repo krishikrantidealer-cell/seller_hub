@@ -4,14 +4,18 @@ import '../network/api_client.dart';
 import '../network/websocket_service.dart';
 import '../storage/token_storage.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/datasources/category_local_datasource.dart';
+import '../../data/datasources/category_remote_datasource.dart';
 import '../../data/datasources/collection_local_datasource.dart';
 import '../../data/datasources/collection_remote_datasource.dart';
 import '../../data/datasources/product_local_datasource.dart';
 import '../../data/datasources/product_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
+import '../../data/repositories/category_repository_impl.dart';
 import '../../data/repositories/collection_repository_impl.dart';
 import '../../data/repositories/product_repository_impl.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../domain/repositories/category_repository.dart';
 import '../../domain/repositories/collection_repository.dart';
 import '../../domain/repositories/product_repository.dart';
 
@@ -29,6 +33,9 @@ class InjectionContainer {
   CollectionLocalDataSource? _collectionLocalDataSource;
   CollectionRemoteDataSource? _collectionRemoteDataSource;
   CollectionRepository? _collectionRepository;
+  CategoryLocalDataSource? _categoryLocalDataSource;
+  CategoryRemoteDataSource? _categoryRemoteDataSource;
+  CategoryRepository? _categoryRepository;
 
   bool _initialized = false;
 
@@ -39,6 +46,7 @@ class InjectionContainer {
     AuthRepository? mockAuthRepository,
     ProductRepository? mockProductRepository,
     CollectionRepository? mockCollectionRepository,
+    CategoryRepository? mockCategoryRepository,
   }) async {
     if (mockAuthRepository != null) {
       _authRepository = mockAuthRepository;
@@ -49,7 +57,13 @@ class InjectionContainer {
     if (mockCollectionRepository != null) {
       _collectionRepository = mockCollectionRepository;
     }
-    if (mockAuthRepository != null && mockProductRepository != null && mockCollectionRepository != null) {
+    if (mockCategoryRepository != null) {
+      _categoryRepository = mockCategoryRepository;
+    }
+    if (mockAuthRepository != null &&
+        mockProductRepository != null &&
+        mockCollectionRepository != null &&
+        mockCategoryRepository != null) {
       _initialized = true;
       return;
     }
@@ -79,6 +93,12 @@ class InjectionContainer {
     _collectionRepository ??= CollectionRepositoryImpl(
       remoteDataSource: _collectionRemoteDataSource!,
       localDataSource: _collectionLocalDataSource,
+    );
+    _categoryLocalDataSource ??= CategoryLocalDataSourceImpl(prefs);
+    _categoryRemoteDataSource ??= CategoryRemoteDataSourceImpl(_apiClient!);
+    _categoryRepository ??= CategoryRepositoryImpl(
+      remoteDataSource: _categoryRemoteDataSource!,
+      localDataSource: _categoryLocalDataSource,
     );
     _initialized = true;
   }
@@ -125,8 +145,19 @@ class InjectionContainer {
     return _collectionRepository!;
   }
 
+  CategoryRemoteDataSource get categoryRemoteDataSource {
+    _ensureInitialized();
+    return _categoryRemoteDataSource!;
+  }
+
+  CategoryRepository get categoryRepository {
+    _ensureInitialized();
+    return _categoryRepository!;
+  }
+
   ProductLocalDataSource? get productLocalDataSource => _productLocalDataSource;
   CollectionLocalDataSource? get collectionLocalDataSource => _collectionLocalDataSource;
+  CategoryLocalDataSource? get categoryLocalDataSource => _categoryLocalDataSource;
 
   void _ensureInitialized() {
     if (!_initialized) {
@@ -148,6 +179,11 @@ class InjectionContainer {
         remoteDataSource: _collectionRemoteDataSource!,
         localDataSource: _collectionLocalDataSource,
       );
+      _categoryRemoteDataSource = CategoryRemoteDataSourceImpl(_apiClient!);
+      _categoryRepository = CategoryRepositoryImpl(
+        remoteDataSource: _categoryRemoteDataSource!,
+        localDataSource: _categoryLocalDataSource,
+      );
       _initialized = true;
     }
   }
@@ -164,5 +200,8 @@ class InjectionContainer {
     _collectionLocalDataSource = null;
     _collectionRemoteDataSource = null;
     _collectionRepository = null;
+    _categoryLocalDataSource = null;
+    _categoryRemoteDataSource = null;
+    _categoryRepository = null;
   }
 }

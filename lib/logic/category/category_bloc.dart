@@ -161,6 +161,7 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         slug: event.slug,
         parentId: event.parentId,
         sortOrder: event.sortOrder,
+        iconUrl: event.iconUrl,
         isActive: event.isActive,
       );
       add(const FetchCategories(isRefresh: true));
@@ -180,6 +181,7 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         slug: event.slug,
         parentId: event.parentId,
         sortOrder: event.sortOrder,
+        iconUrl: event.iconUrl,
         isActive: event.isActive,
       );
       add(const FetchCategories(isRefresh: true));

@@ -12,6 +12,7 @@ class CategoryItem extends Equatable {
   final int level;
   final int sortOrder;
   final bool isActive;
+  final String? iconUrl;
   final String? categoryImageUrl;
   final String? bannerImage;
   final String? bannerTitle;
@@ -28,6 +29,7 @@ class CategoryItem extends Equatable {
     this.level = 0,
     this.sortOrder = 0,
     this.isActive = true,
+    this.iconUrl,
     this.categoryImageUrl,
     this.bannerImage,
     this.bannerTitle,
@@ -40,6 +42,38 @@ class CategoryItem extends Equatable {
   bool get isRoot => level == 0;
   bool get isSub => level == 1;
   bool get isSubSub => level == 2;
+
+  int get displayOrder => sortOrder;
+
+  /// Effective icon or image identifier.
+  /// iconUrl from DB ('🌾' or URL) takes precedence over categoryImageUrl.
+  String? get effectiveIcon => iconUrl ?? categoryImageUrl;
+
+  /// Whether any icon or image is configured.
+  bool get hasIcon => effectiveIcon != null && effectiveIcon!.trim().isNotEmpty;
+
+  /// Checks if the icon is a text emoji (e.g. '🌾', '🌱', '🐛', '🚜')
+  /// rather than a network URL or local file path.
+  bool get isEmojiIcon {
+    final icon = effectiveIcon?.trim();
+    if (icon == null || icon.isEmpty) return false;
+    if (icon.startsWith('http://') ||
+        icon.startsWith('https://') ||
+        icon.startsWith('/') ||
+        icon.startsWith('assets/')) {
+      return false;
+    }
+    final lower = icon.toLowerCase();
+    if (lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.svg') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.gif')) {
+      return false;
+    }
+    return true;
+  }
 
   String get levelLabel {
     switch (level) {
@@ -98,15 +132,20 @@ class CategoryItem extends Equatable {
       }
     }
 
+    final parsedIcon = parseString(json['iconUrl']) ?? parseString(json['categoryImageUrl']);
+    final parsedOrder = parseInt(json['displayOrder'], parseInt(json['sortOrder'], 0));
+
     return CategoryItem(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       slug: json['slug']?.toString() ?? '',
       parentId: parseString(json['parentId']),
       level: parseInt(json['level'], 0),
-      sortOrder: parseInt(json['sortOrder'], 0),
+      sortOrder: parsedOrder,
       isActive: parseBool(json['isActive'], true),
-      categoryImageUrl: parseString(json['categoryImageUrl']),
+      iconUrl: parseString(json['iconUrl']) ?? parsedIcon,
+      categoryImageUrl: parseString(json['categoryImageUrl']) ??
+          (parsedIcon != null && (parsedIcon.startsWith('http') || parsedIcon.startsWith('/')) ? parsedIcon : null),
       bannerImage: parseString(json['bannerImage']),
       bannerTitle: parseString(json['bannerTitle']),
       cataloguePdf: parseString(json['cataloguePdf']),
@@ -123,8 +162,10 @@ class CategoryItem extends Equatable {
       'slug': slug,
       'parentId': parentId,
       'level': level,
+      'displayOrder': sortOrder,
       'sortOrder': sortOrder,
       'isActive': isActive,
+      'iconUrl': iconUrl ?? categoryImageUrl,
       'categoryImageUrl': categoryImageUrl,
       'bannerImage': bannerImage,
       'bannerTitle': bannerTitle,
@@ -142,7 +183,9 @@ class CategoryItem extends Equatable {
     String? parentId,
     int? level,
     int? sortOrder,
+    int? displayOrder,
     bool? isActive,
+    String? iconUrl,
     String? categoryImageUrl,
     String? bannerImage,
     String? bannerTitle,
@@ -157,8 +200,9 @@ class CategoryItem extends Equatable {
       slug: slug ?? this.slug,
       parentId: parentId ?? this.parentId,
       level: level ?? this.level,
-      sortOrder: sortOrder ?? this.sortOrder,
+      sortOrder: displayOrder ?? sortOrder ?? this.sortOrder,
       isActive: isActive ?? this.isActive,
+      iconUrl: iconUrl ?? this.iconUrl,
       categoryImageUrl: categoryImageUrl ?? this.categoryImageUrl,
       bannerImage: bannerImage ?? this.bannerImage,
       bannerTitle: bannerTitle ?? this.bannerTitle,
@@ -178,6 +222,7 @@ class CategoryItem extends Equatable {
         level,
         sortOrder,
         isActive,
+        iconUrl,
         categoryImageUrl,
         bannerImage,
         bannerTitle,

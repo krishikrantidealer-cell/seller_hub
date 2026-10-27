@@ -603,6 +603,8 @@ void main() {
                 "parentId": null,
                 "level": 0,
                 "sortOrder": 1,
+                "displayOrder": 1,
+                "iconUrl": "🌾",
                 "isActive": true,
                 "createdAt": "2026-09-30T06:11:11.258Z",
                 "updatedAt": "2026-10-21T10:01:51.905Z"

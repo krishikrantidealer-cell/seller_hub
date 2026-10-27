@@ -72,6 +72,7 @@ class CreateCategory extends CategoryEvent {
   final String slug;
   final String? parentId;
   final int? sortOrder;
+  final String? iconUrl;
   final bool isActive;
 
   const CreateCategory({
@@ -79,11 +80,12 @@ class CreateCategory extends CategoryEvent {
     required this.slug,
     this.parentId,
     this.sortOrder,
+    this.iconUrl,
     this.isActive = true,
   });
 
   @override
-  List<Object?> get props => [name, slug, parentId, sortOrder, isActive];
+  List<Object?> get props => [name, slug, parentId, sortOrder, iconUrl, isActive];
 }
 
 /// Updates an existing category
@@ -93,6 +95,7 @@ class UpdateCategory extends CategoryEvent {
   final String slug;
   final String? parentId;
   final int? sortOrder;
+  final String? iconUrl;
   final bool isActive;
 
   const UpdateCategory({
@@ -101,11 +104,12 @@ class UpdateCategory extends CategoryEvent {
     required this.slug,
     this.parentId,
     this.sortOrder,
+    this.iconUrl,
     this.isActive = true,
   });
 
   @override
-  List<Object?> get props => [id, name, slug, parentId, sortOrder, isActive];
+  List<Object?> get props => [id, name, slug, parentId, sortOrder, iconUrl, isActive];
 }
 
 /// Deactivates a category

@@ -467,23 +467,8 @@ class _CategoriesViewState extends State<CategoriesView> {
                         ),
                         const SizedBox(width: 8),
 
-                        // Thumbnail or Icon Box
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: root.categoryImageUrl != null && root.categoryImageUrl!.isNotEmpty
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: AppProductImage(imageUrl: root.categoryImageUrl!, width: 38, height: 38),
-                                )
-                              : Center(
-                                  child: Icon(Icons.category_rounded, color: color, size: 20),
-                                ),
-                        ),
+                        // Thumbnail or Icon Box (supports emojis like 🌾, network images, or fallback icon)
+                        _buildCategoryThumbnail(root, color, size: 38),
                         const SizedBox(width: 14),
 
                         // Root Name & Slug
@@ -645,19 +630,21 @@ class _CategoriesViewState extends State<CategoriesView> {
                                           const SizedBox(width: 18),
                                         const SizedBox(width: 6),
 
-                                        // Icon
-                                        Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: const Icon(
-                                            Icons.subdirectory_arrow_right_rounded,
-                                            color: Color(0xFF7C3AED),
-                                            size: 14,
-                                          ),
-                                        ),
+                                        // Icon or Emoji
+                                        sub.hasIcon
+                                            ? _buildCategoryThumbnail(sub, const Color(0xFF7C3AED), size: 24, borderRadius: 5)
+                                            : Container(
+                                                padding: const EdgeInsets.all(4),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.subdirectory_arrow_right_rounded,
+                                                  color: Color(0xFF7C3AED),
+                                                  size: 14,
+                                                ),
+                                              ),
                                         const SizedBox(width: 10),
 
                                         // Sub Name & Slug
@@ -743,7 +730,13 @@ class _CategoriesViewState extends State<CategoriesView> {
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              const Icon(Icons.eco_rounded, size: 12, color: Color(0xFF059669)),
+                                              if (leaf.hasIcon && leaf.isEmojiIcon)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(right: 4),
+                                                  child: Text(leaf.effectiveIcon!, style: const TextStyle(fontSize: 12)),
+                                                )
+                                              else
+                                                const Icon(Icons.eco_rounded, size: 12, color: Color(0xFF059669)),
                                               const SizedBox(width: 4),
                                               Text(
                                                 leaf.name,
@@ -826,14 +819,16 @@ class _CategoriesViewState extends State<CategoriesView> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF059669).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Icon(Icons.label_rounded, color: Color(0xFF059669), size: 16),
-                    ),
+                    cat.hasIcon
+                        ? _buildCategoryThumbnail(cat, const Color(0xFF059669), size: 28, borderRadius: 6)
+                        : Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF059669).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(Icons.label_rounded, color: Color(0xFF059669), size: 16),
+                          ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -929,6 +924,59 @@ class _CategoriesViewState extends State<CategoriesView> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCategoryThumbnail(
+    CategoryItem category,
+    Color themeColor, {
+    double size = 38,
+    double borderRadius = 8,
+  }) {
+    final icon = category.effectiveIcon;
+    if (icon != null && icon.isNotEmpty) {
+      if (category.isEmojiIcon) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: themeColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(borderRadius),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            icon,
+            style: TextStyle(fontSize: size * 0.52),
+          ),
+        );
+      }
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: themeColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(borderRadius),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: AppProductImage(
+            imageUrl: icon,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: themeColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      alignment: Alignment.center,
+      child: Icon(Icons.category_rounded, color: themeColor, size: size * 0.52),
     );
   }
 

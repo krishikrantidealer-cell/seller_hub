@@ -16,6 +16,7 @@ abstract class CategoryRemoteDataSource {
     required String slug,
     String? parentId,
     int? sortOrder,
+    String? iconUrl,
     bool isActive = true,
   });
 
@@ -26,6 +27,7 @@ abstract class CategoryRemoteDataSource {
     required String slug,
     String? parentId,
     int? sortOrder,
+    String? iconUrl,
     bool isActive = true,
   });
 
@@ -115,16 +117,21 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     required String slug,
     String? parentId,
     int? sortOrder,
+    String? iconUrl,
     bool isActive = true,
   }) async {
     final body = <String, dynamic>{
       'name': name,
       'slug': slug,
       'isActive': isActive,
+      'displayOrder': sortOrder ?? 0,
       'sortOrder': sortOrder ?? 0,
     };
     if (parentId != null && parentId.isNotEmpty) {
       body['parentId'] = parentId;
+    }
+    if (iconUrl != null && iconUrl.isNotEmpty) {
+      body['iconUrl'] = iconUrl;
     }
 
     final response = await apiClient.post(
@@ -147,16 +154,21 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     required String slug,
     String? parentId,
     int? sortOrder,
+    String? iconUrl,
     bool isActive = true,
   }) async {
     final body = <String, dynamic>{
       'name': name,
       'slug': slug,
       'isActive': isActive,
+      'displayOrder': sortOrder ?? 0,
       'sortOrder': sortOrder ?? 0,
     };
     if (parentId != null && parentId.isNotEmpty) {
       body['parentId'] = parentId;
+    }
+    if (iconUrl != null && iconUrl.isNotEmpty) {
+      body['iconUrl'] = iconUrl;
     }
 
     final response = await apiClient.put(

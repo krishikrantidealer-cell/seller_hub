@@ -75,6 +75,7 @@ class MockCategoryRemoteDataSource implements CategoryRemoteDataSource {
     required String slug,
     String? parentId,
     int? sortOrder,
+    String? iconUrl,
     bool isActive = true,
   }) async {
     return CategoryItem(
@@ -84,6 +85,7 @@ class MockCategoryRemoteDataSource implements CategoryRemoteDataSource {
       parentId: parentId,
       level: parentId != null ? 1 : 0,
       sortOrder: sortOrder ?? 0,
+      iconUrl: iconUrl,
       isActive: isActive,
     );
   }
@@ -95,6 +97,7 @@ class MockCategoryRemoteDataSource implements CategoryRemoteDataSource {
     required String slug,
     String? parentId,
     int? sortOrder,
+    String? iconUrl,
     bool isActive = true,
   }) async {
     return CategoryItem(
@@ -104,6 +107,7 @@ class MockCategoryRemoteDataSource implements CategoryRemoteDataSource {
       parentId: parentId,
       level: parentId != null ? 1 : 0,
       sortOrder: sortOrder ?? 0,
+      iconUrl: iconUrl,
       isActive: isActive,
     );
   }
@@ -237,6 +241,39 @@ void main() {
       categoryBloc.add(const CollapseAllCategories());
       await pumpEventQueue();
       expect(categoryBloc.state.expandedCategoryIds, isEmpty);
+    });
+
+    test('CategoryItem correctly parses MongoDB document with iconUrl emoji and displayOrder', () {
+      final json = {
+        '_id': '6ab4f6f619ec643fd9bf362d',
+        'name': 'Fertilizers',
+        'slug': 'fertilizers',
+        'level': 0,
+        'parentId': null,
+        'iconUrl': '🌾',
+        'displayOrder': 3,
+        'isActive': true,
+        'createdAt': '2026-09-24T10:09:58.334Z',
+        'updatedAt': '2026-10-21T10:01:51.905Z',
+      };
+
+      final cat = CategoryItem.fromJson(json);
+
+      expect(cat.id, '6ab4f6f619ec643fd9bf362d');
+      expect(cat.name, 'Fertilizers');
+      expect(cat.slug, 'fertilizers');
+      expect(cat.level, 0);
+      expect(cat.iconUrl, '🌾');
+      expect(cat.effectiveIcon, '🌾');
+      expect(cat.hasIcon, isTrue);
+      expect(cat.isEmojiIcon, isTrue);
+      expect(cat.sortOrder, 3);
+      expect(cat.displayOrder, 3);
+      expect(cat.isActive, isTrue);
+
+      final serialized = cat.toJson();
+      expect(serialized['iconUrl'], '🌾');
+      expect(serialized['displayOrder'], 3);
     });
   });
 }

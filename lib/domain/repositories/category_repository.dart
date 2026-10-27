@@ -21,6 +21,7 @@ abstract class CategoryRepository {
     required String slug,
     String? parentId,
     int? sortOrder,
+    String? iconUrl,
     bool isActive = true,
   });
 
@@ -31,6 +32,7 @@ abstract class CategoryRepository {
     required String slug,
     String? parentId,
     int? sortOrder,
+    String? iconUrl,
     bool isActive = true,
   });
 

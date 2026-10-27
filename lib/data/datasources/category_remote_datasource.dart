@@ -140,9 +140,6 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     if (parentId != null && parentId.isNotEmpty) {
       body['parentId'] = parentId;
     }
-    if (iconUrl != null && iconUrl.isNotEmpty) {
-      body['iconUrl'] = iconUrl;
-    }
 
     final response = await apiClient.post(
       ApiEndpoints.adminCategories,
@@ -176,9 +173,6 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     };
     if (parentId != null && parentId.isNotEmpty) {
       body['parentId'] = parentId;
-    }
-    if (iconUrl != null && iconUrl.isNotEmpty) {
-      body['iconUrl'] = iconUrl;
     }
 
     final response = await apiClient.put(

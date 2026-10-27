@@ -22,8 +22,6 @@ class ApiEndpoints {
   static const String adminCategories = '/api/v1/admin/categories';
   static String adminCategoryImage(String categoryId) =>
       '/api/v1/admin/categories/$categoryId/image';
-  static String productsByCategory(String categoryId) =>
-      '/api/v1/products/category/$categoryId';
 
   /// Admin Users (Sellers & Customers)
   static const String adminUsers = '/api/v1/admin/users';

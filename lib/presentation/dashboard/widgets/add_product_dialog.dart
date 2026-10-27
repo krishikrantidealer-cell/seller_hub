@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/product.dart';
+import '../../../logic/admin_user/admin_user_event.dart';
+import '../../../logic/admin_user/admin_user_state.dart';
+import '../../../logic/admin_user/seller_bloc.dart';
 
 class AddProductDialog extends StatefulWidget {
   final Function(Product) onProductAdded;
@@ -63,19 +67,27 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   final _refundPolicyController = TextEditingController(text: '7 Days Returnable if unopened');
   bool _isAvailable = true;
   // bool _isFeatured = false; // isFeatured temporarily commented out
-  late TextEditingController _sellerIdController;
+  String? _selectedSellerId;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    _sellerIdController = TextEditingController(text: widget.sellerId);
+    _selectedSellerId = widget.sellerId;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final sellerBloc = context.read<SellerBloc>();
+        if (sellerBloc.state.users.isEmpty) {
+          sellerBloc.add(const InitializeAdminUsers());
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _sellerIdController.dispose();
     _productCodeController.dispose();
     _hsnCodeController.dispose();
     _titleController.dispose();
@@ -125,9 +137,12 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
     final discountPct = (mrp > 0) ? ((discountRs / mrp) * 100) : 0.0;
     final stockVal = int.tryParse(_stockController.text) ?? 0;
     final weightVal = double.tryParse(_weightController.text) ?? 0.0;
+    final selectedSellerId = (_selectedSellerId != null && _selectedSellerId!.trim().isNotEmpty)
+        ? _selectedSellerId!.trim()
+        : widget.sellerId;
 
     final newProduct = Product(
-      sellerId: _sellerIdController.text.trim().isEmpty ? widget.sellerId : _sellerIdController.text.trim(),
+      sellerId: selectedSellerId,
       productCode: _productCodeController.text.trim().isEmpty 
           ? 'PRD-AGRI-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}'
           : _productCodeController.text.trim(),
@@ -378,7 +393,111 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           Row(
             children: [
               Expanded(
-                child: _buildFormField('Seller ID (Tenant / Owner) *', _sellerIdController, 'e.g. 6ab4ada822033f1670582bda', isDark, isRequired: true),
+                child: BlocBuilder<SellerBloc, AdminUserState>(
+                  builder: (context, sellerState) {
+                    final sellers = sellerState.users;
+                    final isLoading = sellerState.status == AdminUserStatus.loading;
+
+                    final sellerIds = sellers.map((s) => s.id).toSet();
+                    String? activeValue = _selectedSellerId;
+                    if (activeValue != null && !sellerIds.contains(activeValue) && sellers.isNotEmpty) {
+                      activeValue = sellers.first.id;
+                      _selectedSellerId = activeValue;
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Seller (Store Owner) *',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          height: 48,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF161E2E) : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: activeValue,
+                              isExpanded: true,
+                              dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                              hint: Text(
+                                isLoading ? 'Loading sellers...' : 'Select Seller',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                              items: sellers.isEmpty
+                                  ? [
+                                      DropdownMenuItem(
+                                        value: widget.sellerId,
+                                        child: Text(
+                                          'Default Seller (${widget.sellerId})',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ]
+                                  : sellers.map((seller) {
+                                      final title = seller.displayName;
+                                      final phone = seller.phoneNumber.isNotEmpty ? ' (${seller.phoneNumber})' : '';
+                                      return DropdownMenuItem<String>(
+                                        value: seller.id,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.storefront_rounded,
+                                              size: 16,
+                                              color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                '$title$phone',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _selectedSellerId = val;
+                                    final match = sellers.firstWhere((s) => s.id == val, orElse: () => sellers.first);
+                                    if (_vendorController.text.trim().isEmpty || _vendorController.text.trim() == 'Registered Seller') {
+                                      _vendorController.text = match.displayName;
+                                    }
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

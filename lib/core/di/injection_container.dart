@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../network/api_client.dart';
 import '../network/websocket_service.dart';
 import '../storage/token_storage.dart';
+import '../../data/datasources/admin_user_local_datasource.dart';
+import '../../data/datasources/admin_user_remote_datasource.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/datasources/category_local_datasource.dart';
 import '../../data/datasources/category_remote_datasource.dart';
@@ -10,10 +12,12 @@ import '../../data/datasources/collection_local_datasource.dart';
 import '../../data/datasources/collection_remote_datasource.dart';
 import '../../data/datasources/product_local_datasource.dart';
 import '../../data/datasources/product_remote_datasource.dart';
+import '../../data/repositories/admin_user_repository_impl.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../data/repositories/category_repository_impl.dart';
 import '../../data/repositories/collection_repository_impl.dart';
 import '../../data/repositories/product_repository_impl.dart';
+import '../../domain/repositories/admin_user_repository.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/category_repository.dart';
 import '../../domain/repositories/collection_repository.dart';
@@ -36,6 +40,9 @@ class InjectionContainer {
   CategoryLocalDataSource? _categoryLocalDataSource;
   CategoryRemoteDataSource? _categoryRemoteDataSource;
   CategoryRepository? _categoryRepository;
+  AdminUserLocalDataSource? _adminUserLocalDataSource;
+  AdminUserRemoteDataSource? _adminUserRemoteDataSource;
+  AdminUserRepository? _adminUserRepository;
 
   bool _initialized = false;
 
@@ -47,6 +54,7 @@ class InjectionContainer {
     ProductRepository? mockProductRepository,
     CollectionRepository? mockCollectionRepository,
     CategoryRepository? mockCategoryRepository,
+    AdminUserRepository? mockAdminUserRepository,
   }) async {
     if (mockAuthRepository != null) {
       _authRepository = mockAuthRepository;
@@ -60,10 +68,14 @@ class InjectionContainer {
     if (mockCategoryRepository != null) {
       _categoryRepository = mockCategoryRepository;
     }
+    if (mockAdminUserRepository != null) {
+      _adminUserRepository = mockAdminUserRepository;
+    }
     if (mockAuthRepository != null &&
         mockProductRepository != null &&
         mockCollectionRepository != null &&
-        mockCategoryRepository != null) {
+        mockCategoryRepository != null &&
+        mockAdminUserRepository != null) {
       _initialized = true;
       return;
     }
@@ -99,6 +111,12 @@ class InjectionContainer {
     _categoryRepository ??= CategoryRepositoryImpl(
       remoteDataSource: _categoryRemoteDataSource!,
       localDataSource: _categoryLocalDataSource,
+    );
+    _adminUserLocalDataSource ??= AdminUserLocalDataSourceImpl(prefs);
+    _adminUserRemoteDataSource ??= AdminUserRemoteDataSourceImpl(_apiClient!);
+    _adminUserRepository ??= AdminUserRepositoryImpl(
+      remoteDataSource: _adminUserRemoteDataSource!,
+      localDataSource: _adminUserLocalDataSource,
     );
     _initialized = true;
   }
@@ -155,9 +173,15 @@ class InjectionContainer {
     return _categoryRepository!;
   }
 
+  AdminUserRepository get adminUserRepository {
+    _ensureInitialized();
+    return _adminUserRepository!;
+  }
+
   ProductLocalDataSource? get productLocalDataSource => _productLocalDataSource;
   CollectionLocalDataSource? get collectionLocalDataSource => _collectionLocalDataSource;
   CategoryLocalDataSource? get categoryLocalDataSource => _categoryLocalDataSource;
+  AdminUserLocalDataSource? get adminUserLocalDataSource => _adminUserLocalDataSource;
 
   void _ensureInitialized() {
     if (!_initialized) {
@@ -184,6 +208,11 @@ class InjectionContainer {
         remoteDataSource: _categoryRemoteDataSource!,
         localDataSource: _categoryLocalDataSource,
       );
+      _adminUserRemoteDataSource = AdminUserRemoteDataSourceImpl(_apiClient!);
+      _adminUserRepository = AdminUserRepositoryImpl(
+        remoteDataSource: _adminUserRemoteDataSource!,
+        localDataSource: _adminUserLocalDataSource,
+      );
       _initialized = true;
     }
   }
@@ -203,5 +232,8 @@ class InjectionContainer {
     _categoryLocalDataSource = null;
     _categoryRemoteDataSource = null;
     _categoryRepository = null;
+    _adminUserLocalDataSource = null;
+    _adminUserRemoteDataSource = null;
+    _adminUserRepository = null;
   }
 }

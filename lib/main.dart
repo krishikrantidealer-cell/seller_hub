@@ -3,10 +3,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/di/injection_container.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'domain/repositories/admin_user_repository.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/category_repository.dart';
 import 'domain/repositories/collection_repository.dart';
 import 'domain/repositories/product_repository.dart';
+import 'logic/admin_user/admin_user_event.dart';
+import 'logic/admin_user/customer_bloc.dart';
+import 'logic/admin_user/seller_bloc.dart';
 import 'logic/auth/auth_bloc.dart';
 import 'logic/auth/auth_event.dart';
 import 'logic/category/category_bloc.dart';
@@ -29,6 +33,7 @@ class SellerHubApp extends StatelessWidget {
   final ProductRepository? productRepository;
   final CollectionRepository? collectionRepository;
   final CategoryRepository? categoryRepository;
+  final AdminUserRepository? adminUserRepository;
 
   const SellerHubApp({
     super.key,
@@ -36,6 +41,7 @@ class SellerHubApp extends StatelessWidget {
     this.productRepository,
     this.collectionRepository,
     this.categoryRepository,
+    this.adminUserRepository,
   });
 
   @override
@@ -44,6 +50,7 @@ class SellerHubApp extends StatelessWidget {
     final productRepo = productRepository ?? InjectionContainer.instance.productRepository;
     final collectionRepo = collectionRepository ?? InjectionContainer.instance.collectionRepository;
     final categoryRepo = categoryRepository ?? InjectionContainer.instance.categoryRepository;
+    final adminUserRepo = adminUserRepository ?? InjectionContainer.instance.adminUserRepository;
 
     return MultiRepositoryProvider(
       providers: [
@@ -51,6 +58,7 @@ class SellerHubApp extends StatelessWidget {
         RepositoryProvider<ProductRepository>.value(value: productRepo),
         RepositoryProvider<CollectionRepository>.value(value: collectionRepo),
         RepositoryProvider<CategoryRepository>.value(value: categoryRepo),
+        RepositoryProvider<AdminUserRepository>.value(value: adminUserRepo),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -74,6 +82,16 @@ class SellerHubApp extends StatelessWidget {
             create: (ctx) => CategoryBloc(
               categoryRepository: ctx.read<CategoryRepository>(),
             )..add(const InitializeCategories()),
+          ),
+          BlocProvider<SellerBloc>(
+            create: (ctx) => SellerBloc(
+              repository: ctx.read<AdminUserRepository>(),
+            )..add(const InitializeAdminUsers()),
+          ),
+          BlocProvider<CustomerBloc>(
+            create: (ctx) => CustomerBloc(
+              repository: ctx.read<AdminUserRepository>(),
+            )..add(const InitializeAdminUsers()),
           ),
         ],
         child: BlocBuilder<ThemeBloc, ThemeState>(

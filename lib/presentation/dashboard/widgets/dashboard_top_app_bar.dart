@@ -59,6 +59,9 @@ class DashboardTopAppBar extends StatelessWidget {
         title = 'Multi-Tenant Sellers Directory';
         subtitle = 'Onboarded merchants, legal compliance, KYC & commission agreements';
       }
+    } else if (selectedNavIndex == 6) {
+      title = 'Customers & Buyer Directory';
+      subtitle = 'Registered farmers, buyer accounts, delivery addresses & verification';
     } else {
       if (viewingOrder != null) {
         title = 'Order ${viewingOrder!.orderNumber} • ${viewingOrder!.company}';

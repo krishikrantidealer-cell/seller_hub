@@ -621,6 +621,174 @@ void main() {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path == '/api/v1/admin/users') {
+      final role = request.url.queryParameters['role'];
+      if (role == 'SELLERS') {
+        return http.Response(
+          jsonEncode({
+            "success": true,
+            "message": "Admin users retrieved",
+            "data": {
+              "content": [
+                {
+                  "id": "6ab62c7f4aec9f42cea26a49",
+                  "phoneNumber": "8776543244",
+                  "email": "seller1email@example.com",
+                  "firstName": "Vijay",
+                  "lastName": "Pal",
+                  "shopName": null,
+                  "role": "ROLE_SELLER",
+                  "address": {
+                    "villageArea": "Test address",
+                    "address2": "Postman test",
+                    "cityTehsil": "Indore",
+                    "state": "Madhya Pradesh",
+                    "pincode": "452001"
+                  },
+                  "isVerified": true,
+                  "isProfileComplete": true,
+                  "kycStatus": null,
+                  "isKycComplete": false,
+                  "gstNumber": null,
+                  "licenceImage": null,
+                  "shopImage": null,
+                  "shippingAddresses": [],
+                  "isBlocked": false,
+                  "isDeleted": false,
+                  "createdAt": "2026-09-25T08:10:39.562",
+                  "updatedAt": "2026-10-26T10:27:11.539"
+                },
+                {
+                  "id": "6ab4ada822033f1670582bda",
+                  "phoneNumber": "9876543288",
+                  "email": "seller2email@example2.com",
+                  "firstName": "Seller",
+                  "lastName": "Sirname",
+                  "shopName": null,
+                  "role": "ROLE_SELLER",
+                  "address": {
+                    "villageArea": "Flat 402, Royal Palms",
+                    "address2": "Opposite City Mall, MG Road",
+                    "cityTehsil": "Indore",
+                    "state": "Madhya Pradesh",
+                    "pincode": "452001"
+                  },
+                  "isVerified": true,
+                  "isProfileComplete": true,
+                  "kycStatus": null,
+                  "isKycComplete": false,
+                  "gstNumber": null,
+                  "licenceImage": null,
+                  "shopImage": null,
+                  "shippingAddresses": [],
+                  "isBlocked": false,
+                  "isDeleted": false,
+                  "createdAt": "2026-09-24T04:57:12.063",
+                  "updatedAt": "2026-10-24T07:59:43.219"
+                },
+                {
+                  "id": "slr-krishi",
+                  "phoneNumber": "9876543210",
+                  "email": "contact@krishikranti.com",
+                  "firstName": "Krishi Kranti",
+                  "lastName": "Organics",
+                  "shopName": "Krishi Kranti Organics",
+                  "role": "ROLE_SELLER",
+                  "address": {
+                    "villageArea": "Krishi Kranti Bhawan, MIDC Area",
+                    "address2": "",
+                    "cityTehsil": "Nashik",
+                    "state": "Maharashtra",
+                    "pincode": "422007"
+                  },
+                  "isVerified": true,
+                  "isProfileComplete": true,
+                  "isBlocked": false,
+                  "isDeleted": false
+                },
+                {
+                  "id": "slr-bharat",
+                  "phoneNumber": "9876543211",
+                  "email": "info@bharatagro.com",
+                  "firstName": "Bharat Agro",
+                  "lastName": "Chemicals Ltd",
+                  "shopName": "Bharat Agro Chemicals Ltd",
+                  "role": "ROLE_SELLER",
+                  "address": {
+                    "villageArea": "Plot 88, GIDC Industrial Estate",
+                    "address2": "",
+                    "cityTehsil": "Ahmedabad",
+                    "state": "Gujarat",
+                    "pincode": "382445"
+                  },
+                  "isVerified": true,
+                  "isProfileComplete": true,
+                  "isBlocked": false,
+                  "isDeleted": false
+                }
+              ],
+              "page": 0,
+              "size": 20,
+              "totalElements": 1,
+              "totalPages": 1,
+              "first": true,
+              "last": true
+            },
+            "timestamp": "2026-10-27T07:31:59.231575322"
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      } else {
+        return http.Response(
+          jsonEncode({
+            "success": true,
+            "message": "Admin users retrieved",
+            "data": {
+              "content": [
+                {
+                  "id": "6ab6248acf88a4428f9b1e26",
+                  "phoneNumber": "9876543244",
+                  "email": null,
+                  "firstName": "Aashutosh",
+                  "lastName": "Shrivastava",
+                  "shopName": null,
+                  "role": "ROLE_CUSTOMER",
+                  "address": {
+                    "villageArea": "Plot 42, Kisan Nagar",
+                    "address2": "Near Krishi Mandi",
+                    "cityTehsil": "Indore",
+                    "state": "Madhya Pradesh",
+                    "pincode": "452001"
+                  },
+                  "isVerified": true,
+                  "isProfileComplete": true,
+                  "kycStatus": null,
+                  "isKycComplete": false,
+                  "gstNumber": null,
+                  "licenceImage": null,
+                  "shopImage": null,
+                  "shippingAddresses": [],
+                  "isBlocked": false,
+                  "isDeleted": false,
+                  "createdAt": "2026-09-25T07:36:42.481",
+                  "updatedAt": "2026-10-26T10:17:13.124"
+                }
+              ],
+              "page": 0,
+              "size": 20,
+              "totalElements": 1,
+              "totalPages": 1,
+              "first": true,
+              "last": true
+            },
+            "timestamp": "2026-10-27T07:33:58.288464551"
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
+    }
     return http.Response('{"error": "Not found"}', 404);
   });
 
@@ -1549,5 +1717,56 @@ void main() {
     // Verify ProductsCatalog is displayed again
     expect(find.text('Product Catalog & Inventory'), findsOneWidget);
   });
+
+  testWidgets('Tapping Customers nav in sidebar loads CustomersView with live metrics, buyer records, and details dialog', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Login
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Tap Customers nav item in sidebar
+    expect(find.text('Customers'), findsOneWidget);
+    await tester.tap(find.text('Customers'));
+    await tester.pumpAndSettle();
+
+    // Verify Customers top app bar
+    expect(find.text('Customers & Buyer Directory'), findsOneWidget);
+
+    // Verify Metrics
+    expect(find.text('TOTAL CUSTOMERS'), findsOneWidget);
+    expect(find.text('VERIFIED BUYERS'), findsOneWidget);
+
+    // Verify Customer record from API
+    expect(find.text('Aashutosh Shrivastava'), findsOneWidget);
+    expect(find.text('9876543244'), findsOneWidget);
+    expect(find.textContaining('Plot 42, Kisan Nagar'), findsOneWidget);
+
+    // Tap Details icon button to open customer details modal
+    final detailsBtn = find.byTooltip('View details');
+    expect(detailsBtn, findsOneWidget);
+    await tester.tap(detailsBtn);
+    await tester.pumpAndSettle();
+
+    // Verify dialog content
+    expect(find.text('PRIMARY ADDRESS'), findsOneWidget);
+    expect(find.text('ACCOUNT STATUS & VERIFICATION'), findsOneWidget);
+    expect(find.text('Indore'), findsWidgets);
+    expect(find.text('Close'), findsOneWidget);
+
+    // Close dialog
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+  });
 }
+
 

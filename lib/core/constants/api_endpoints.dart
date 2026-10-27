@@ -22,4 +22,9 @@ class ApiEndpoints {
   static const String adminCategories = '/api/v1/admin/categories';
   static String productsByCategory(String categoryId) =>
       '/api/v1/products/category/$categoryId';
+
+  /// Admin Users (Sellers & Customers)
+  static const String adminUsers = '/api/v1/admin/users';
+  static String adminUserBlock(String userId) => '/api/v1/admin/users/$userId/block';
+  static String adminUserDeletion(String userId) => '/api/v1/admin/users/$userId/deletion';
 }

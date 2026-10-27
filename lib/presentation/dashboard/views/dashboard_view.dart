@@ -13,9 +13,12 @@ import 'package:seller_hub/logic/category/category_bloc.dart';
 import 'package:seller_hub/logic/collection/collection_bloc.dart';
 import 'package:seller_hub/logic/product/product_bloc.dart';
 import 'package:seller_hub/logic/product/product_event.dart';
+import 'package:seller_hub/logic/admin_user/customer_bloc.dart';
+import 'package:seller_hub/logic/admin_user/seller_bloc.dart';
 import 'package:seller_hub/presentation/dashboard/views/categories_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/catalog_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/collections_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/customers_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/orders_view.dart';
@@ -88,6 +91,14 @@ class _DashboardViewState extends State<DashboardView> {
     final categoryBloc = context.watch<CategoryBloc>();
     final categoriesCount = categoryBloc.state.totalCount;
 
+    final sellerBloc = context.watch<SellerBloc>();
+    final realSellers = sellerBloc.sellerProfiles;
+    final displaySellers = realSellers.isNotEmpty ? realSellers : _sellers;
+    final sellersCount = sellerBloc.state.totalCount > 0 ? sellerBloc.state.totalCount : displaySellers.length;
+
+    final customerBloc = context.watch<CustomerBloc>();
+    final customersCount = customerBloc.state.totalCount;
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: backgroundColor,
@@ -101,7 +112,8 @@ class _DashboardViewState extends State<DashboardView> {
                 productsCount: totalProductsCount,
                 collectionsCount: collectionsCount,
                 categoriesCount: categoriesCount,
-                sellersCount: _sellers.length,
+                sellersCount: sellersCount,
+                customersCount: customersCount,
                 ordersCount: _orders.length,
                 isDrawer: true,
                 onLogout: () => _handleLogout(context),
@@ -124,7 +136,8 @@ class _DashboardViewState extends State<DashboardView> {
                   productsCount: totalProductsCount,
                   collectionsCount: collectionsCount,
                   categoriesCount: categoriesCount,
-                  sellersCount: _sellers.length,
+                  sellersCount: sellersCount,
+                  customersCount: customersCount,
                   ordersCount: _orders.length,
                   isDrawer: false,
                   onLogout: () => _handleLogout(context),
@@ -160,6 +173,7 @@ class _DashboardViewState extends State<DashboardView> {
                         totalProductsCount,
                         collectionsCount,
                         categoriesCount,
+                        displaySellers,
                       ),
                     ),
                   ),
@@ -178,11 +192,12 @@ class _DashboardViewState extends State<DashboardView> {
     int totalProductsCount,
     int collectionsCount,
     int categoriesCount,
+    List<SellerProfile> sellers,
   ) {
     if (_selectedNavIndex == 0) {
       return OperationsOverviewView(
         products: products,
-        sellers: _sellers,
+        sellers: sellers,
         orders: _orders,
         onSelectOrder: (order) => setState(() => _viewingOrder = order),
         onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
@@ -224,7 +239,7 @@ class _DashboardViewState extends State<DashboardView> {
         } else {
           catalogChild = ProductCatalogView(
             products: products,
-            sellers: _sellers,
+            sellers: sellers,
             initialSellerFilter: _productCatalogSellerFilter,
             isWide: isWide,
             onOpenProductDetails: (product, {bool editMode = false}) {
@@ -288,7 +303,7 @@ class _DashboardViewState extends State<DashboardView> {
       }
 
       return SellersView(
-        sellers: _sellers,
+        sellers: sellers,
         products: products,
         onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
         onViewSellerProducts: (sellerTradeName) {
@@ -327,6 +342,11 @@ class _DashboardViewState extends State<DashboardView> {
         orders: _orders,
         onSelectOrder: (order) => setState(() => _viewingOrder = order),
       );
+    }
+
+    // Nav Index 6: Customers Directory & Buyer Management
+    if (_selectedNavIndex == 6) {
+      return CustomersView(isWide: isWide);
     }
 
     return const SizedBox.shrink();

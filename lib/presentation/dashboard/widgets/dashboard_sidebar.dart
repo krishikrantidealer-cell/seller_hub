@@ -11,6 +11,7 @@ class DashboardSidebar extends StatelessWidget {
   final int collectionsCount;
   final int categoriesCount;
   final int sellersCount;
+  final int customersCount;
   final int ordersCount;
   final bool isDrawer;
   final VoidCallback onLogout;
@@ -23,6 +24,7 @@ class DashboardSidebar extends StatelessWidget {
     this.collectionsCount = 0,
     this.categoriesCount = 0,
     required this.sellersCount,
+    this.customersCount = 0,
     this.ordersCount = 0,
     this.isDrawer = false,
     required this.onLogout,
@@ -162,7 +164,17 @@ class DashboardSidebar extends StatelessWidget {
                     title: 'Sellers',
                     icon: Icons.storefront_rounded,
                     isDark: isDark,
-                    badgeText: '$sellersCount',
+                    badgeText: sellersCount > 0 ? '$sellersCount' : null,
+                  ),
+
+                  // Sidebar Nav Item: Customers
+                  _buildSidebarNavItem(
+                    context: context,
+                    index: 6,
+                    title: 'Customers',
+                    icon: Icons.people_alt_rounded,
+                    isDark: isDark,
+                    badgeText: customersCount > 0 ? '$customersCount' : null,
                   ),
 
                   // Sidebar Nav Item: Orders
@@ -172,7 +184,7 @@ class DashboardSidebar extends StatelessWidget {
                     title: 'Orders',
                     icon: Icons.receipt_long_rounded,
                     isDark: isDark,
-                    badgeText: '$ordersCount',
+                    badgeText: ordersCount > 0 ? '$ordersCount' : null,
                   ),
                 ],
               ),

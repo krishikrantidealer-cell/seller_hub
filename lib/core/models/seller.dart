@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'admin_user.dart';
 
 /// Bank Details for Seller Payouts & Settlement
 class SellerBankDetails extends Equatable {
@@ -125,24 +126,79 @@ class SellerProfile extends Equatable {
     this.kycDocuments = const [],
   });
 
+  factory SellerProfile.fromAdminUser(AdminUser u) {
+    return SellerProfile(
+      id: u.id,
+      sellerCode: u.id.length >= 6 ? 'SLR-${u.id.substring(u.id.length - 6).toUpperCase()}' : 'SLR-${u.id}',
+      companyName: u.displayName,
+      tradeName: u.displayName,
+      contactPerson: u.fullName,
+      email: u.email ?? '',
+      phone: u.phoneNumber,
+      gstin: u.gstNumber ?? '',
+      registeredAddress: u.fullAddress,
+      city: u.address?.cityTehsil ?? '',
+      state: u.address?.state ?? '',
+      pincode: u.address?.pincode ?? '',
+      warehouseAddress: u.fullAddress,
+      status: u.isBlocked ? 'SUSPENDED' : (u.isVerified || u.isKycComplete ? 'VERIFIED' : 'ACTIVE'),
+      isVerified: u.isVerified,
+      joinedAt: u.createdAt,
+      updatedAt: u.updatedAt,
+      licenseNumber: u.licenceImage ?? '',
+    );
+  }
+
   factory SellerProfile.fromJson(Map<String, dynamic> json) {
+    final rawAddress = json['address'];
+    String regAddress = json['registeredAddress']?.toString() ?? '';
+    String cityStr = json['city']?.toString() ?? '';
+    String stateStr = json['state']?.toString() ?? '';
+    String pinStr = json['pincode']?.toString() ?? '';
+
+    if (rawAddress is Map<String, dynamic>) {
+      final parts = [
+        rawAddress['villageArea'],
+        rawAddress['address2'],
+        rawAddress['cityTehsil'],
+        rawAddress['state'],
+        rawAddress['pincode'],
+      ].where((e) => e != null && e.toString().trim().isNotEmpty).map((e) => e.toString().trim()).toList();
+      regAddress = parts.join(', ');
+      cityStr = rawAddress['cityTehsil']?.toString() ?? cityStr;
+      stateStr = rawAddress['state']?.toString() ?? stateStr;
+      pinStr = rawAddress['pincode']?.toString() ?? pinStr;
+    }
+
+    final firstName = json['firstName']?.toString();
+    final lastName = json['lastName']?.toString();
+    final fullName = [firstName, lastName].where((e) => e != null && e.isNotEmpty).join(' ');
+    final shopName = json['shopName']?.toString();
+    final computedName = (shopName != null && shopName.isNotEmpty)
+        ? shopName
+        : (fullName.isNotEmpty ? fullName : (json['companyName']?.toString() ?? json['vendor']?.toString() ?? ''));
+
+    final isBlocked = json['isBlocked'] == true;
+    final isKyc = json['isKycComplete'] == true;
+    final statusStr = isBlocked ? 'SUSPENDED' : (isKyc ? 'VERIFIED' : (json['status']?.toString() ?? 'ACTIVE'));
+
     return SellerProfile(
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
       sellerCode: json['sellerCode']?.toString() ?? '',
-      companyName: json['companyName']?.toString() ?? json['vendor']?.toString() ?? '',
-      tradeName: json['tradeName']?.toString() ?? json['vendor']?.toString() ?? '',
-      contactPerson: json['contactPerson']?.toString() ?? '',
+      companyName: computedName,
+      tradeName: computedName,
+      contactPerson: fullName.isNotEmpty ? fullName : (json['contactPerson']?.toString() ?? ''),
       email: json['email']?.toString() ?? '',
-      phone: json['phone']?.toString() ?? '',
-      gstin: json['gstin']?.toString() ?? '',
+      phone: json['phoneNumber']?.toString() ?? json['phone']?.toString() ?? '',
+      gstin: json['gstNumber']?.toString() ?? json['gstin']?.toString() ?? '',
       panNumber: json['panNumber']?.toString() ?? '',
-      licenseNumber: json['licenseNumber']?.toString() ?? '',
+      licenseNumber: json['licenceImage']?.toString() ?? json['licenseNumber']?.toString() ?? '',
       businessType: json['businessType']?.toString() ?? 'Private Limited',
-      registeredAddress: json['registeredAddress']?.toString() ?? '',
-      city: json['city']?.toString() ?? '',
-      state: json['state']?.toString() ?? '',
-      pincode: json['pincode']?.toString() ?? '',
-      warehouseAddress: json['warehouseAddress']?.toString() ?? '',
+      registeredAddress: regAddress,
+      city: cityStr,
+      state: stateStr,
+      pincode: pinStr,
+      warehouseAddress: json['warehouseAddress']?.toString() ?? regAddress,
       bankDetails: SellerBankDetails.fromJson(json['bankDetails']),
       commissionPercentage: (json['commissionPercentage'] as num?)?.toDouble() ?? 8.5,
       settlementCycle: json['settlementCycle']?.toString() ?? 'Weekly (T+3)',
@@ -150,9 +206,11 @@ class SellerProfile extends Equatable {
       totalProducts: (json['totalProducts'] as num?)?.toInt() ?? 0,
       totalOrders: (json['totalOrders'] as num?)?.toInt() ?? 0,
       grossSalesValue: (json['grossSalesValue'] as num?)?.toDouble() ?? 0.0,
-      status: json['status']?.toString() ?? 'ACTIVE',
+      status: statusStr,
       isVerified: json['isVerified'] as bool? ?? true,
-      joinedAt: json['joinedAt'] != null ? DateTime.tryParse(json['joinedAt'].toString()) : null,
+      joinedAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : (json['joinedAt'] != null ? DateTime.tryParse(json['joinedAt'].toString()) : null),
       updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null,
       kycDocuments: (json['kycDocuments'] as List?)?.map((e) => e.toString()).toList() ?? const [],
     );

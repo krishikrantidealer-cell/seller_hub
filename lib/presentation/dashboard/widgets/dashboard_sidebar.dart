@@ -152,7 +152,6 @@ class DashboardSidebar extends StatelessWidget {
                     title: 'Catalog',
                     icon: Icons.inventory_2_rounded,
                     isDark: isDark,
-                    badgeText: '$productsCount',
                     isSelected: selectedIndex == 1 || selectedIndex == 2 || selectedIndex == 3,
                   ),
 

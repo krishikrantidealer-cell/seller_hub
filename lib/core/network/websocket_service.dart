@@ -23,16 +23,24 @@ class WebSocketService {
   int _retryCount = 0;
 
   final _productUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
+  final _categoryUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
+  final _collectionUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
+  final _orderUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
+  final _authRevokedController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionStateController = StreamController<bool>.broadcast();
 
   Stream<Map<String, dynamic>> get productUpdates => _productUpdatesController.stream;
+  Stream<Map<String, dynamic>> get categoryUpdates => _categoryUpdatesController.stream;
+  Stream<Map<String, dynamic>> get collectionUpdates => _collectionUpdatesController.stream;
+  Stream<Map<String, dynamic>> get orderUpdates => _orderUpdatesController.stream;
+  Stream<Map<String, dynamic>> get authRevokedUpdates => _authRevokedController.stream;
   Stream<bool> get connectionStatus => _connectionStateController.stream;
   bool get isConnected => _isConnected;
 
   TokenStorage? _tokenStorage;
 
-  /// Global toggle: Disabled until backend developer implements `/ws` on Render.
-  static bool enabled = false;
+  /// Global toggle: Active for live bidirectional real-time sync with backend.
+  static bool enabled = true;
 
   void setTokenStorage(TokenStorage storage) {
     _tokenStorage = storage;
@@ -150,18 +158,38 @@ class WebSocketService {
       final decoded = jsonDecode(rawMessage.toString());
       if (decoded is! Map<String, dynamic>) return;
 
+      // 1. Heartbeat Pong
       final type = decoded['type'];
       if (type == 'PONG') return;
 
-      if (type == 'CONNECTION_ACK') {
+      // 2. Handshake ACK from backend (system:connected)
+      final event = decoded['event'] as String?;
+      if (event == 'system:connected' || type == 'CONNECTION_ACK') {
         _isConnected = true;
         _isConnecting = false;
         _connectionStateController.add(true);
         _retryCount = 0;
+        debugPrint('[SellerHub WS] Connection handshake acknowledged.');
         return;
       }
 
-      // Check if message is a product or catalog event
+      // 3. Standard Backend Event Envelope Routing
+      if (event != null) {
+        if (event.startsWith('products:') || event == 'inventory:stock_update') {
+          _productUpdatesController.add(decoded);
+        } else if (event.startsWith('categories:')) {
+          _categoryUpdatesController.add(decoded);
+        } else if (event.startsWith('collections:')) {
+          _collectionUpdatesController.add(decoded);
+        } else if (event.startsWith('orders:')) {
+          _orderUpdatesController.add(decoded);
+        } else if (event == 'auth:session_revoked') {
+          _authRevokedController.add(decoded);
+        }
+        return;
+      }
+
+      // 4. Legacy / Client-simulated event routing
       const productEventTypes = [
         'PRODUCT_UPDATE',
         'PRODUCT_UPDATED',

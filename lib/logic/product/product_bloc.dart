@@ -199,31 +199,73 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
   ) {
     try {
       final payload = event.payload;
-      final rawData = payload['data'] ?? payload['product'];
+      final eventName = payload['event'] as String?;
+      final rawData = payload['data'] ?? payload['product'] ?? payload;
 
-      if (rawData is Map<String, dynamic>) {
-        if (rawData.containsKey('title') || rawData.containsKey('productCode') || rawData.containsKey('variants')) {
-          final product = Product.fromJson(rawData);
-          // Update in-place with 0ms loading
-          add(UpdateLocalProduct(product, broadcastWs: false));
-          return;
-        }
+      // 1. Live Inventory Stock Update event (inventory:stock_update)
+      if (eventName == 'inventory:stock_update' ||
+          (rawData is Map && rawData.containsKey('productId') && rawData.containsKey('stock'))) {
+        final dataMap = rawData is Map ? Map<String, dynamic>.from(rawData) : <String, dynamic>{};
+        final pId = (dataMap['productId'] ?? '').toString();
+        final variantId = dataMap['variantId']?.toString();
+        final newStock = int.tryParse(dataMap['stock'].toString()) ?? 0;
 
-        // Live inventory stock update
-        if (rawData.containsKey('productId') && rawData.containsKey('stock')) {
-          final pId = rawData['productId'].toString();
-          final newStock = int.tryParse(rawData['stock'].toString()) ?? 0;
-          final idx = state.products.indexWhere((p) => p.id == pId);
-          if (idx != -1) {
-            final oldP = state.products[idx];
-            final updatedP = oldP.copyWith(stock: newStock);
-            add(UpdateLocalProduct(updatedP, broadcastWs: false));
-            return;
+        final idx = state.products.indexWhere(
+          (p) => (p.id.isNotEmpty && p.id == pId) || (p.productCode.isNotEmpty && p.productCode == pId),
+        );
+
+        if (idx != -1) {
+          final oldP = state.products[idx];
+          List<ProductVariant> updatedVariants = oldP.variants;
+          if (variantId != null && variantId.isNotEmpty && oldP.variants.isNotEmpty) {
+            updatedVariants = oldP.variants.map((v) {
+              if (v.id == variantId) {
+                return v.copyWith(stock: newStock);
+              }
+              return v;
+            }).toList();
           }
+
+          final updatedP = oldP.copyWith(
+            stock: newStock,
+            variants: updatedVariants,
+          );
+          add(UpdateLocalProduct(updatedP, broadcastWs: false));
+          return;
         }
       }
 
-      // If general refresh signal (e.g. PRODUCTS_UPDATE): background sync without spinner
+      // 2. Product Deleted event (products:delete)
+      if (eventName == 'products:delete' && rawData is Map) {
+        final pId = (rawData['productId'] ?? '').toString();
+        if (pId.isNotEmpty) {
+          final updatedList = state.products.where((p) => p.id != pId && p.productCode != pId).toList();
+          emit(state.copyWith(
+            pageData: ProductPageData(
+              content: updatedList,
+              page: state.pageData.page,
+              size: state.pageData.size,
+              totalElements: (state.pageData.totalElements - 1).clamp(0, 999999),
+              totalPages: state.pageData.totalPages,
+              first: state.pageData.first,
+              last: state.pageData.last,
+              count: updatedList.length,
+            ),
+          ));
+          return;
+        }
+      }
+
+      // 3. Product Updated entity event (products:update)
+      if (rawData is Map<String, dynamic>) {
+        if (rawData.containsKey('title') || rawData.containsKey('productCode') || rawData.containsKey('variants')) {
+          final product = Product.fromJson(rawData);
+          add(UpdateLocalProduct(product, broadcastWs: false));
+          return;
+        }
+      }
+
+      // 4. Products refresh or catalog invalidated event (products:refresh)
       add(FetchProducts(
         page: state.currentPage,
         size: state.pageSize,

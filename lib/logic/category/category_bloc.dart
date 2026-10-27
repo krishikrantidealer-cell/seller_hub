@@ -1,13 +1,21 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/models/category.dart';
+import '../../core/network/websocket_service.dart';
 import '../../domain/repositories/category_repository.dart';
 import 'category_event.dart';
 import 'category_state.dart';
 
 class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
   final CategoryRepository categoryRepository;
+  final WebSocketService _webSocketService;
+  StreamSubscription? _wsSubscription;
 
-  CategoryBloc({required this.categoryRepository}) : super(const CategoryState()) {
+  CategoryBloc({
+    required this.categoryRepository,
+    WebSocketService? webSocketService,
+  })  : _webSocketService = webSocketService ?? WebSocketService(),
+        super(const CategoryState()) {
     on<InitializeCategories>(_onInitializeCategories);
     on<FetchCategories>(_onFetchCategories);
     on<FilterCategories>(_onFilterCategories);
@@ -18,6 +26,17 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
     on<CreateCategory>(_onCreateCategory);
     on<UpdateCategory>(_onUpdateCategory);
     on<DeactivateCategory>(_onDeactivateCategory);
+
+    // Subscribe to real-time category updates from WebSocket pipeline
+    _wsSubscription = _webSocketService.categoryUpdates.listen((_) {
+      add(const FetchCategories(isRefresh: true, isBackground: true));
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _wsSubscription?.cancel();
+    return super.close();
   }
 
   Future<void> _onInitializeCategories(

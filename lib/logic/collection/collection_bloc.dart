@@ -1,14 +1,22 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/models/collection.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/network/websocket_service.dart';
 import '../../domain/repositories/collection_repository.dart';
 import 'collection_event.dart';
 import 'collection_state.dart';
 
 class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
   final CollectionRepository collectionRepository;
+  final WebSocketService _webSocketService;
+  StreamSubscription? _wsSubscription;
 
-  CollectionBloc({required this.collectionRepository}) : super(const CollectionState()) {
+  CollectionBloc({
+    required this.collectionRepository,
+    WebSocketService? webSocketService,
+  })  : _webSocketService = webSocketService ?? WebSocketService(),
+        super(const CollectionState()) {
     on<InitializeCollections>(_onInitializeCollections);
     on<FetchCollections>(_onFetchCollections);
     on<CreateCollection>(_onCreateCollection);
@@ -17,6 +25,17 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
     on<ResetUpdateCollectionState>(_onResetUpdateCollectionState);
     on<DeactivateCollection>(_onDeactivateCollection);
     on<ResetDeactivateCollectionState>(_onResetDeactivateCollectionState);
+
+    // Subscribe to real-time collection updates from WebSocket pipeline
+    _wsSubscription = _webSocketService.collectionUpdates.listen((_) {
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _wsSubscription?.cancel();
+    return super.close();
   }
 
   void _onResetDeactivateCollectionState(

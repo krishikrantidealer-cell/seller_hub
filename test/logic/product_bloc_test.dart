@@ -349,6 +349,64 @@ void main() {
       );
     });
 
+    test('WebSocket inventory:stock_update event updates variant and total stock in real-time', () async {
+      productBloc.add(const FetchProducts(page: 0, size: 20));
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(predicate<ProductState>((s) => s.status == ProductStatus.loaded)),
+      );
+
+      final backendEvent = {
+        'event': 'inventory:stock_update',
+        'data': {
+          'productId': '6ad871a31df71c7f599dd954',
+          'variantId': '6ad871a31df71c7f599dd955',
+          'stock': 88,
+        },
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      productBloc.add(WebSocketProductUpdateReceived(backendEvent));
+
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(
+          predicate<ProductState>((s) =>
+              s.status == ProductStatus.loaded &&
+              s.products.first.stock == 88 &&
+              s.products.first.variants.first.stock == 88),
+        ),
+      );
+    });
+
+    test('WebSocket products:delete event removes product from list in real-time', () async {
+      productBloc.add(const FetchProducts(page: 0, size: 20));
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(predicate<ProductState>((s) => s.status == ProductStatus.loaded)),
+      );
+
+      final deleteEvent = {
+        'event': 'products:delete',
+        'data': {
+          'productId': '6ad871a31df71c7f599dd954',
+          'isPermanent': false,
+        },
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      productBloc.add(WebSocketProductUpdateReceived(deleteEvent));
+
+      await expectLater(
+        productBloc.stream,
+        emitsThrough(
+          predicate<ProductState>((s) =>
+              s.status == ProductStatus.loaded &&
+              s.products.isEmpty),
+        ),
+      );
+    });
+
     test('Product fromJson correctly decodes MongoDB multi-variants with commercial attributes', () {
       final mongoJson = {
         'id': '6ad871a31df71c7f599dd954',

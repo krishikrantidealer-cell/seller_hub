@@ -975,8 +975,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Tap Sellers nav in sidebar
-    await tester.tap(find.text('Sellers').first);
+    // Tap Users nav in sidebar (defaults to Sellers sub-tab)
+    await tester.tap(find.text('Users').first);
     await tester.pumpAndSettle();
 
     // Verify Sellers directory table loads
@@ -1734,7 +1734,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Tap Customers nav item in sidebar
+    // Tap Users nav item in sidebar
+    expect(find.text('Users'), findsOneWidget);
+    await tester.tap(find.text('Users'));
+    await tester.pumpAndSettle();
+
+    // Tap Customers segmented tab in UsersView
     expect(find.text('Customers'), findsOneWidget);
     await tester.tap(find.text('Customers'));
     await tester.pumpAndSettle();
@@ -1806,6 +1811,45 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Customers & Buyer Directory'), findsOneWidget);
+  });
+
+  testWidgets('Combined Users tab allows seamless switching between Sellers and Customers via top segmented control and sidebar', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Login
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Tap Users item in sidebar -> navigates to Sellers by default
+    await tester.tap(find.text('Users'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Multi-Tenant Sellers Directory'), findsOneWidget);
+    expect(find.text('Onboard Seller'), findsOneWidget);
+
+    // Switch to Customers via top segmented control
+    await tester.tap(find.text('Customers'));
+    await tester.pumpAndSettle();
+
+    // Verify CustomersView is displayed
+    expect(find.text('Customers & Buyer Directory'), findsOneWidget);
+    expect(find.text('TOTAL CUSTOMERS'), findsOneWidget);
+
+    // Switch back to Sellers via top segmented control
+    await tester.tap(find.text('Sellers'));
+    await tester.pumpAndSettle();
+
+    // Verify Sellers is displayed again
+    expect(find.text('Multi-Tenant Sellers Directory'), findsOneWidget);
   });
 }
 

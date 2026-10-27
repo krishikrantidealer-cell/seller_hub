@@ -28,6 +28,7 @@ import 'package:seller_hub/presentation/dashboard/views/product_catalog_view.dar
 import 'package:seller_hub/presentation/dashboard/views/product_details_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/seller_profile_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/sellers_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/users_view.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/add_product_dialog.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/dashboard_sidebar.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/dashboard_top_app_bar.dart';
@@ -180,6 +181,8 @@ class _DashboardViewState extends State<DashboardView> {
                         collectionsCount,
                         categoriesCount,
                         displaySellers,
+                        sellersCount,
+                        customersCount,
                       ),
                     ),
                   ),
@@ -199,6 +202,8 @@ class _DashboardViewState extends State<DashboardView> {
     int collectionsCount,
     int categoriesCount,
     List<SellerProfile> sellers,
+    int sellersCount,
+    int customersCount,
   ) {
     if (_selectedNavIndex == 0) {
       return OperationsOverviewView(
@@ -283,48 +288,89 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
-    // Nav Index 4: Sellers Directory & Profile
-    if (_selectedNavIndex == 4) {
-      if (_viewingSeller != null) {
-        return SellerProfileView(
-          seller: _viewingSeller!,
-          allProducts: products,
-          onBack: () => setState(() => _viewingSeller = null),
-          onSellerUpdated: (updated) {
-            setState(() {
-              final idx = _sellers.indexWhere((s) => s.id == updated.id);
-              if (idx != -1) _sellers[idx] = updated;
-              _viewingSeller = updated;
-            });
-          },
-          onViewSellerProducts: (sellerTradeName) {
-            setState(() {
-              _selectedNavIndex = 1;
-              _viewingSeller = null;
-              _viewingProduct = null;
-              _productCatalogSellerFilter = sellerTradeName;
-            });
-          },
-        );
+    // Nav Index 4, 6: Unified Users (Sellers & Customers)
+    if (_selectedNavIndex == 4 || _selectedNavIndex == 6) {
+      Widget userChild;
+      if (_selectedNavIndex == 4) {
+        if (_viewingSeller != null) {
+          userChild = SellerProfileView(
+            seller: _viewingSeller!,
+            allProducts: products,
+            onBack: () => setState(() => _viewingSeller = null),
+            onSellerUpdated: (updated) {
+              setState(() {
+                final idx = _sellers.indexWhere((s) => s.id == updated.id);
+                if (idx != -1) _sellers[idx] = updated;
+                _viewingSeller = updated;
+              });
+            },
+            onViewSellerProducts: (sellerTradeName) {
+              setState(() {
+                _selectedNavIndex = 1;
+                _viewingSeller = null;
+                _viewingProduct = null;
+                _productCatalogSellerFilter = sellerTradeName;
+              });
+            },
+          );
+        } else {
+          userChild = SellersView(
+            sellers: sellers,
+            products: products,
+            onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
+            onViewSellerProducts: (sellerTradeName) {
+              setState(() {
+                _selectedNavIndex = 1;
+                _viewingSeller = null;
+                _viewingProduct = null;
+                _productCatalogSellerFilter = sellerTradeName;
+              });
+            },
+            onSellerAdded: (newSeller) {
+              setState(() {
+                _sellers.insert(0, newSeller);
+              });
+            },
+          );
+        }
+      } else {
+        if (_viewingCustomer != null) {
+          userChild = CustomerProfileView(
+            customer: _viewingCustomer!,
+            allOrders: _orders,
+            onBack: () => setState(() => _viewingCustomer = null),
+            onCustomerUpdated: (updated) {
+              setState(() => _viewingCustomer = updated);
+            },
+            onSelectOrder: (order) {
+              setState(() {
+                _selectedNavIndex = 5;
+                _viewingCustomer = null;
+                _viewingOrder = order;
+              });
+            },
+          );
+        } else {
+          userChild = CustomersView(
+            isWide: isWide,
+            onSelectCustomer: (customer) => setState(() => _viewingCustomer = customer),
+          );
+        }
       }
 
-      return SellersView(
-        sellers: sellers,
-        products: products,
-        onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
-        onViewSellerProducts: (sellerTradeName) {
+      return UsersView(
+        activeSubTabIndex: _selectedNavIndex == 6 ? 1 : 0, // 0 = Sellers, 1 = Customers
+        onSubTabChanged: (tabIndex) {
           setState(() {
-            _selectedNavIndex = 1;
+            _selectedNavIndex = tabIndex == 1 ? 6 : 4;
             _viewingSeller = null;
-            _viewingProduct = null;
-            _productCatalogSellerFilter = sellerTradeName;
+            _viewingCustomer = null;
           });
         },
-        onSellerAdded: (newSeller) {
-          setState(() {
-            _sellers.insert(0, newSeller);
-          });
-        },
+        sellersCount: sellersCount,
+        customersCount: customersCount,
+        isWide: isWide,
+        child: userChild,
       );
     }
 
@@ -347,32 +393,6 @@ class _DashboardViewState extends State<DashboardView> {
       return OrdersView(
         orders: _orders,
         onSelectOrder: (order) => setState(() => _viewingOrder = order),
-      );
-    }
-
-    // Nav Index 6: Customers Directory & Buyer Management
-    if (_selectedNavIndex == 6) {
-      if (_viewingCustomer != null) {
-        return CustomerProfileView(
-          customer: _viewingCustomer!,
-          allOrders: _orders,
-          onBack: () => setState(() => _viewingCustomer = null),
-          onCustomerUpdated: (updated) {
-            setState(() => _viewingCustomer = updated);
-          },
-          onSelectOrder: (order) {
-            setState(() {
-              _selectedNavIndex = 5;
-              _viewingCustomer = null;
-              _viewingOrder = order;
-            });
-          },
-        );
-      }
-
-      return CustomersView(
-        isWide: isWide,
-        onSelectCustomer: (customer) => setState(() => _viewingCustomer = customer),
       );
     }
 

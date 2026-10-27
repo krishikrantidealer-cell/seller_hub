@@ -157,24 +157,14 @@ class DashboardSidebar extends StatelessWidget {
                     isSelected: selectedIndex == 1 || selectedIndex == 2 || selectedIndex == 3,
                   ),
 
-                  // Sidebar Nav Item: Sellers
+                  // Sidebar Nav Item: Users (Sellers & Customers)
                   _buildSidebarNavItem(
                     context: context,
                     index: 4,
-                    title: 'Sellers',
-                    icon: Icons.storefront_rounded,
-                    isDark: isDark,
-                    badgeText: sellersCount > 0 ? '$sellersCount' : null,
-                  ),
-
-                  // Sidebar Nav Item: Customers
-                  _buildSidebarNavItem(
-                    context: context,
-                    index: 6,
-                    title: 'Customers',
+                    title: 'Users',
                     icon: Icons.people_alt_rounded,
                     isDark: isDark,
-                    badgeText: customersCount > 0 ? '$customersCount' : null,
+                    isSelected: selectedIndex == 4 || selectedIndex == 6,
                   ),
 
                   // Sidebar Nav Item: Orders

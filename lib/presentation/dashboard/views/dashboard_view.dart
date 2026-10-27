@@ -109,10 +109,10 @@ class _DashboardViewState extends State<DashboardView> {
             ),
       body: Row(
         children: [
-          // Desktop Persistent Sidebar
+          // Desktop Persistent Compact Sidebar
           if (isWide)
             SizedBox(
-              width: 270,
+              width: 224,
               child: Container(
                 decoration: BoxDecoration(
                   color: surfaceColor,

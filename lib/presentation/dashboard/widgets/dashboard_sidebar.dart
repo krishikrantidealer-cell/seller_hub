@@ -39,57 +39,57 @@ class DashboardSidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Sidebar Brand Header
+          // Sidebar Brand Header (Compact)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
             child: Row(
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF10B981), Color(0xFF059669)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: const Center(
-                    child: Icon(Icons.agriculture_rounded, color: Colors.white, size: 24),
+                    child: Icon(Icons.agriculture_rounded, color: Colors.white, size: 18),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       BlocBuilder<AuthBloc, AuthState>(
                         builder: (context, _) {
                           return Text(
                             'SELLER HUB',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
+                              fontSize: 13.5,
                               fontWeight: FontWeight.w900,
-                              letterSpacing: 0.6,
+                              letterSpacing: 0.5,
                               color: isDark ? Colors.white : const Color(0xFF0F172A),
                             ),
                             overflow: TextOverflow.ellipsis,
                           );
                         },
                       ),
-                      const SizedBox(height: 2),
                       Text(
-                        'ADMIN OPERATIONS HUB',
+                        'ADMIN CONSOLE',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 9.5,
+                          fontSize: 8.5,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.8,
                           color: const Color(0xFF059669),
@@ -102,10 +102,12 @@ class DashboardSidebar extends StatelessWidget {
                   IconButton(
                     icon: Icon(
                       Icons.close_rounded,
-                      size: 20,
+                      size: 18,
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                     ),
                     onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                   ),
               ],
             ),
@@ -113,149 +115,152 @@ class DashboardSidebar extends StatelessWidget {
 
           Divider(color: borderColor, height: 1),
 
-          const SizedBox(height: 16),
+          // Scrollable Compact Nav Section
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Navigation Group Label
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                    child: Text(
+                      'OPERATIONS',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.9,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ),
 
-          // Navigation Group Label
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
-            child: Text(
-              'CORE OPERATIONS',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.0,
-                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  // Sidebar Nav Item: Dashboard
+                  _buildSidebarNavItem(
+                    context: context,
+                    index: 0,
+                    title: 'Dashboard',
+                    icon: Icons.grid_view_rounded,
+                    isDark: isDark,
+                  ),
+
+                  // Single Combined Sidebar Nav Item: Catalog (Products, Collections & Categories)
+                  _buildCombinedCatalogNavItem(
+                    context: context,
+                    selectedIndex: selectedIndex,
+                    isDark: isDark,
+                    productsCount: productsCount,
+                    collectionsCount: collectionsCount,
+                    categoriesCount: categoriesCount,
+                  ),
+
+                  // Sidebar Nav Item: Sellers
+                  _buildSidebarNavItem(
+                    context: context,
+                    index: 4,
+                    title: 'Sellers',
+                    icon: Icons.storefront_rounded,
+                    isDark: isDark,
+                    badgeText: '$sellersCount',
+                  ),
+
+                  // Sidebar Nav Item: Orders
+                  _buildSidebarNavItem(
+                    context: context,
+                    index: 5,
+                    title: 'Orders',
+                    icon: Icons.receipt_long_rounded,
+                    isDark: isDark,
+                    badgeText: '$ordersCount',
+                  ),
+                ],
               ),
             ),
           ),
 
-          // Sidebar Nav Item: Dashboard
-          _buildSidebarNavItem(
-            context: context,
-            index: 0,
-            title: 'Dashboard',
-            subtitle: 'Overview & metrics',
-            icon: Icons.grid_view_rounded,
-            isDark: isDark,
-          ),
-
-          // Single Combined Sidebar Nav Item: Catalog (Products, Collections & Categories)
-          _buildCombinedCatalogNavItem(
-            context: context,
-            selectedIndex: selectedIndex,
-            isDark: isDark,
-            productsCount: productsCount,
-            collectionsCount: collectionsCount,
-            categoriesCount: categoriesCount,
-          ),
-
-          // Sidebar Nav Item: Sellers
-          _buildSidebarNavItem(
-            context: context,
-            index: 4,
-            title: 'Sellers',
-            subtitle: 'Multi-tenant directory',
-            icon: Icons.storefront_rounded,
-            isDark: isDark,
-            badgeText: '$sellersCount',
-          ),
-
-          // Sidebar Nav Item: Orders
-          _buildSidebarNavItem(
-            context: context,
-            index: 5,
-            title: 'Orders',
-            subtitle: 'Dispatches & logistics',
-            icon: Icons.receipt_long_rounded,
-            isDark: isDark,
-            badgeText: '$ordersCount',
-          ),
-
-          const Spacer(),
-
           Divider(color: borderColor, height: 1),
 
-          // Bottom User & Seller Account Profile
+          // Bottom User & Seller Account Profile (Compact)
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, authState) {
               final sellerId = authState.sellerId ?? 'SELLER-AGRI-8821';
 
               return Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: borderColor),
                   ),
-                  child: Column(
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF059669).withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFF059669), width: 1.5),
+                      Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF059669).withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF059669), width: 1.2),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.verified_user_rounded, color: Color(0xFF059669), size: 13),
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              sellerId,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            child: const Center(
-                              child: Icon(Icons.verified_user_rounded, color: Color(0xFF059669), size: 18),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
                               children: [
-                                Text(
-                                  sellerId,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                Container(
+                                  width: 4.5,
+                                  height: 4.5,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Color(0xFF10B981),
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Color(0xFF10B981),
-                                      ),
+                                const SizedBox(width: 3),
+                                Expanded(
+                                  child: Text(
+                                    'Admin Operator',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                                     ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        'Admin Operator',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
-                          IconButton(
-                            tooltip: 'Sign Out',
-                            icon: Icon(
-                              Icons.logout_rounded,
-                              size: 18,
-                              color: isDark ? const Color(0xFFEF4444) : const Color(0xFFDC2626),
-                            ),
-                            onPressed: () => _confirmLogout(context, isDark),
-                          ),
-                        ],
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Sign Out',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                        icon: Icon(
+                          Icons.logout_rounded,
+                          size: 15,
+                          color: isDark ? const Color(0xFFEF4444) : const Color(0xFFDC2626),
+                        ),
+                        onPressed: () => _confirmLogout(context, isDark),
                       ),
                     ],
                   ),
@@ -454,7 +459,7 @@ class DashboardSidebar extends StatelessWidget {
     final isCatalogActive = selectedIndex == 1 || selectedIndex == 2 || selectedIndex == 3;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
       child: Container(
         decoration: BoxDecoration(
           color: isCatalogActive
@@ -462,21 +467,21 @@ class DashboardSidebar extends StatelessWidget {
                   ? const Color(0xFF059669).withValues(alpha: 0.08)
                   : const Color(0xFF059669).withValues(alpha: 0.04))
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isCatalogActive
-                ? const Color(0xFF059669).withValues(alpha: 0.25)
+                ? const Color(0xFF059669).withValues(alpha: 0.22)
                 : Colors.transparent,
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Parent Catalog Tab Header
+            // Parent Catalog Tab Header (Compact)
             Material(
               color: Colors.transparent,
               child: InkWell(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 onTap: () {
                   if (!isCatalogActive) {
                     onNavItemSelected(1);
@@ -484,59 +489,45 @@ class DashboardSidebar extends StatelessWidget {
                   }
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
                   child: Row(
                     children: [
                       Icon(
                         Icons.inventory_2_rounded,
-                        size: 20,
+                        size: 17,
                         color: isCatalogActive
                             ? const Color(0xFF059669)
                             : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 9),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Catalog',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13.5,
-                                    fontWeight: isCatalogActive ? FontWeight.w800 : FontWeight.w600,
-                                    color: isCatalogActive
-                                        ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                                        : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF059669).withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    '3 in 1',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      color: const Color(0xFF059669),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
                             Text(
-                              'Products, collections & taxonomy',
+                              'Catalog',
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10.5,
-                                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                fontSize: 12.5,
+                                fontWeight: isCatalogActive ? FontWeight.w800 : FontWeight.w600,
+                                color: isCatalogActive
+                                    ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                                    : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(width: 5),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF059669).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '3 in 1',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF059669),
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -547,9 +538,9 @@ class DashboardSidebar extends StatelessWidget {
               ),
             ),
 
-            // Sub-Items: Products, Collections, Categories
+            // Sub-Items: Products, Collections, Categories (Compact)
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
               child: Column(
                 children: [
                   _buildSubNavItem(
@@ -561,7 +552,7 @@ class DashboardSidebar extends StatelessWidget {
                     isDark: isDark,
                     isSelected: selectedIndex == 1,
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   _buildSubNavItem(
                     context: context,
                     index: 2,
@@ -571,7 +562,7 @@ class DashboardSidebar extends StatelessWidget {
                     isDark: isDark,
                     isSelected: selectedIndex == 2,
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   _buildSubNavItem(
                     context: context,
                     index: 3,
@@ -602,21 +593,21 @@ class DashboardSidebar extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
         onTap: () {
           onNavItemSelected(index);
           if (isDrawer) Navigator.of(context).pop();
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
           decoration: BoxDecoration(
             color: isSelected
                 ? (isDark
                     ? const Color(0xFF059669).withValues(alpha: 0.22)
                     : const Color(0xFF059669).withValues(alpha: 0.12))
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: isSelected
                   ? const Color(0xFF059669).withValues(alpha: 0.4)
@@ -625,40 +616,40 @@ class DashboardSidebar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               Icon(
                 icon,
-                size: 16,
+                size: 14,
                 color: isSelected
                     ? const Color(0xFF059669)
                     : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 11.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     color: isSelected
                         ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                        : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
+                        : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
                   ),
                 ),
               ),
               if (badgeText != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFF059669)
                         : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     badgeText,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: FontWeight.w700,
                       color: isSelected
                           ? Colors.white
@@ -677,7 +668,6 @@ class DashboardSidebar extends StatelessWidget {
     required BuildContext context,
     required int index,
     required String title,
-    required String subtitle,
     required IconData icon,
     required bool isDark,
     String? badgeText,
@@ -685,11 +675,11 @@ class DashboardSidebar extends StatelessWidget {
     final isSelected = selectedIndex == index;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           onTap: () {
             onNavItemSelected(index);
             if (isDrawer) {
@@ -697,15 +687,15 @@ class DashboardSidebar extends StatelessWidget {
             }
           },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
             decoration: BoxDecoration(
               color: isSelected
                   ? (isDark
                       ? const Color(0xFF059669).withValues(alpha: 0.18)
                       : const Color(0xFF059669).withValues(alpha: 0.10))
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: isSelected
                     ? const Color(0xFF059669).withValues(alpha: 0.35)
@@ -716,51 +706,38 @@ class DashboardSidebar extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  size: 20,
+                  size: 17,
                   color: isSelected
                       ? const Color(0xFF059669)
                       : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 9),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13.5,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                          color: isSelected
-                              ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                              : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected
+                          ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                          : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
+                    ),
                   ),
                 ),
                 if (badgeText != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? const Color(0xFF059669)
                           : const Color(0xFF059669).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       badgeText,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
                         color: isSelected ? Colors.white : const Color(0xFF059669),
                       ),
                     ),

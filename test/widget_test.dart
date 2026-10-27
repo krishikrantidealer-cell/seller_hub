@@ -672,8 +672,8 @@ void main() {
     expect(find.text("Today's Orders"), findsOneWidget);
     expect(find.text('Gross Dispatch Value'), findsOneWidget);
 
-    // Tap Products nav
-    await tester.tap(find.text('Products').first);
+    // Tap Catalog nav
+    await tester.tap(find.text('Catalog'));
     await tester.pumpAndSettle();
 
     expect(find.text('Agricultural Catalog & Master Inventory'), findsOneWidget);
@@ -715,8 +715,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Go to Products
-    await tester.tap(find.text('Products').first);
+    // Go to Products via Catalog
+    await tester.tap(find.text('Catalog'));
     await tester.pumpAndSettle();
 
     // Verify Edit buttons exist in compact catalog
@@ -765,8 +765,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Go to Products
-    await tester.tap(find.text('Products').first);
+    // Go to Products via Catalog
+    await tester.tap(find.text('Catalog'));
     await tester.pumpAndSettle();
 
     // Verify pagination footer is visible with 6 authentic catalog products
@@ -846,8 +846,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Go to Products
-    await tester.tap(find.text('Products').first);
+    // Go to Products via Catalog
+    await tester.tap(find.text('Catalog'));
     await tester.pumpAndSettle();
 
     // Verify sortable column headers are displayed
@@ -954,8 +954,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Go to Products
-    await tester.tap(find.text('Products').first);
+    // Go to Products via Catalog
+    await tester.tap(find.text('Catalog'));
     await tester.pumpAndSettle();
 
     // Open first product details
@@ -1085,8 +1085,10 @@ void main() {
     // Verify redirected to DashboardView
     expect(find.byType(DashboardView), findsOneWidget);
 
-    // Tap Collections nav in sidebar (placed directly below Products)
-    await tester.tap(find.text('Collections').first);
+    // Navigate to Catalog then switch to Collections tab
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Collections'));
     await tester.pumpAndSettle();
 
     // Verify CollectionsView is displayed
@@ -1141,8 +1143,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Tap Collections nav in sidebar
-    await tester.tap(find.text('Collections').first);
+    // Navigate to Catalog then switch to Collections tab
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Collections'));
     await tester.pumpAndSettle();
 
     // Tap "Create Collection" button
@@ -1197,8 +1201,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Tap Collections nav in sidebar
-    await tester.tap(find.text('Collections').first);
+    // Navigate to Catalog then switch to Collections tab
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Collections'));
     await tester.pumpAndSettle();
 
     // Verify initial "Shop By Crop" exists
@@ -1253,8 +1259,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Tap Products nav in sidebar
-    await tester.tap(find.text('Products').first);
+    // Tap Catalog nav in sidebar
+    await tester.tap(find.text('Catalog'));
     await tester.pumpAndSettle();
 
     // Tap first product title to open ProductDetailsView
@@ -1311,7 +1317,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Tap Collections nav in sidebar
+    // Navigate to Catalog then switch to Collections tab
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Collections'));
     await tester.pumpAndSettle();
 
@@ -1360,7 +1368,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Tap Collections nav in sidebar
+    // Navigate to Catalog then switch to Collections tab
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Collections'));
     await tester.pumpAndSettle();
 
@@ -1402,7 +1412,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Navigate to Collections
+    // Navigate to Catalog then switch to Collections tab
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Collections'));
     await tester.pumpAndSettle();
 
@@ -1459,8 +1471,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Tap Categories nav in sidebar
-    await tester.tap(find.text('Categories').first);
+    // Navigate to Catalog then switch to Categories tab
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Categories'));
     await tester.pumpAndSettle();
 
     // 1. Verify Top App Bar Title
@@ -1500,11 +1514,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // 1. Verify parent Catalog item is present in sidebar with '3 in 1' badge
+    // 1. Verify Catalog item is present in sidebar
     expect(find.text('Catalog'), findsOneWidget);
-    expect(find.text('3 in 1'), findsOneWidget);
 
-    // 2. Tap Catalog parent item in sidebar -> navigates to Products
+    // 2. Tap Catalog item in sidebar -> navigates to Products
     await tester.tap(find.text('Catalog'));
     await tester.pumpAndSettle();
 
@@ -1513,9 +1526,7 @@ void main() {
 
     // 3. Verify Top Segmented Control in CatalogView
     // The segmented tabs allow switching directly within the view
-    // Find the segmented tab buttons: Products, Collections, Categories
-    final collectionsSegmentTab = find.widgetWithText(InkWell, 'Collections').last;
-    await tester.tap(collectionsSegmentTab);
+    await tester.tap(find.text('Collections'));
     await tester.pumpAndSettle();
 
     // Verify CollectionsView is displayed
@@ -1523,8 +1534,7 @@ void main() {
     expect(find.text('Total Collections'), findsOneWidget);
 
     // 4. Switch to Categories via top segmented control
-    final categoriesSegmentTab = find.widgetWithText(InkWell, 'Categories').last;
-    await tester.tap(categoriesSegmentTab);
+    await tester.tap(find.text('Categories'));
     await tester.pumpAndSettle();
 
     // Verify CategoriesView is displayed
@@ -1533,8 +1543,7 @@ void main() {
     expect(find.text('Crop Protection'), findsOneWidget);
 
     // 5. Switch back to Products via top segmented control
-    final productsSegmentTab = find.widgetWithText(InkWell, 'Products').last;
-    await tester.tap(productsSegmentTab);
+    await tester.tap(find.text('Products'));
     await tester.pumpAndSettle();
 
     // Verify ProductsCatalog is displayed again

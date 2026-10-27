@@ -139,37 +139,14 @@ class DashboardSidebar extends StatelessWidget {
             isDark: isDark,
           ),
 
-          // Sidebar Nav Item: Products
-          _buildSidebarNavItem(
+          // Single Combined Sidebar Nav Item: Catalog (Products, Collections & Categories)
+          _buildCombinedCatalogNavItem(
             context: context,
-            index: 1,
-            title: 'Products',
-            subtitle: '38-field agri catalog',
-            icon: Icons.inventory_2_rounded,
+            selectedIndex: selectedIndex,
             isDark: isDark,
-            badgeText: '$productsCount',
-          ),
-
-          // Sidebar Nav Item: Collections
-          _buildSidebarNavItem(
-            context: context,
-            index: 2,
-            title: 'Collections',
-            subtitle: 'Crop & disease taxonomy',
-            icon: Icons.collections_bookmark_rounded,
-            isDark: isDark,
-            badgeText: collectionsCount > 0 ? '$collectionsCount' : null,
-          ),
-
-          // Sidebar Nav Item: Categories
-          _buildSidebarNavItem(
-            context: context,
-            index: 3,
-            title: 'Categories',
-            subtitle: '3-tier Agri hierarchy',
-            icon: Icons.account_tree_rounded,
-            isDark: isDark,
-            badgeText: categoriesCount > 0 ? '$categoriesCount' : null,
+            productsCount: productsCount,
+            collectionsCount: collectionsCount,
+            categoriesCount: categoriesCount,
           ),
 
           // Sidebar Nav Item: Sellers
@@ -459,6 +436,236 @@ class DashboardSidebar extends StatelessWidget {
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCombinedCatalogNavItem({
+    required BuildContext context,
+    required int selectedIndex,
+    required bool isDark,
+    required int productsCount,
+    required int collectionsCount,
+    required int categoriesCount,
+  }) {
+    final isCatalogActive = selectedIndex == 1 || selectedIndex == 2 || selectedIndex == 3;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isCatalogActive
+              ? (isDark
+                  ? const Color(0xFF059669).withValues(alpha: 0.08)
+                  : const Color(0xFF059669).withValues(alpha: 0.04))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isCatalogActive
+                ? const Color(0xFF059669).withValues(alpha: 0.25)
+                : Colors.transparent,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Parent Catalog Tab Header
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () {
+                  if (!isCatalogActive) {
+                    onNavItemSelected(1);
+                    if (isDrawer) Navigator.of(context).pop();
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.inventory_2_rounded,
+                        size: 20,
+                        color: isCatalogActive
+                            ? const Color(0xFF059669)
+                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Catalog',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13.5,
+                                    fontWeight: isCatalogActive ? FontWeight.w800 : FontWeight.w600,
+                                    color: isCatalogActive
+                                        ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                                        : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF059669).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '3 in 1',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF059669),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              'Products, collections & taxonomy',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10.5,
+                                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Sub-Items: Products, Collections, Categories
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: Column(
+                children: [
+                  _buildSubNavItem(
+                    context: context,
+                    index: 1,
+                    title: 'Products',
+                    icon: Icons.inventory_2_outlined,
+                    badgeText: '$productsCount',
+                    isDark: isDark,
+                    isSelected: selectedIndex == 1,
+                  ),
+                  const SizedBox(height: 2),
+                  _buildSubNavItem(
+                    context: context,
+                    index: 2,
+                    title: 'Collections',
+                    icon: Icons.collections_bookmark_outlined,
+                    badgeText: collectionsCount > 0 ? '$collectionsCount' : null,
+                    isDark: isDark,
+                    isSelected: selectedIndex == 2,
+                  ),
+                  const SizedBox(height: 2),
+                  _buildSubNavItem(
+                    context: context,
+                    index: 3,
+                    title: 'Categories',
+                    icon: Icons.account_tree_outlined,
+                    badgeText: categoriesCount > 0 ? '$categoriesCount' : null,
+                    isDark: isDark,
+                    isSelected: selectedIndex == 3,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubNavItem({
+    required BuildContext context,
+    required int index,
+    required String title,
+    required IconData icon,
+    String? badgeText,
+    required bool isDark,
+    required bool isSelected,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () {
+          onNavItemSelected(index);
+          if (isDrawer) Navigator.of(context).pop();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? (isDark
+                    ? const Color(0xFF059669).withValues(alpha: 0.22)
+                    : const Color(0xFF059669).withValues(alpha: 0.12))
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF059669).withValues(alpha: 0.4)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 8),
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected
+                    ? const Color(0xFF059669)
+                    : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected
+                        ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                        : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
+                  ),
+                ),
+              ),
+              if (badgeText != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF059669)
+                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

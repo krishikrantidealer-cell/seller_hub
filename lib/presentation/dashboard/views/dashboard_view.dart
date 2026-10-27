@@ -14,6 +14,7 @@ import 'package:seller_hub/logic/collection/collection_bloc.dart';
 import 'package:seller_hub/logic/product/product_bloc.dart';
 import 'package:seller_hub/logic/product/product_event.dart';
 import 'package:seller_hub/presentation/dashboard/views/categories_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/catalog_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/collections_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
@@ -153,7 +154,13 @@ class _DashboardViewState extends State<DashboardView> {
                         horizontal: isWide ? 32 : 16,
                         vertical: 24,
                       ),
-                      child: _buildActiveContent(isWide, products),
+                      child: _buildActiveContent(
+                        isWide,
+                        products,
+                        totalProductsCount,
+                        collectionsCount,
+                        categoriesCount,
+                      ),
                     ),
                   ),
                 ),
@@ -165,7 +172,13 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  Widget _buildActiveContent(bool isWide, List<Product> products) {
+  Widget _buildActiveContent(
+    bool isWide,
+    List<Product> products,
+    int totalProductsCount,
+    int collectionsCount,
+    int categoriesCount,
+  ) {
     if (_selectedNavIndex == 0) {
       return OperationsOverviewView(
         products: products,
@@ -189,51 +202,64 @@ class _DashboardViewState extends State<DashboardView> {
       );
     }
 
-    // Nav Index 1: Products
-    if (_selectedNavIndex == 1) {
-      if (_viewingProduct != null) {
-        return ProductDetailsView(
-          product: _viewingProduct!,
-          startInEditMode: _openInEditMode,
-          onBack: () => setState(() {
-            _viewingProduct = null;
-            _openInEditMode = false;
-          }),
-          onProductUpdated: (updated) {
-            context.read<ProductBloc>().add(UpdateLocalProduct(updated));
-            setState(() {
-              _viewingProduct = updated;
-            });
-          },
-        );
+    // Nav Index 1, 2, 3: Unified Catalog (Products, Collections, Categories)
+    if (_selectedNavIndex == 1 || _selectedNavIndex == 2 || _selectedNavIndex == 3) {
+      Widget catalogChild;
+      if (_selectedNavIndex == 1) {
+        if (_viewingProduct != null) {
+          catalogChild = ProductDetailsView(
+            product: _viewingProduct!,
+            startInEditMode: _openInEditMode,
+            onBack: () => setState(() {
+              _viewingProduct = null;
+              _openInEditMode = false;
+            }),
+            onProductUpdated: (updated) {
+              context.read<ProductBloc>().add(UpdateLocalProduct(updated));
+              setState(() {
+                _viewingProduct = updated;
+              });
+            },
+          );
+        } else {
+          catalogChild = ProductCatalogView(
+            products: products,
+            sellers: _sellers,
+            initialSellerFilter: _productCatalogSellerFilter,
+            isWide: isWide,
+            onOpenProductDetails: (product, {bool editMode = false}) {
+              setState(() {
+                _viewingProduct = product;
+                _openInEditMode = editMode;
+              });
+            },
+            onOpenAddProduct: () => _openAddProductDialog(context),
+            onProductUpdated: (updated) {
+              context.read<ProductBloc>().add(UpdateLocalProduct(updated));
+            },
+          );
+        }
+      } else if (_selectedNavIndex == 2) {
+        catalogChild = CollectionsView(isWide: isWide);
+      } else {
+        catalogChild = CategoriesView(isWide: isWide);
       }
 
-      return ProductCatalogView(
-        products: products,
-        sellers: _sellers,
-        initialSellerFilter: _productCatalogSellerFilter,
-        isWide: isWide,
-        onOpenProductDetails: (product, {bool editMode = false}) {
+      return CatalogView(
+        activeSubTabIndex: _selectedNavIndex - 1, // 0 = Products, 1 = Collections, 2 = Categories
+        onSubTabChanged: (tabIndex) {
           setState(() {
-            _viewingProduct = product;
-            _openInEditMode = editMode;
+            _selectedNavIndex = tabIndex + 1;
+            _viewingProduct = null;
+            _openInEditMode = false;
           });
         },
-        onOpenAddProduct: () => _openAddProductDialog(context),
-        onProductUpdated: (updated) {
-          context.read<ProductBloc>().add(UpdateLocalProduct(updated));
-        },
+        productsCount: totalProductsCount,
+        collectionsCount: collectionsCount,
+        categoriesCount: categoriesCount,
+        isWide: isWide,
+        child: catalogChild,
       );
-    }
-
-    // Nav Index 2: Collections & Sub-Collections
-    if (_selectedNavIndex == 2) {
-      return CollectionsView(isWide: isWide);
-    }
-
-    // Nav Index 3: Categories & 3-Tier Hierarchy
-    if (_selectedNavIndex == 3) {
-      return CategoriesView(isWide: isWide);
     }
 
     // Nav Index 4: Sellers Directory & Profile

@@ -15,12 +15,14 @@ class ProductResponseDto extends Equatable {
   });
 
   factory ProductResponseDto.fromJson(Map<String, dynamic> json) {
+    ProductPageData? pageData;
+    if (json['data'] != null) {
+      pageData = ProductPageData.fromJson(json['data']);
+    }
     return ProductResponseDto(
-      success: json['success'] as bool? ?? false,
+      success: json['success'] as bool? ?? (pageData != null),
       message: json['message']?.toString() ?? '',
-      data: json['data'] != null && json['data'] is Map<String, dynamic>
-          ? ProductPageData.fromJson(json['data'] as Map<String, dynamic>)
-          : null,
+      data: pageData,
       timestamp: json['timestamp']?.toString() ?? '',
     );
   }

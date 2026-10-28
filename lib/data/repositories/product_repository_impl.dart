@@ -28,6 +28,29 @@ class ProductRepositoryImpl implements ProductRepository {
   }
 
   @override
+  Future<List<Product>> getAllProducts() async {
+    try {
+      final List<Product> all = [];
+      int page = 0;
+      const int pageSize = 100;
+      int totalPages = 1;
+
+      while (page < totalPages) {
+        final pageData = await getProducts(page: page, size: pageSize);
+        all.addAll(pageData.content);
+        totalPages = pageData.totalPages;
+        page++;
+        if (pageData.content.isEmpty || page >= 20) break;
+      }
+      return all;
+    } catch (_) {
+      final cached = await getCachedProducts(page: 0, size: 100) ??
+          await getCachedProducts(page: 0, size: 20);
+      return cached?.content ?? [];
+    }
+  }
+
+  @override
   Future<ProductPageData?> getCachedProducts({
     int page = 0,
     int size = 20,
@@ -53,5 +76,14 @@ class ProductRepositoryImpl implements ProductRepository {
     );
     await localDataSource?.updateCachedProduct(updatedProduct);
     return updatedProduct;
+  }
+
+  @override
+  Future<Product> createProduct(Product product) async {
+    final created = await remoteDataSource.createProduct(
+      product.toAdminCreatePayload(),
+    );
+    await localDataSource?.updateCachedProduct(created);
+    return created;
   }
 }

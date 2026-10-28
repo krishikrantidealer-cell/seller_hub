@@ -242,6 +242,48 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
     );
   }
 
+  void _confirmToggleDelete(BuildContext context) {
+    final willDelete = !_currentCustomer.isDeleted;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(
+          willDelete ? 'Deactivate Customer Account?' : 'Restore Customer Account?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          willDelete
+              ? 'Are you sure you want to deactivate / soft-delete "${_currentCustomer.fullName.isNotEmpty ? _currentCustomer.fullName : _currentCustomer.phoneNumber}"? This triggers the soft-delete API {{baseUrl}}/api/v1/admin/users/${_currentCustomer.id}/deletion with {"deleted": true}. Their access will be revoked while historical orders remain preserved.'
+              : 'Are you sure you want to restore "${_currentCustomer.fullName.isNotEmpty ? _currentCustomer.fullName : _currentCustomer.phoneNumber}"? Their account will be reactivated on the marketplace.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<CustomerBloc>().add(
+                    ToggleDeleteAdminUser(userId: _currentCustomer.id, deleted: willDelete),
+                  );
+              setState(() {
+                _currentCustomer = _currentCustomer.copyWith(isDeleted: willDelete);
+              });
+              widget.onCustomerUpdated(_currentCustomer);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: willDelete ? const Color(0xFFE11D48) : const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(willDelete ? 'Deactivate' : 'Restore'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- TOP ACTION BAR ---
   Widget _buildTopActionBar(
     BuildContext context,
@@ -296,6 +338,30 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
           ),
         ] else ...[
           OutlinedButton.icon(
+            onPressed: () => _confirmToggleDelete(context),
+            icon: Icon(
+              _currentCustomer.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
+              size: 15,
+              color: _currentCustomer.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+            ),
+            label: Text(
+              _currentCustomer.isDeleted ? 'Restore Account' : 'Deactivate Account',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: _currentCustomer.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(
+                color: (_currentCustomer.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48)).withValues(alpha: 0.5),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
             onPressed: () => setState(() => _isEditing = true),
             icon: const Icon(Icons.edit_outlined, size: 16),
             label: Text('Edit Profile', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
@@ -319,15 +385,19 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
     Color borderColor,
     bool isWide,
   ) {
-    final statusColor = _currentCustomer.isBlocked
-        ? const Color(0xFFDC2626)
-        : (_currentCustomer.isVerified
-            ? const Color(0xFF059669)
-            : const Color(0xFFD97706));
+    final statusColor = _currentCustomer.isDeleted
+        ? const Color(0xFFE11D48)
+        : (_currentCustomer.isBlocked
+            ? const Color(0xFFDC2626)
+            : (_currentCustomer.isVerified
+                ? const Color(0xFF059669)
+                : const Color(0xFFD97706)));
 
-    final statusText = _currentCustomer.isBlocked
-        ? 'BLOCKED'
-        : (_currentCustomer.isVerified ? 'VERIFIED BUYER' : 'UNVERIFIED');
+    final statusText = _currentCustomer.isDeleted
+        ? 'DEACTIVATED (SOFT DELETED)'
+        : (_currentCustomer.isBlocked
+            ? 'BLOCKED'
+            : (_currentCustomer.isVerified ? 'VERIFIED BUYER' : 'UNVERIFIED'));
 
     return Container(
       padding: const EdgeInsets.all(22),

@@ -7,6 +7,9 @@ abstract class ProductRepository {
     int size = 20,
   });
 
+  /// Fetch all catalog products across pages (bounded by backend MAX_SIZE 100 per request)
+  Future<List<Product>> getAllProducts();
+
   /// Immediately retrieve locally cached products (0ms) on startup / restart
   Future<ProductPageData?> getCachedProducts({
     int page = 0,
@@ -22,4 +25,7 @@ abstract class ProductRepository {
     required List<String> collectionIds,
     required List<String> subCollectionIds,
   });
+
+  /// Create / assign a product to a seller via POST /api/v1/admin/products
+  Future<Product> createProduct(Product product);
 }

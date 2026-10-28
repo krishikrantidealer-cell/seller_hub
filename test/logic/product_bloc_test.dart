@@ -22,6 +22,11 @@ class MockProductRepository implements ProductRepository {
   }
 
   @override
+  Future<List<Product>> getAllProducts() async {
+    return pageDataToReturn?.content ?? cachedDataToReturn?.content ?? [];
+  }
+
+  @override
   Future<void> updateLocalProduct(Product product) async {
     lastUpdatedProduct = product;
   }
@@ -58,6 +63,17 @@ class MockProductRepository implements ProductRepository {
               productWeightUnit: 'kg',
             ))
         .copyWith(assignedCollections: [...collectionIds, ...subCollectionIds]);
+  }
+
+  @override
+  Future<Product> createProduct(Product product) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+    lastUpdatedProduct = product.copyWith(
+      id: product.id.isNotEmpty ? product.id : 'created_id_123',
+    );
+    return lastUpdatedProduct!;
   }
 
   @override
@@ -464,6 +480,47 @@ void main() {
       expect(product.totalStock, 300);
       expect(product.defaultVariant?.label, '1 ltr (1000ml x 1)');
       expect(product.resolvedCategory, 'Bio Pesticides');
+    });
+
+    test('FetchAllCatalogProducts populates allCatalogProducts in ProductState across full catalog', () async {
+      final catalog = List.generate(
+        67,
+        (i) => Product(
+          id: 'prod_$i',
+          productCode: 'PRD-00$i',
+          hsnCode: '3808',
+          title: 'Product $i',
+          technicalName: 'Tech $i',
+          vendor: 'Vendor A',
+          description: '',
+          images: const [],
+          technicalContent: '',
+          modeOfAction: '',
+          dosage: '',
+          applicationMethod: '',
+          category: 'Bio-Fertilizers',
+          isAvailable: true,
+          isFeatured: false,
+          ratings: 4.5,
+          refundPolicy: '',
+          productWeight: 1.0,
+          productWeightUnit: 'kg',
+        ),
+      );
+
+      repository.pageDataToReturn = ProductPageData(
+        content: catalog,
+        page: 0,
+        size: 100,
+        totalElements: 67,
+        totalPages: 1,
+      );
+
+      productBloc.add(const FetchAllCatalogProducts());
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(productBloc.state.allCatalogProducts.length, 67);
+      expect(productBloc.state.totalProducts, 67);
     });
   });
 }

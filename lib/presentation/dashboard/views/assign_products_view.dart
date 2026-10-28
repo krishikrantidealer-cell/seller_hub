@@ -223,7 +223,9 @@ class _AssignProductsViewState extends State<AssignProductsView> {
 
     return BlocBuilder<ProductBloc, ProductState>(
       builder: (context, prodState) {
-        final allProducts = prodState.products;
+        final allProducts = prodState.allCatalogProducts.isNotEmpty
+            ? prodState.allCatalogProducts
+            : prodState.products;
 
         // Dynamic categories from catalog
         final categories = <String>{'All'};

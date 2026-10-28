@@ -58,6 +58,13 @@ class ChangeProductPageSize extends ProductEvent {
   List<Object?> get props => [size];
 }
 
+class FetchAllCatalogProducts extends ProductEvent {
+  const FetchAllCatalogProducts();
+
+  @override
+  List<Object?> get props => [];
+}
+
 class UpdateLocalProduct extends ProductEvent {
   final Product product;
   final bool broadcastWs;
@@ -93,4 +100,19 @@ class AssignProductCollections extends ProductEvent {
 
   @override
   List<Object?> get props => [productId, collectionIds, subCollectionIds];
+}
+
+class CreateProduct extends ProductEvent {
+  final Product product;
+  final void Function(Product createdProduct)? onSuccess;
+  final void Function(String errorMessage)? onError;
+
+  const CreateProduct(
+    this.product, {
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [product];
 }

@@ -5,6 +5,9 @@ import '../../../core/models/product.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/admin_user_state.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
+import '../../../logic/category/category_bloc.dart';
+import '../../../logic/category/category_event.dart';
+import '../../../logic/category/category_state.dart';
 
 class AddProductDialog extends StatefulWidget {
   final Function(Product) onProductAdded;
@@ -25,8 +28,9 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   final _formKey = GlobalKey<FormState>();
 
   // 1. General Info Controllers
+  final _skuController = TextEditingController();
   final _productCodeController = TextEditingController();
-  final _hsnCodeController = TextEditingController();
+  final _hsnCodeController = TextEditingController(text: '3808');
   final _titleController = TextEditingController();
   final _technicalNameController = TextEditingController();
   final _vendorController = TextEditingController();
@@ -44,28 +48,29 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   final _applicationMethodController = TextEditingController();
 
   // 3. Classification & Variant Controllers
-  String _selectedCategory = 'Insecticides';
+  String _selectedCategory = 'Bio Organic Nutrients';
+  String? _selectedCategoryId = '6ab4f6f619ec643fd9bf3621';
   final _collectionsController = TextEditingController(text: 'Crop Protection');
   final _subCollectionsController = TextEditingController(text: 'Pest Management');
-  final _variantController = TextEditingController(text: 'Standard');
-  final _packSizeController = TextEditingController(text: '1');
-  String _selectedUnit = 'Litre';
+  final _variantController = TextEditingController(text: '500 ml Bottle');
+  final _packSizeController = TextEditingController(text: '500');
+  String _selectedUnit = 'ml';
 
   // 4. Pricing & Tax Controllers
-  final _displayRateController = TextEditingController();
-  final _printedMrpController = TextEditingController();
-  final _costPriceController = TextEditingController();
-  double _selectedGst = 18.0;
+  final _displayRateController = TextEditingController(text: '450');
+  final _printedMrpController = TextEditingController(text: '500');
+  final _costPriceController = TextEditingController(text: '250');
+  double _selectedGst = 5.0;
 
   // 5. Inventory & Shipping Controllers
   final _stockController = TextEditingController(text: '100');
-  final _shippedByController = TextEditingController(text: 'AgriBegri Express');
+  final _shippedByController = TextEditingController(text: 'EBS Direct');
   final _swgController = TextEditingController(text: 'Standard');
-  final _weightController = TextEditingController(text: '1.0');
-  String _selectedWeightUnit = 'kg';
-  final _dimensionsController = TextEditingController(text: '10 x 10 x 20 cm');
+  final _weightController = TextEditingController(text: '500');
+  String _selectedWeightUnit = 'g';
+  final _dimensionsController = TextEditingController(text: '20 x 10 x 10 cm');
   final _refundPolicyController = TextEditingController(text: '7 Days Returnable if unopened');
-  bool _isAvailable = true;
+  bool _isAvailable = false;
   // bool _isFeatured = false; // isFeatured temporarily commented out
   String? _selectedSellerId;
 
@@ -81,6 +86,10 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
         if (sellerBloc.state.users.isEmpty) {
           sellerBloc.add(const InitializeAdminUsers());
         }
+        final categoryBloc = context.read<CategoryBloc>();
+        if (categoryBloc.state.allCategories.isEmpty) {
+          categoryBloc.add(const InitializeCategories());
+        }
       }
     });
   }
@@ -88,6 +97,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   @override
   void dispose() {
     _tabController.dispose();
+    _skuController.dispose();
     _productCodeController.dispose();
     _hsnCodeController.dispose();
     _titleController.dispose();
@@ -130,28 +140,43 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
       return;
     }
 
-    final mrp = double.tryParse(_printedMrpController.text) ?? 0.0;
-    final rate = double.tryParse(_displayRateController.text) ?? 0.0;
-    final cost = double.tryParse(_costPriceController.text) ?? 0.0;
+    final mrp = double.tryParse(_printedMrpController.text) ?? 500.0;
+    final rate = double.tryParse(_displayRateController.text) ?? 450.0;
+    final cost = double.tryParse(_costPriceController.text) ?? 250.0;
     final discountRs = (mrp > rate) ? (mrp - rate) : 0.0;
     final discountPct = (mrp > 0) ? ((discountRs / mrp) * 100) : 0.0;
-    final stockVal = int.tryParse(_stockController.text) ?? 0;
-    final weightVal = double.tryParse(_weightController.text) ?? 0.0;
+    final stockVal = int.tryParse(_stockController.text) ?? 100;
+    final weightVal = double.tryParse(_weightController.text) ?? 500.0;
     final selectedSellerId = (_selectedSellerId != null && _selectedSellerId!.trim().isNotEmpty)
         ? _selectedSellerId!.trim()
         : widget.sellerId;
 
+    final skuVal = _skuController.text.trim().isNotEmpty
+        ? _skuController.text.trim()
+        : (_productCodeController.text.trim().isNotEmpty
+            ? _productCodeController.text.trim()
+            : 'EBS-ADM-SKU-${DateTime.now().millisecondsSinceEpoch}');
+
+    final codeVal = _productCodeController.text.trim().isNotEmpty
+        ? _productCodeController.text.trim()
+        : skuVal;
+
+    final dimText = _dimensionsController.text.trim().isNotEmpty
+        ? _dimensionsController.text.trim()
+        : '20 x 10 x 10 cm';
+
     final newProduct = Product(
       sellerId: selectedSellerId,
-      productCode: _productCodeController.text.trim().isEmpty 
-          ? 'PRD-AGRI-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}'
-          : _productCodeController.text.trim(),
-      hsnCode: _hsnCodeController.text.trim(),
+      sku: skuVal,
+      productCode: codeVal,
+      hsnCode: _hsnCodeController.text.trim().isNotEmpty ? _hsnCodeController.text.trim() : '3808',
       title: _titleController.text.trim(),
       technicalName: _technicalNameController.text.trim(),
-      vendor: _vendorController.text.trim().isEmpty ? 'Registered Seller' : _vendorController.text.trim(),
-      description: _descriptionController.text.trim(),
-      images: const ['https://images.unsplash.com/photo-1592982537447-7440770cbfc9?w=600'],
+      vendor: _vendorController.text.trim().isEmpty ? 'EBS Agro Sciences' : _vendorController.text.trim(),
+      description: _descriptionController.text.trim().isNotEmpty
+          ? _descriptionController.text.trim()
+          : _titleController.text.trim(),
+      images: const [],
       technicalContent: _technicalContentController.text.trim(),
       features: _featuresController.text.trim(),
       benefits: _benefitsController.text.trim(),
@@ -161,13 +186,16 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
       targetDiseases: _targetDiseasesController.text.trim(),
       dosage: _dosageController.text.trim(),
       applicationMethod: _applicationMethodController.text.trim(),
+      categoryId: (_selectedCategoryId != null && _selectedCategoryId!.isNotEmpty)
+          ? _selectedCategoryId!
+          : '6ab4f6f619ec643fd9bf3621',
       category: _selectedCategory,
       collections: _collectionsController.text.trim(),
       subCollections: _subCollectionsController.text.trim(),
       isAvailable: _isAvailable,
-      isFeatured: false, // isFeatured temporarily commented out
-      variant: _variantController.text.trim(),
-      packSize: _packSizeController.text.trim(),
+      isFeatured: false,
+      variant: _variantController.text.trim().isNotEmpty ? _variantController.text.trim() : '500 ml Bottle',
+      packSize: _packSizeController.text.trim().isNotEmpty ? _packSizeController.text.trim() : '500',
       displayRate: rate,
       printedMrp: mrp,
       costPrice: cost,
@@ -175,14 +203,35 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
       unit: _selectedUnit,
       gst: _selectedGst,
       discountPercentage: discountPct,
-      shippedBy: _shippedByController.text.trim(),
+      shippedBy: _shippedByController.text.trim().isNotEmpty ? _shippedByController.text.trim() : 'EBS Direct',
       swg: _swgController.text.trim(),
       stock: stockVal,
-      ratings: 5.0,
+      ratings: 0.0,
       refundPolicy: _refundPolicyController.text.trim(),
       productWeight: weightVal,
       productWeightUnit: _selectedWeightUnit,
-      dimensions: _dimensionsController.text.trim(),
+      dimensions: dimText,
+      productDimensions: ProductDimensions.fromJson(dimText),
+      variants: [
+        ProductVariant(
+          label: _variantController.text.trim().isNotEmpty ? _variantController.text.trim() : '500 ml Bottle',
+          unit: _selectedUnit,
+          packSize: int.tryParse(_packSizeController.text.trim()) ?? 500,
+          packSizeUnit: _selectedUnit,
+          packQuantity: 1,
+          packUnit: 'bottle',
+          shippedBy: _shippedByController.text.trim().isNotEmpty ? _shippedByController.text.trim() : 'EBS Direct',
+          displayRate: rate,
+          printedMrp: mrp,
+          costPrice: cost,
+          discountRs: discountRs,
+          gstPercentage: _selectedGst,
+          discountPercentage: discountPct,
+          stock: stockVal,
+          pricePerBaseUnit: weightVal > 0 ? (rate / weightVal) : 0.0,
+          isDefault: true,
+        ),
+      ],
     );
 
     widget.onProductAdded(newProduct);
@@ -509,13 +558,35 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           Row(
             children: [
               Expanded(
-                child: _buildDropdown(
-                  label: 'Category',
-                  value: _selectedCategory,
-                  items: const ['Insecticides', 'Herbicides', 'Fungicides', 'Seeds', 'Fertilizers', 'PGR & Bio-Nutrients'],
-                  onChanged: (val) => setState(() => _selectedCategory = val!),
-                  isDark: isDark,
-                  borderColor: borderColor,
+                child: BlocBuilder<CategoryBloc, CategoryState>(
+                  builder: (context, catState) {
+                    final categories = catState.allCategories;
+                    final categoryNames = categories.isNotEmpty
+                        ? categories.map((c) => c.name).toSet().toList()
+                        : const ['Bio Organic Nutrients', 'Insecticides', 'Herbicides', 'Fungicides', 'Seeds', 'Fertilizers', 'PGR & Bio-Nutrients'];
+
+                    final effectiveValue = categoryNames.contains(_selectedCategory)
+                        ? _selectedCategory
+                        : categoryNames.first;
+
+                    return _buildDropdown(
+                      label: 'Category',
+                      value: effectiveValue,
+                      items: categoryNames,
+                      onChanged: (val) {
+                        if (val == null) return;
+                        setState(() {
+                          _selectedCategory = val;
+                          final match = categories.where((c) => c.name == val).firstOrNull;
+                          if (match != null) {
+                            _selectedCategoryId = match.id;
+                          }
+                        });
+                      },
+                      isDark: isDark,
+                      borderColor: borderColor,
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 16),

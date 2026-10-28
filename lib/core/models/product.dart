@@ -16,12 +16,13 @@ class ProductDimensions extends Equatable {
 
   factory ProductDimensions.fromJson(dynamic json) {
     if (json == null) return const ProductDimensions();
-    if (json is Map<String, dynamic>) {
+    if (json is Map) {
+      final map = Map<String, dynamic>.from(json);
       return ProductDimensions(
-        length: _parseDouble(json['length']),
-        width: _parseDouble(json['width']),
-        height: _parseDouble(json['height']),
-        unit: json['unit']?.toString() ?? 'cm',
+        length: _parseDouble(map['length']),
+        width: _parseDouble(map['width']),
+        height: _parseDouble(map['height']),
+        unit: map['unit']?.toString() ?? 'cm',
       );
     } else if (json is String && json.isNotEmpty) {
       final parts = json.split(RegExp(r'[xX*]')).map((s) => s.trim()).toList();
@@ -131,6 +132,8 @@ class ProductImage extends Equatable {
     // Fallbacks
     if (mid.isEmpty && low.isNotEmpty) mid = low;
     if (low.isEmpty && mid.isNotEmpty) low = mid;
+    if (original.isEmpty && mid.isNotEmpty) original = mid;
+    if (original.isEmpty && low.isNotEmpty) original = low;
     if (mid.isEmpty && original.isNotEmpty) mid = original;
 
     return ProductImage(
@@ -223,12 +226,19 @@ class ProductVariant extends Equatable {
   factory ProductVariant.fromJson(Map<String, dynamic> json) {
     final disp = _parseDouble(json['displayRate'] ?? json['Display Rate']);
     final mrp = _parseDouble(json['printedMrp'] ?? json['Printed MRP']);
-    final disc = json['discountRs'] != null
-        ? _parseDouble(json['discountRs'])
-        : ((mrp > disp) ? (mrp - disp) : 0.0);
-    final discPct = json['discountPercentage'] != null
-        ? _parseDouble(json['discountPercentage'])
-        : (mrp > 0 ? (disc / mrp * 100) : 0.0);
+    double disc = _parseDouble(json['discountRs'] ?? json['DiscountRS']);
+    if (disc <= 0.0 && mrp > disp) {
+      disc = mrp - disp;
+    }
+    double discPct = _parseDouble(json['discountPercentage'] ?? json['Discount Percentage']);
+    if (discPct <= 0.0 && mrp > 0 && disc > 0) {
+      discPct = (disc / mrp * 100);
+    }
+    final totalBaseQty = _parseInt(json['totalBaseQuantity'], 1000);
+    double pricePerBaseUnit = _parseDouble(json['pricePerBaseUnit']);
+    if (pricePerBaseUnit <= 0.0 && totalBaseQty > 0 && disp > 0) {
+      pricePerBaseUnit = disp / totalBaseQty;
+    }
 
     return ProductVariant(
       id: _parseString(json['_id'] ?? json['id']),
@@ -242,17 +252,17 @@ class ProductVariant extends Equatable {
       packUnit: _parseString(json['packUnit'] ?? 'bottle'),
       shippedBy: _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'Seller Standard'),
       swg: _parseDouble(json['swg'] ?? json['SWG']),
-      totalBaseQuantity: _parseInt(json['totalBaseQuantity'], 1000),
+      totalBaseQuantity: totalBaseQty,
       totalBaseUnit: _parseString(json['totalBaseUnit'] ?? 'ml'),
       dimensions: ProductDimensions.fromJson(json['dimensions'] ?? json['Dimmensions']),
       displayRate: disp,
       printedMrp: mrp,
       costPrice: _parseDouble(json['costPrice'] ?? json['Cost Price']),
       discountRs: disc,
-      gstPercentage: _parseDouble(json['gstPercentage'] ?? json['GST'] ?? 18.0),
+      gstPercentage: _parseDouble(json['gstPercentage'] ?? json['GST'] ?? 5.0, 5.0),
       discountPercentage: discPct,
       stock: _parseInt(json['stock'] ?? json['Stock']),
-      pricePerBaseUnit: _parseDouble(json['pricePerBaseUnit']),
+      pricePerBaseUnit: pricePerBaseUnit,
     );
   }
 
@@ -280,6 +290,23 @@ class ProductVariant extends Equatable {
     'discountPercentage': discountPercentage,
     'stock': stock,
     'pricePerBaseUnit': pricePerBaseUnit,
+  };
+
+  Map<String, dynamic> toAdminPayload() => {
+    'label': label.isNotEmpty ? label : '500 ml Bottle',
+    'unit': unit.isNotEmpty ? unit : 'ml',
+    'packSize': packSize > 0 ? packSize : 500,
+    'packSizeUnit': packSizeUnit.isNotEmpty ? packSizeUnit : (unit.isNotEmpty ? unit : 'ml'),
+    'packQuantity': packQuantity > 0 ? packQuantity : 1,
+    'packUnit': packUnit.isNotEmpty ? packUnit : 'bottle',
+    'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'EBS Direct',
+    'displayRate': displayRate > 0 ? displayRate : 450.0,
+    'printedMrp': printedMrp > 0 ? printedMrp : 500.0,
+    'costPrice': costPrice > 0 ? costPrice : 250.0,
+    'discountRs': discountRs > 0 ? discountRs : 50.0,
+    'gstPercentage': gstPercentage > 0 ? gstPercentage : 5.0,
+    'discountPercentage': discountPercentage > 0 ? discountPercentage : 10.0,
+    'stock': stock > 0 ? stock : 100,
   };
 
   ProductVariant copyWith({
@@ -379,11 +406,14 @@ class Product extends Equatable {
   final bool isFeatured;
   final List<ProductVariant> variants;
   final double ratings;
+  final int totalReviews;
   final String refundPolicy;
   final double productWeight;
   final String productWeightUnit;
   final ProductDimensions productDimensions;
   final String status;
+  final bool isDeleted;
+  final DateTime? deletedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final int version;
@@ -406,45 +436,48 @@ class Product extends Equatable {
   Product({
     this.id = '',
     this.sku = '',
-    required this.productCode,
-    required this.hsnCode,
+    this.productCode = '',
+    this.hsnCode = '3808',
     this.sellerId = '',
     required this.title,
-    required this.technicalName,
-    required this.vendor,
-    required this.description,
-    required this.images,
+    this.technicalName = '',
+    this.vendor = '',
+    this.description = '',
+    this.images = const [],
     this.productImages = const [],
-    required this.technicalContent,
+    this.technicalContent = '',
     String features = '',
     List<String>? featuresList,
     String benefits = '',
     List<String>? benefitsList,
-    required this.modeOfAction,
+    this.modeOfAction = '',
     String suitableCrop = '',
     List<String>? suitableCropsList,
     String targetPests = '',
     List<String>? targetPestsList,
     String targetDiseases = '',
     List<String>? targetDiseasesList,
-    required this.dosage,
-    required this.applicationMethod,
-    required this.category,
+    this.dosage = '',
+    this.applicationMethod = '',
+    this.category = '',
     this.categoryId = '',
     this.collections = '',
     this.collectionIds = const [],
     this.subCollections = '',
     this.subCollectionIds = const [],
     this.assignedCollections = const [],
-    required this.isAvailable,
-    required this.isFeatured,
+    this.isAvailable = false,
+    this.isFeatured = false,
     this.variants = const [],
-    required this.ratings,
-    required this.refundPolicy,
-    required this.productWeight,
-    required this.productWeightUnit,
+    this.ratings = 0.0,
+    this.totalReviews = 0,
+    this.refundPolicy = '',
+    this.productWeight = 0.0,
+    this.productWeightUnit = 'g',
     this.productDimensions = const ProductDimensions(),
     this.status = 'ACTIVE',
+    this.isDeleted = false,
+    this.deletedAt,
     this.createdAt,
     this.updatedAt,
     this.version = 1,
@@ -489,6 +522,7 @@ class Product extends Equatable {
 
   int get variantsCount => variants.isNotEmpty ? variants.length : 1;
   bool get hasMultipleVariants => variants.length > 1;
+  double get averageRating => ratings;
 
   double get minDisplayRate {
     if (variants.isEmpty) return displayRate;
@@ -700,9 +734,10 @@ class Product extends Equatable {
     List<ProductVariant> parsedVariants = [];
     if (json['variants'] is List) {
       parsedVariants = (json['variants'] as List)
-          .whereType<Map<String, dynamic>>()
-          .map((v) => ProductVariant.fromJson(v))
+          .whereType<Map>()
+          .map((v) => ProductVariant.fromJson(Map<String, dynamic>.from(v)))
           .toList();
+      parsedVariants.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
     }
 
     final id = _parseString(json['_id'] ?? json['id']);
@@ -719,15 +754,16 @@ class Product extends Equatable {
     final rawImgs = json['productImages'] ?? json['ProductImages'];
     if (rawImgs is List) {
       parsedProductImages = rawImgs
-          .whereType<Map<String, dynamic>>()
-          .map((m) => ProductImage.fromJson(m))
+          .whereType<Map>()
+          .map((m) => ProductImage.fromJson(Map<String, dynamic>.from(m)))
           .toList();
+      parsedProductImages.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
     }
 
     var images = _parseListString(json['images'] ?? json['Images']);
     if (images.isEmpty && parsedProductImages.isNotEmpty) {
       images = parsedProductImages
-          .map((img) => img.midUrl.isNotEmpty ? img.midUrl : img.lowUrl)
+          .map((img) => img.midUrl.isNotEmpty ? img.midUrl : (img.lowUrl.isNotEmpty ? img.lowUrl : img.originalUrl))
           .where((url) => url.isNotEmpty)
           .toList();
     }
@@ -742,25 +778,44 @@ class Product extends Equatable {
 
     final dosage = _parseString(json['dosage'] ?? json['Dosage']);
     final applicationMethod = _parseString(json['applicationMethod'] ?? json['Application Method']);
-    final category = _parseString(json['category'] ?? json['Category']);
-    final categoryId = _parseString(json['categoryId'] ?? json['category_id']);
+
+    var categoryId = '';
+    var category = '';
+    if (json['category'] is Map) {
+      final catMap = Map<String, dynamic>.from(json['category'] as Map);
+      categoryId = _parseString(catMap['id'] ?? catMap['_id']);
+      category = _parseString(catMap['name'] ?? catMap['title']);
+    } else {
+      category = _parseString(json['category'] ?? json['Category'] ?? json['categoryName']);
+      categoryId = _parseString(json['categoryId'] ?? json['category_id']);
+    }
+
     final collections = _parseString(json['collections'] ?? json['Collections']);
-    final collectionIds = _parseListString(json['collectionIds'] ?? json['collection_ids']);
+    var collectionIds = _parseListString(json['collectionIds'] ?? json['collection_ids']);
     final subCollections = _parseString(json['subCollections'] ?? json['Sub Collections']);
     final subCollectionIds = _parseListString(json['subCollectionIds'] ?? json['sub_collection_ids']);
     final assignedCollections = _parseListString(json['assignedCollections'] ?? json['assigned_collections']);
+    if (collectionIds.isEmpty && assignedCollections.isNotEmpty) {
+      collectionIds = List<String>.from(assignedCollections);
+    }
 
     final isAvailable = json['isAvailable'] as bool? ?? json['Is_Available'] as bool? ?? true;
     final isFeatured = json['isFeatured'] as bool? ?? json['Is_featured'] as bool? ?? false;
 
-    final ratings = _parseDouble(json['ratings'] ?? json['Ratings']);
+    final ratings = _parseDouble(json['averageRating'] ?? json['ratings'] ?? json['Ratings']);
+    final totalReviews = _parseInt(json['totalReviews'] ?? json['Total Reviews'], 0);
     final refundPolicy = _parseString(json['refundPolicy'] ?? json['Refund Policy']);
     final productWeight = _parseDouble(json['productWeight'] ?? json['Product Weight']);
     final productWeightUnit = _parseString(json['productWeightUnit'] ?? json['Product Weight Unit'] ?? 'kg');
     final productDimensions = ProductDimensions.fromJson(json['dimensions'] ?? json['Dimmensions']);
     final status = _parseString(json['status'] ?? 'ACTIVE');
+    final isDeleted = json['isDeleted'] as bool? ?? false;
     final version = _parseInt(json['version'], 1);
 
+    DateTime? deletedAt;
+    if (json['deletedAt'] != null) {
+      deletedAt = DateTime.tryParse(_parseString(json['deletedAt']));
+    }
     DateTime? createdAt;
     if (json['createdAt'] != null) {
       createdAt = DateTime.tryParse(_parseString(json['createdAt']));
@@ -771,19 +826,36 @@ class Product extends Equatable {
     }
 
     // Flat fallbacks if variants not provided
-    final flatVariant = _parseString(json['variant'] ?? json['Varient']);
-    final flatPackSize = _parseString(json['packSize'] ?? json['Pack Size']);
-    final flatDisplayRate = _parseDouble(json['displayRate'] ?? json['Display Rate']);
-    final flatPrintedMrp = _parseDouble(json['printedMrp'] ?? json['Printed MRP']);
-    final flatCostPrice = _parseDouble(json['costPrice'] ?? json['Cost Price']);
-    final flatDiscountRs = _parseDouble(json['discountRs'] ?? json['DiscountRS']);
-    final flatUnit = _parseString(json['unit'] ?? json['Unit']);
-    final flatGst = _parseDouble(json['gst'] ?? json['GST'] ?? 18.0);
-    final flatDiscountPct = _parseDouble(json['discountPercentage'] ?? json['Discount Percentage']);
-    final flatShippedBy = _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'Seller');
-    final flatSwg = _parseString(json['swg'] ?? json['SWG']);
-    final flatStock = _parseInt(json['stock'] ?? json['Stock']);
+    var flatVariant = _parseString(json['variant'] ?? json['Varient']);
+    var flatPackSize = _parseString(json['packSize'] ?? json['Pack Size']);
+    var flatDisplayRate = _parseDouble(json['displayRate'] ?? json['Display Rate']);
+    var flatPrintedMrp = _parseDouble(json['printedMrp'] ?? json['Printed MRP']);
+    var flatCostPrice = _parseDouble(json['costPrice'] ?? json['Cost Price']);
+    var flatDiscountRs = _parseDouble(json['discountRs'] ?? json['DiscountRS']);
+    var flatUnit = _parseString(json['unit'] ?? json['Unit']);
+    var flatGst = _parseDouble(json['gst'] ?? json['GST'] ?? 5.0, 5.0);
+    var flatDiscountPct = _parseDouble(json['discountPercentage'] ?? json['Discount Percentage']);
+    var flatShippedBy = _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'Seller');
+    var flatSwg = _parseString(json['swg'] ?? json['SWG']);
+    var flatStock = _parseInt(json['stock'] ?? json['Stock']);
     final flatDims = _parseString(json['dimensions'] ?? json['Dimmensions']);
+
+    // If variants were parsed, populate the flat fields from the default variant
+    if (parsedVariants.isNotEmpty) {
+      final defaultVar = parsedVariants.firstWhere((v) => v.isDefault, orElse: () => parsedVariants.first);
+      if (flatVariant.isEmpty) flatVariant = defaultVar.label;
+      if (flatPackSize.isEmpty) flatPackSize = defaultVar.packSize.toString();
+      if (flatDisplayRate <= 0.0) flatDisplayRate = defaultVar.displayRate;
+      if (flatPrintedMrp <= 0.0) flatPrintedMrp = defaultVar.printedMrp;
+      if (flatCostPrice <= 0.0) flatCostPrice = defaultVar.costPrice;
+      if (flatDiscountRs <= 0.0) flatDiscountRs = defaultVar.discountRs;
+      if (flatUnit.isEmpty) flatUnit = defaultVar.unit;
+      if (flatGst <= 0.0) flatGst = defaultVar.gstPercentage;
+      if (flatDiscountPct <= 0.0) flatDiscountPct = defaultVar.discountPercentage;
+      if (flatShippedBy == 'Seller') flatShippedBy = defaultVar.shippedBy;
+      if (flatSwg.isEmpty && defaultVar.swg > 0) flatSwg = defaultVar.swg.toString();
+      if (flatStock <= 0) flatStock = defaultVar.stock;
+    }
 
     return Product(
       id: id,
@@ -819,11 +891,14 @@ class Product extends Equatable {
       isFeatured: isFeatured,
       variants: parsedVariants,
       ratings: ratings,
+      totalReviews: totalReviews,
       refundPolicy: refundPolicy,
       productWeight: productWeight,
       productWeightUnit: productWeightUnit,
       productDimensions: productDimensions,
       status: status,
+      isDeleted: isDeleted,
+      deletedAt: deletedAt,
       createdAt: createdAt,
       updatedAt: updatedAt,
       version: version,
@@ -875,13 +950,60 @@ class Product extends Equatable {
     'isFeatured': isFeatured,
     'variants': variants.map((v) => v.toJson()).toList(),
     'ratings': ratings,
+    'averageRating': ratings,
+    'totalReviews': totalReviews,
+    'category': category,
     'refundPolicy': refundPolicy,
     'productWeight': productWeight,
     'productWeightUnit': productWeightUnit,
     'status': status,
+    'isDeleted': isDeleted,
+    if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
     if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
     if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
     'version': version,
+  };
+
+  /// Exports in exact structure expected by POST /api/v1/admin/products
+  Map<String, dynamic> toAdminCreatePayload() => {
+    'sellerId': sellerId,
+    'sku': sku.isNotEmpty ? sku : productCode,
+    'hsnCode': hsnCode.isNotEmpty ? hsnCode : '3808',
+    'title': title,
+    if (technicalName.isNotEmpty) 'technicalName': technicalName,
+    'vendor': vendor.isNotEmpty ? vendor : 'EBS Agro Sciences',
+    'description': description.isNotEmpty ? description : title,
+    'categoryId': categoryId.isNotEmpty ? categoryId : '6ab4f6f619ec643fd9bf3621',
+    'productWeight': productWeight > 0 ? productWeight : 500.0,
+    'productWeightUnit': productWeightUnit.isNotEmpty ? productWeightUnit : 'g',
+    'dimensions': (productDimensions.length > 0 || productDimensions.width > 0 || productDimensions.height > 0)
+        ? productDimensions.toJson()
+        : const {
+            'length': 20.0,
+            'width': 10.0,
+            'height': 10.0,
+            'unit': 'cm',
+          },
+    'variants': variants.isNotEmpty
+        ? variants.map((v) => v.toAdminPayload()).toList()
+        : [
+            {
+              'label': variant.isNotEmpty ? variant : '500 ml Bottle',
+              'unit': unit.isNotEmpty ? unit : 'ml',
+              'packSize': int.tryParse(packSize) ?? 500,
+              'packSizeUnit': unit.isNotEmpty ? unit : 'ml',
+              'packQuantity': 1,
+              'packUnit': 'bottle',
+              'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'EBS Direct',
+              'displayRate': displayRate > 0 ? displayRate : 450.0,
+              'printedMrp': printedMrp > 0 ? printedMrp : 500.0,
+              'costPrice': costPrice > 0 ? costPrice : 250.0,
+              'discountRs': discountRs > 0 ? discountRs : 50.0,
+              'gstPercentage': gst > 0 ? gst : 5.0,
+              'discountPercentage': discountPercentage > 0 ? discountPercentage : 10.0,
+              'stock': stock > 0 ? stock : 100,
+            }
+          ],
   };
 
   /// Exports in standard 38-field flat JSON with canonical keys for loss-free caching and table exports
@@ -916,9 +1038,13 @@ class Product extends Equatable {
     'Dosage': dosage,
     'Application Method': applicationMethod,
     'Category': category,
+    'category': category,
+    'categoryId': categoryId,
+    'category_id': categoryId,
     'Collections': collections,
     'Sub Collections': subCollections,
     'assignedCollections': assignedCollections,
+    'variants': variants.map((v) => v.toJson()).toList(),
     'Is_Available': isAvailable,
     'Is_featured': isFeatured,
     'Varient': variant,
@@ -933,7 +1059,13 @@ class Product extends Equatable {
     'Shipped By': shippedBy,
     'SWG': swg,
     'Stock': stock,
+    'status': status,
+    'isDeleted': isDeleted,
+    if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
     'Ratings': ratings,
+    'ratings': ratings,
+    'averageRating': ratings,
+    'totalReviews': totalReviews,
     'Refund Policy': refundPolicy,
     'Product Weight': productWeight,
     'Product Weight Unit': productWeightUnit,
@@ -989,12 +1121,15 @@ class Product extends Equatable {
     String? swg,
     int? stock,
     double? ratings,
+    int? totalReviews,
     String? refundPolicy,
     double? productWeight,
     String? productWeightUnit,
     String? dimensions,
     ProductDimensions? productDimensions,
     String? status,
+    bool? isDeleted,
+    DateTime? deletedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
     int? version,
@@ -1060,12 +1195,15 @@ class Product extends Equatable {
       isFeatured: isFeatured ?? this.isFeatured,
       variants: updatedVariants,
       ratings: ratings ?? this.ratings,
+      totalReviews: totalReviews ?? this.totalReviews,
       refundPolicy: refundPolicy ?? this.refundPolicy,
       productWeight: productWeight ?? this.productWeight,
       productWeightUnit: productWeightUnit ?? this.productWeightUnit,
       dimensions: dimensions ?? this.dimensions,
       productDimensions: productDimensions ?? this.productDimensions,
       status: status ?? this.status,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       version: version ?? this.version,
@@ -1106,9 +1244,12 @@ class Product extends Equatable {
     isAvailable,
     isFeatured,
     status,
+    isDeleted,
     version,
     productImages,
     assignedCollections,
+    ratings,
+    totalReviews,
   ];
 }
 
@@ -1170,24 +1311,45 @@ class ProductPageData extends Equatable {
     this.count = 0,
   });
 
-  factory ProductPageData.fromJson(Map<String, dynamic> json) {
+  factory ProductPageData.fromJson(dynamic json) {
+    if (json == null) return const ProductPageData();
+    if (json is List) {
+      final products = json
+          .whereType<Map>()
+          .map((item) => Product.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+      return ProductPageData(
+        content: products,
+        page: 0,
+        size: products.isNotEmpty ? products.length : 20,
+        totalElements: products.length,
+        totalPages: 1,
+        first: true,
+        last: true,
+        count: products.length,
+      );
+    }
+    if (json is! Map) return const ProductPageData();
+    final map = Map<String, dynamic>.from(json);
+
     List<Product> products = [];
-    if (json['content'] is List) {
-      products = (json['content'] as List)
-          .whereType<Map<String, dynamic>>()
-          .map((item) => Product.fromJson(item))
+    final rawList = map['content'] ?? map['products'] ?? map['items'];
+    if (rawList is List) {
+      products = rawList
+          .whereType<Map>()
+          .map((item) => Product.fromJson(Map<String, dynamic>.from(item)))
           .toList();
     }
 
     return ProductPageData(
       content: products,
-      page: _parseInt(json['page'], 0),
-      size: _parseInt(json['size'], 20),
-      totalElements: _parseInt(json['totalElements'], products.length),
-      totalPages: _parseInt(json['totalPages'], 1),
-      first: json['first'] as bool? ?? true,
-      last: json['last'] as bool? ?? true,
-      count: _parseInt(json['count'], products.length),
+      page: _parseInt(map['page'] ?? map['number'], 0),
+      size: _parseInt(map['size'] ?? map['pageSize'], products.isNotEmpty ? products.length : 20),
+      totalElements: _parseInt(map['totalElements'] ?? map['total'] ?? map['totalCount'], products.length),
+      totalPages: _parseInt(map['totalPages'] ?? map['total_pages'], 1),
+      first: map['first'] as bool? ?? true,
+      last: map['last'] as bool? ?? true,
+      count: _parseInt(map['count'] ?? map['numberOfElements'], products.length),
     );
   }
 

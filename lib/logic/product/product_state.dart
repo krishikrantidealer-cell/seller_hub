@@ -13,6 +13,7 @@ class ProductState extends Equatable {
   final bool isAssigningCollections;
   final String? assignCollectionsError;
   final Product? lastAssignedProduct;
+  final List<Product> allCatalogProducts;
 
   const ProductState({
     this.status = ProductStatus.initial,
@@ -24,12 +25,15 @@ class ProductState extends Equatable {
     this.isAssigningCollections = false,
     this.assignCollectionsError,
     this.lastAssignedProduct,
+    this.allCatalogProducts = const [],
   });
 
   List<Product> get products => pageData.content;
-  int get totalProducts => pageData.totalElements;
+  int get totalProducts => pageData.totalElements > 0
+      ? pageData.totalElements
+      : (allCatalogProducts.isNotEmpty ? allCatalogProducts.length : pageData.content.length);
   int get totalPages => pageData.totalPages > 0 ? pageData.totalPages : 1;
-  bool get hasProducts => pageData.content.isNotEmpty;
+  bool get hasProducts => pageData.content.isNotEmpty || allCatalogProducts.isNotEmpty;
 
   ProductState copyWith({
     ProductStatus? status,
@@ -42,6 +46,7 @@ class ProductState extends Equatable {
     String? assignCollectionsError,
     Product? lastAssignedProduct,
     bool clearLastAssignedProduct = false,
+    List<Product>? allCatalogProducts,
   }) {
     return ProductState(
       status: status ?? this.status,
@@ -55,6 +60,7 @@ class ProductState extends Equatable {
       lastAssignedProduct: clearLastAssignedProduct
           ? null
           : (lastAssignedProduct ?? this.lastAssignedProduct),
+      allCatalogProducts: allCatalogProducts ?? this.allCatalogProducts,
     );
   }
 
@@ -69,5 +75,6 @@ class ProductState extends Equatable {
     isAssigningCollections,
     assignCollectionsError,
     lastAssignedProduct,
+    allCatalogProducts,
   ];
 }

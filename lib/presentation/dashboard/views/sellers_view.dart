@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/seller.dart';
 import '../../../core/models/product.dart';
+import '../../../logic/admin_user/admin_user_event.dart';
+import '../../../logic/admin_user/seller_bloc.dart';
 
 class SellersView extends StatefulWidget {
   final List<SellerProfile> sellers;
@@ -173,12 +176,12 @@ class _SellersViewState extends State<SellersView> {
                   ),
                   child: Row(
                     children: [
-                      Expanded(flex: 5, child: _buildColHeader('SELLER & TRADE NAME', isDark)),
+                      Expanded(flex: 4, child: _buildColHeader('SELLER & TRADE NAME', isDark)),
                       Expanded(flex: 3, child: _buildColHeader('CONTACT & LOCATION', isDark)),
                       Expanded(flex: 2, child: _buildColHeader('GSTIN & LICENSE', isDark)),
                       Expanded(flex: 2, child: _buildColHeader('METRICS & ORDERS', isDark)),
                       Expanded(flex: 2, child: _buildColHeader('STATUS', isDark)),
-                      Expanded(flex: 2, child: _buildColHeader('ACTIONS', isDark, alignRight: true)),
+                      Expanded(flex: 3, child: _buildColHeader('ACTIONS', isDark, alignRight: true)),
                     ],
                   ),
                 ),
@@ -252,9 +255,9 @@ class _SellersViewState extends State<SellersView> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              // Seller & Trade Name (Flex 5)
+              // Seller & Trade Name (Flex 4)
               Expanded(
-                flex: 5,
+                flex: 4,
                 child: Row(
                   children: [
                     Container(
@@ -412,62 +415,91 @@ class _SellersViewState extends State<SellersView> {
                 ),
               ),
 
-              // Actions (Flex 2)
+              // Actions (Flex 3)
               Expanded(
-                flex: 2,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // View Products Button
-                    Tooltip(
-                      message: "View Seller's Products",
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(6),
-                        onTap: () => widget.onViewSellerProducts(s.tradeName),
-                        child: Container(
-                          width: 32,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB).withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+                flex: 3,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // View Products Button
+                      Tooltip(
+                        message: "View Seller's Products",
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () => widget.onViewSellerProducts(s.tradeName),
+                          child: Container(
+                            width: 32,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.inventory_2_outlined,
-                            size: 15,
-                            color: Color(0xFF2563EB),
+                            child: const Icon(
+                              Icons.inventory_2_outlined,
+                              size: 15,
+                              color: Color(0xFF2563EB),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    // View Profile Button
-                    Tooltip(
-                      message: 'View Seller Profile',
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(6),
-                        onTap: () => widget.onSelectSeller(s),
-                        child: Container(
-                          width: 32,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF059669).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: const Color(0xFF059669).withValues(alpha: 0.3),
+                      const SizedBox(width: 6),
+                      // View Profile Button
+                      Tooltip(
+                        message: 'View Seller Profile',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () => widget.onSelectSeller(s),
+                          child: Container(
+                            width: 32,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF059669).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFF059669).withValues(alpha: 0.3),
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.visibility_rounded,
-                            size: 15,
-                            color: Color(0xFF059669),
+                            child: const Icon(
+                              Icons.visibility_rounded,
+                              size: 15,
+                              color: Color(0xFF059669),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      // Deactivate / Soft Delete Button
+                      Tooltip(
+                        message: s.isDeleted ? 'Restore Seller' : 'Deactivate / Soft-Delete Seller',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () => _confirmToggleDeleteSeller(context, s),
+                          child: Container(
+                            width: 32,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: (s.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48)).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: (s.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48)).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Icon(
+                              s.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
+                              size: 15,
+                              color: s.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -556,6 +588,26 @@ class _SellersViewState extends State<SellersView> {
                       ),
                       child: Text('Profile', style: GoogleFonts.plusJakartaSans(fontSize: 10.5, fontWeight: FontWeight.w800)),
                     ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: () => _confirmToggleDeleteSeller(context, s),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        side: BorderSide(
+                          color: s.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+                        ),
+                      ),
+                      child: Text(
+                        s.isDeleted ? 'Restore' : 'Deactivate',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: s.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -577,6 +629,44 @@ class _SellersViewState extends State<SellersView> {
           letterSpacing: 0.6,
           color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
         ),
+      ),
+    );
+  }
+
+  void _confirmToggleDeleteSeller(BuildContext context, SellerProfile s) {
+    final willDelete = !s.isDeleted;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(
+          willDelete ? 'Deactivate Seller Account?' : 'Restore Seller Account?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          willDelete
+              ? 'Are you sure you want to deactivate / soft-delete "${s.tradeName}" (ID: ${s.id})? This triggers {{baseUrl}}/api/v1/admin/users/${s.id}/deletion with {"deleted": true}. Their storefront and products will be deactivated while historical orders and ledger records remain preserved.'
+              : 'Are you sure you want to restore "${s.tradeName}"? Their account will be reactivated on the marketplace.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<SellerBloc>().add(
+                    ToggleDeleteAdminUser(userId: s.id, deleted: willDelete),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: willDelete ? const Color(0xFFE11D48) : const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(willDelete ? 'Deactivate' : 'Restore'),
+          ),
+        ],
       ),
     );
   }

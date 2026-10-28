@@ -24,6 +24,8 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<UpdateLocalProduct>(_onUpdateLocalProduct);
     on<WebSocketProductUpdateReceived>(_onWebSocketProductUpdateReceived);
     on<AssignProductCollections>(_onAssignProductCollections);
+    on<FetchAllCatalogProducts>(_onFetchAllCatalogProducts);
+    on<CreateProduct>(_onCreateProduct);
 
     // Subscribe to live WebSocket product and inventory events
     _wsSubscription = _webSocketService.productUpdates.listen((payload) {
@@ -72,6 +74,21 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         isBackground: false,
       ));
     }
+
+    // Hydrate complete catalog across all pages for bulk assignment, dialogs, and filters
+    add(const FetchAllCatalogProducts());
+  }
+
+  Future<void> _onFetchAllCatalogProducts(
+    FetchAllCatalogProducts event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      final all = await productRepository.getAllProducts();
+      if (all.isNotEmpty) {
+        emit(state.copyWith(allCatalogProducts: all));
+      }
+    } catch (_) {}
   }
 
   Future<void> _onFetchProducts(
@@ -186,10 +203,26 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       _webSocketService.broadcastProductChange(event.product);
     }
 
+    // Also keep allCatalogProducts in sync
+    List<Product>? updatedAll;
+    if (state.allCatalogProducts.isNotEmpty) {
+      final allList = List<Product>.from(state.allCatalogProducts);
+      final aIdx = allList.indexWhere((p) =>
+          (p.id.isNotEmpty && p.id == event.product.id) ||
+          (p.productCode.isNotEmpty && p.productCode == event.product.productCode));
+      if (aIdx != -1) {
+        allList[aIdx] = event.product;
+      } else {
+        allList.insert(0, event.product);
+      }
+      updatedAll = allList;
+    }
+
     // 0ms instant UI update without any loading screen
     emit(state.copyWith(
       status: ProductStatus.loaded,
       pageData: updatedPageData,
+      allCatalogProducts: updatedAll ?? state.allCatalogProducts,
     ));
   }
 
@@ -332,6 +365,48 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         isAssigningCollections: false,
         assignCollectionsError: 'Failed to assign collections: $e',
       ));
+    }
+  }
+
+  Future<void> _onCreateProduct(
+    CreateProduct event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      final createdProduct = await productRepository.createProduct(event.product);
+      final currentList = List<Product>.from(state.pageData.content);
+      currentList.removeWhere((p) => p.id == createdProduct.id || (p.sku.isNotEmpty && p.sku == createdProduct.sku));
+      currentList.insert(0, createdProduct);
+
+      final currentAll = List<Product>.from(state.allCatalogProducts);
+      currentAll.removeWhere((p) => p.id == createdProduct.id || (p.sku.isNotEmpty && p.sku == createdProduct.sku));
+      currentAll.insert(0, createdProduct);
+
+      final updatedPageData = ProductPageData(
+        content: currentList,
+        page: state.pageData.page,
+        size: state.pageData.size,
+        totalElements: state.pageData.totalElements + 1,
+        totalPages: state.pageData.totalPages,
+        first: state.pageData.first,
+        last: state.pageData.last,
+        count: currentList.length,
+      );
+
+      emit(state.copyWith(
+        status: ProductStatus.loaded,
+        pageData: updatedPageData,
+        allCatalogProducts: currentAll,
+        errorMessage: null,
+      ));
+
+      event.onSuccess?.call(createdProduct);
+    } catch (e) {
+      final message = e is ApiException ? e.message : 'Failed to create product: $e';
+      emit(state.copyWith(
+        errorMessage: message,
+      ));
+      event.onError?.call(message);
     }
   }
 }

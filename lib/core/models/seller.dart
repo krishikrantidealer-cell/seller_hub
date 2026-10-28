@@ -89,8 +89,10 @@ class SellerProfile extends Equatable {
   final int totalProducts;
   final int totalOrders;
   final double grossSalesValue;
-  final String status; // ACTIVE, VERIFIED, KYC_PENDING, SUSPENDED
+  final String status; // ACTIVE, VERIFIED, KYC_PENDING, SUSPENDED, DEACTIVATED
   final bool isVerified;
+  final bool isBlocked;
+  final bool isDeleted;
   final DateTime? joinedAt;
   final DateTime? updatedAt;
   final List<String> kycDocuments;
@@ -121,31 +123,50 @@ class SellerProfile extends Equatable {
     this.grossSalesValue = 0.0,
     this.status = 'ACTIVE',
     this.isVerified = true,
+    this.isBlocked = false,
+    this.isDeleted = false,
     this.joinedAt,
     this.updatedAt,
     this.kycDocuments = const [],
   });
 
   factory SellerProfile.fromAdminUser(AdminUser u) {
+    String derivedPan = '';
+    if (u.gstNumber != null && u.gstNumber!.trim().length == 15) {
+      derivedPan = u.gstNumber!.trim().substring(2, 12).toUpperCase();
+    }
+
+    final docs = <String>[];
+    if (u.gstNumber != null && u.gstNumber!.isNotEmpty) docs.add('GST Certificate (${u.gstNumber})');
+    if (derivedPan.isNotEmpty) docs.add('PAN Card ($derivedPan)');
+    if (u.licenceImage != null && u.licenceImage!.isNotEmpty) docs.add('Fertilizer & Pesticide License');
+    if (u.shopImage != null && u.shopImage!.isNotEmpty) docs.add('Storefront / Shop Verification Photo');
+
     return SellerProfile(
       id: u.id,
-      sellerCode: u.id.length >= 6 ? 'SLR-${u.id.substring(u.id.length - 6).toUpperCase()}' : 'SLR-${u.id}',
+      sellerCode: u.id,
       companyName: u.displayName,
       tradeName: u.displayName,
       contactPerson: u.fullName,
       email: u.email ?? '',
       phone: u.phoneNumber,
       gstin: u.gstNumber ?? '',
+      panNumber: derivedPan,
       registeredAddress: u.fullAddress,
       city: u.address?.cityTehsil ?? '',
       state: u.address?.state ?? '',
       pincode: u.address?.pincode ?? '',
       warehouseAddress: u.fullAddress,
-      status: u.isBlocked ? 'SUSPENDED' : (u.isVerified || u.isKycComplete ? 'VERIFIED' : 'ACTIVE'),
+      status: u.isDeleted
+          ? 'DEACTIVATED'
+          : (u.isBlocked ? 'SUSPENDED' : (u.isVerified || u.isKycComplete ? 'VERIFIED' : 'ACTIVE')),
       isVerified: u.isVerified,
+      isBlocked: u.isBlocked,
+      isDeleted: u.isDeleted,
       joinedAt: u.createdAt,
       updatedAt: u.updatedAt,
       licenseNumber: u.licenceImage ?? '',
+      kycDocuments: docs,
     );
   }
 
@@ -191,7 +212,13 @@ class SellerProfile extends Equatable {
       email: json['email']?.toString() ?? '',
       phone: json['phoneNumber']?.toString() ?? json['phone']?.toString() ?? '',
       gstin: json['gstNumber']?.toString() ?? json['gstin']?.toString() ?? '',
-      panNumber: json['panNumber']?.toString() ?? '',
+      panNumber: (json['panNumber'] != null && json['panNumber'].toString().isNotEmpty)
+          ? json['panNumber'].toString()
+          : ((json['gstNumber'] != null && json['gstNumber'].toString().length == 15)
+              ? json['gstNumber'].toString().substring(2, 12).toUpperCase()
+              : (json['gstin'] != null && json['gstin'].toString().length == 15
+                  ? json['gstin'].toString().substring(2, 12).toUpperCase()
+                  : '')),
       licenseNumber: json['licenceImage']?.toString() ?? json['licenseNumber']?.toString() ?? '',
       businessType: json['businessType']?.toString() ?? 'Private Limited',
       registeredAddress: regAddress,
@@ -208,6 +235,8 @@ class SellerProfile extends Equatable {
       grossSalesValue: (json['grossSalesValue'] as num?)?.toDouble() ?? 0.0,
       status: statusStr,
       isVerified: json['isVerified'] as bool? ?? true,
+      isBlocked: json['isBlocked'] == true,
+      isDeleted: json['isDeleted'] == true,
       joinedAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : (json['joinedAt'] != null ? DateTime.tryParse(json['joinedAt'].toString()) : null),
@@ -242,6 +271,8 @@ class SellerProfile extends Equatable {
     'grossSalesValue': grossSalesValue,
     'status': status,
     'isVerified': isVerified,
+    'isBlocked': isBlocked,
+    'isDeleted': isDeleted,
     if (joinedAt != null) 'joinedAt': joinedAt!.toIso8601String(),
     if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
     'kycDocuments': kycDocuments,
@@ -273,6 +304,8 @@ class SellerProfile extends Equatable {
     double? grossSalesValue,
     String? status,
     bool? isVerified,
+    bool? isBlocked,
+    bool? isDeleted,
     DateTime? joinedAt,
     DateTime? updatedAt,
     List<String>? kycDocuments,
@@ -303,6 +336,8 @@ class SellerProfile extends Equatable {
       grossSalesValue: grossSalesValue ?? this.grossSalesValue,
       status: status ?? this.status,
       isVerified: isVerified ?? this.isVerified,
+      isBlocked: isBlocked ?? this.isBlocked,
+      isDeleted: isDeleted ?? this.isDeleted,
       joinedAt: joinedAt ?? this.joinedAt,
       updatedAt: updatedAt ?? this.updatedAt,
       kycDocuments: kycDocuments ?? this.kycDocuments,
@@ -321,6 +356,8 @@ class SellerProfile extends Equatable {
     gstin,
     status,
     isVerified,
+    isBlocked,
+    isDeleted,
     rating,
   ];
 

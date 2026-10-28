@@ -505,7 +505,7 @@ class _CustomersViewState extends State<CustomersView> {
                 Expanded(flex: 3, child: _tableHeaderCell('LOCATION / ADDRESS', isDark)),
                 Expanded(flex: 2, child: _tableHeaderCell('STATUS', isDark)),
                 Expanded(flex: 2, child: _tableHeaderCell('REGISTERED', isDark)),
-                SizedBox(width: 100, child: _tableHeaderCell('ACTIONS', isDark, alignRight: true)),
+                SizedBox(width: 130, child: _tableHeaderCell('ACTIONS', isDark, alignRight: true)),
               ],
             ),
           ),
@@ -693,10 +693,13 @@ class _CustomersViewState extends State<CustomersView> {
 
                         // Actions Column
                         SizedBox(
-                          width: 100,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
+                          width: 130,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
                               IconButton(
                                 icon: const Icon(Icons.visibility_outlined, size: 16),
                                 tooltip: 'View details',
@@ -727,10 +730,22 @@ class _CustomersViewState extends State<CustomersView> {
                                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                 onPressed: () => _confirmToggleBlock(context, user),
                               ),
+                              IconButton(
+                                icon: Icon(
+                                  user.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
+                                  size: 16,
+                                  color: user.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+                                ),
+                                tooltip: user.isDeleted ? 'Restore customer account' : 'Soft-delete / Deactivate customer',
+                                padding: const EdgeInsets.all(6),
+                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                onPressed: () => _confirmToggleDelete(context, user),
+                              ),
                             ],
                           ),
                         ),
-                      ],
+                      ),
+                    ],
                     ),
                   ),
                 );
@@ -878,7 +893,17 @@ class _CustomersViewState extends State<CustomersView> {
                           size: 16,
                           color: user.isBlocked ? const Color(0xFF059669) : const Color(0xFFDC2626),
                         ),
+                        tooltip: user.isBlocked ? 'Unblock customer' : 'Block customer',
                         onPressed: () => _confirmToggleBlock(context, user),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          user.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
+                          size: 16,
+                          color: user.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+                        ),
+                        tooltip: user.isDeleted ? 'Restore customer account' : 'Deactivate customer',
+                        onPressed: () => _confirmToggleDelete(context, user),
                       ),
                     ],
                   ),
@@ -965,6 +990,44 @@ class _CustomersViewState extends State<CustomersView> {
               foregroundColor: Colors.white,
             ),
             child: Text(willBlock ? 'Block' : 'Unblock'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmToggleDelete(BuildContext context, AdminUser user) {
+    final willDelete = !user.isDeleted;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(
+          willDelete ? 'Deactivate Customer Account?' : 'Restore Customer Account?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          willDelete
+              ? 'Are you sure you want to deactivate / soft-delete "${user.fullName.isNotEmpty ? user.fullName : user.phoneNumber}" (ID: ${user.id})? This calls {{baseUrl}}/api/v1/admin/users/${user.id}/deletion with {"deleted": true}. Their access will be revoked while historical orders remain preserved.'
+              : 'Are you sure you want to restore "${user.fullName.isNotEmpty ? user.fullName : user.phoneNumber}"? Their account will be reactivated on the marketplace.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<CustomerBloc>().add(
+                    ToggleDeleteAdminUser(userId: user.id, deleted: willDelete),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: willDelete ? const Color(0xFFE11D48) : const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(willDelete ? 'Deactivate' : 'Restore'),
           ),
         ],
       ),
@@ -1111,6 +1174,22 @@ class _CustomersViewState extends State<CustomersView> {
                         label: Text(user.isBlocked ? 'Unblock Customer' : 'Block Customer'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: user.isBlocked ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(dialogCtx).pop();
+                          _confirmToggleDelete(context, user);
+                        },
+                        icon: Icon(
+                          user.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
+                          size: 15,
+                        ),
+                        label: Text(user.isDeleted ? 'Restore Account' : 'Deactivate Account'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: user.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
                           foregroundColor: Colors.white,
                         ),
                       ),

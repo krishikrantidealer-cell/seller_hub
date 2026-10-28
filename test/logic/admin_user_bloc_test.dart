@@ -181,6 +181,28 @@ void main() {
         ),
       );
     });
+
+    test('ToggleDeleteAdminUser updates customer deleted status and shows success message', () async {
+      bloc.add(const InitializeAdminUsers());
+      await expectLater(
+        bloc.stream,
+        emitsThrough(predicate<AdminUserState>((s) => s.status == AdminUserStatus.loaded)),
+      );
+
+      bloc.add(const ToggleDeleteAdminUser(
+        userId: '6ab6248acf88a4428f9b1e26',
+        deleted: true,
+      ));
+
+      await expectLater(
+        bloc.stream,
+        emitsThrough(
+          predicate<AdminUserState>((s) =>
+              s.actionSuccessMessage == 'User deleted successfully' &&
+              s.users.first.isDeleted == true),
+        ),
+      );
+    });
   });
 
   group('SellerBloc Tests', () {
@@ -206,6 +228,30 @@ void main() {
               state.status == AdminUserStatus.loaded &&
               bloc.sellerProfiles.isNotEmpty &&
               bloc.sellerProfiles.first.tradeName == 'Vijay Pal'),
+        ),
+      );
+    });
+
+    test('ToggleDeleteAdminUser updates seller deleted status and reflects in sellerProfiles', () async {
+      bloc.add(const InitializeAdminUsers());
+      await expectLater(
+        bloc.stream,
+        emitsThrough(predicate<AdminUserState>((state) => state.status == AdminUserStatus.loaded)),
+      );
+
+      bloc.add(const ToggleDeleteAdminUser(
+        userId: '6ab62c7f4aec9f42cea26a49',
+        deleted: true,
+      ));
+
+      await expectLater(
+        bloc.stream,
+        emitsThrough(
+          predicate<AdminUserState>((state) =>
+              state.actionSuccessMessage == 'User deleted successfully' &&
+              state.users.first.isDeleted == true &&
+              bloc.sellerProfiles.first.isDeleted == true &&
+              bloc.sellerProfiles.first.status == 'DEACTIVATED'),
         ),
       );
     });

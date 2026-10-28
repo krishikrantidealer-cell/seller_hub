@@ -9,6 +9,23 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:seller_hub/logic/product/product_bloc.dart';
 import 'package:seller_hub/logic/product/product_event.dart';
 import 'package:seller_hub/logic/product/product_state.dart';
+import 'package:seller_hub/logic/admin_user/seller_bloc.dart';
+import 'package:seller_hub/logic/admin_user/admin_user_event.dart';
+import 'package:seller_hub/logic/admin_user/admin_user_state.dart';
+
+class _SellerFilterOption {
+  final String key;
+  final String label;
+  final String? sellerId;
+  final int productCount;
+
+  const _SellerFilterOption({
+    required this.key,
+    required this.label,
+    this.sellerId,
+    required this.productCount,
+  });
+}
 
 class ProductCatalogView extends StatefulWidget {
   final List<Product> products;
@@ -75,6 +92,21 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
         });
       }
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          final pBloc = context.read<ProductBloc>();
+          if (pBloc.state.allCatalogProducts.isEmpty) {
+            pBloc.add(const FetchAllCatalogProducts());
+          }
+          final sellerBloc = context.read<SellerBloc>();
+          if (sellerBloc.state.users.isEmpty && sellerBloc.state.status != AdminUserStatus.loading) {
+            sellerBloc.add(const InitializeAdminUsers());
+          }
+        } catch (_) {}
+      }
+    });
   }
 
   @override
@@ -94,16 +126,34 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
     }
   }
 
-  String _resolveSellerName(Product p) {
+  List<SellerProfile> _getActiveSellers([SellerBloc? sellerBloc]) {
+    if (sellerBloc != null && sellerBloc.sellerProfiles.isNotEmpty) {
+      return sellerBloc.sellerProfiles;
+    }
+    return widget.sellers;
+  }
+
+  String _resolveSellerName(Product p, [List<SellerProfile>? sellersList]) {
+    final sellers = sellersList ?? _getActiveSellers();
+    // 1. Primary match: lookup by sellerId or sellerCode in active real sellers
+    if (p.sellerId.isNotEmpty) {
+      for (final s in sellers) {
+        if (s.id == p.sellerId || s.sellerCode == p.sellerId) {
+          if (s.tradeName.trim().isNotEmpty) return s.tradeName.trim();
+          if (s.companyName.trim().isNotEmpty) return s.companyName.trim();
+        }
+      }
+    }
+    // 2. Secondary match: vendor name from product if available and meaningful
     if (p.vendor.isNotEmpty && p.vendor != 'TEST DATA - temporary placeholder') {
       return p.vendor;
     }
-    for (final s in widget.sellers) {
-      if (s.id == p.sellerId || s.sellerCode == p.sellerId) {
-        return s.tradeName;
-      }
+    // 3. Fallback: formatted seller ID or Unassigned
+    if (p.sellerId.isNotEmpty) {
+      final snippet = p.sellerId.length > 8 ? p.sellerId.substring(0, 8) : p.sellerId;
+      return 'Seller ($snippet)';
     }
-    return 'Krishi Kranti Organics';
+    return 'Unassigned';
   }
 
   Color _getCategoryColor(String category) {
@@ -125,16 +175,71 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
     }
   }
 
-  List<String> get _sellerFilterOptions {
-    final sellers = <String>{'All Sellers'};
-    for (final p in widget.products) {
-      final name = _resolveSellerName(p);
-      sellers.add(name);
+  int _countProductsForSeller(String? sellerId, String sellerName, List<Product> catalog) {
+    if (sellerId == null || sellerId.isEmpty) {
+      return catalog.length;
     }
-    for (final s in widget.sellers) {
-      sellers.add(s.tradeName);
+    return catalog.where((p) {
+      if (p.sellerId.isNotEmpty && p.sellerId == sellerId) return true;
+      if (p.vendor.isNotEmpty && p.vendor.trim().toLowerCase() == sellerName.trim().toLowerCase()) return true;
+      return false;
+    }).length;
+  }
+
+  List<_SellerFilterOption> _buildSellerOptions(
+    List<SellerProfile> activeSellers,
+    List<Product> catalog,
+    int totalCount,
+  ) {
+    final list = <_SellerFilterOption>[
+      _SellerFilterOption(
+        key: 'All Sellers',
+        label: 'All Sellers',
+        productCount: totalCount,
+      ),
+    ];
+    final seenKeys = <String>{'All Sellers'};
+    final seenIds = <String>{};
+
+    for (final s in activeSellers) {
+      final name = s.tradeName.trim().isNotEmpty
+          ? s.tradeName.trim()
+          : (s.companyName.trim().isNotEmpty ? s.companyName.trim() : s.contactPerson.trim());
+      if (name.isEmpty) continue;
+      String key = s.id.isNotEmpty ? s.id : name;
+      if (seenKeys.contains(key)) {
+        key = '${name}_${s.id}';
+      }
+      seenKeys.add(key);
+      if (s.id.isNotEmpty) seenIds.add(s.id);
+      final count = _countProductsForSeller(s.id, name, catalog);
+      list.add(_SellerFilterOption(
+        key: key,
+        label: name,
+        sellerId: s.id,
+        productCount: count,
+      ));
     }
-    return sellers.toList();
+
+    // Include any distinct seller assigned on catalog products not yet present
+    for (final p in catalog) {
+      if (p.sellerId.isNotEmpty && !seenIds.contains(p.sellerId)) {
+        final resolved = _resolveSellerName(p, activeSellers);
+        if (resolved != 'Unassigned' && !seenKeys.contains(p.sellerId)) {
+          seenKeys.add(p.sellerId);
+          seenIds.add(p.sellerId);
+          final count = _countProductsForSeller(p.sellerId, resolved, catalog);
+          list.add(_SellerFilterOption(
+            key: p.sellerId,
+            label: resolved,
+            sellerId: p.sellerId,
+            productCount: count,
+          ));
+        }
+      }
+    }
+
+    return list;
   }
 
   @override
@@ -151,8 +256,33 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
     final isLoading = productState.status == ProductStatus.loading;
     final hasError = productState.status == ProductStatus.error;
 
+    // Use complete catalog list across all pages when available, otherwise widget.products
+    final catalog = productState.allCatalogProducts.isNotEmpty
+        ? productState.allCatalogProducts
+        : widget.products;
+
+    final totalCatalogCount = productState.totalProducts > 0
+        ? productState.totalProducts
+        : (productState.allCatalogProducts.isNotEmpty ? productState.allCatalogProducts.length : catalog.length);
+
+    SellerBloc? sellerBloc;
+    try {
+      sellerBloc = context.watch<SellerBloc>();
+    } catch (_) {}
+
+    final activeSellers = _getActiveSellers(sellerBloc);
+    final sellerOptions = _buildSellerOptions(activeSellers, catalog, totalCatalogCount);
+
+    final activeSellerOption = sellerOptions.firstWhere(
+      (opt) =>
+          opt.key == _selectedSellerFilter ||
+          (opt.sellerId != null && opt.sellerId == _selectedSellerFilter) ||
+          opt.label.toLowerCase() == _selectedSellerFilter.toLowerCase(),
+      orElse: () => sellerOptions.first,
+    );
+
     // Filter products by search, category, seller, stock, and availability
-    final filtered = widget.products.where((p) {
+    final filtered = catalog.where((p) {
       final query = _searchQuery.toLowerCase();
       final words = query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
 
@@ -167,11 +297,14 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       final matchesCategory = _selectedCategoryFilter == 'All' ||
           p.category.toLowerCase() == _selectedCategoryFilter.toLowerCase();
 
-      final resolvedSeller = _resolveSellerName(p);
-      final matchesSeller = _selectedSellerFilter == 'All Sellers' ||
-          resolvedSeller == _selectedSellerFilter ||
-          p.vendor == _selectedSellerFilter ||
-          p.sellerId == _selectedSellerFilter;
+      final resolvedSeller = _resolveSellerName(p, activeSellers);
+      final matchesSeller = activeSellerOption.key == 'All Sellers' ||
+          (activeSellerOption.sellerId != null && p.sellerId == activeSellerOption.sellerId) ||
+          p.sellerId == _selectedSellerFilter ||
+          resolvedSeller.toLowerCase() == activeSellerOption.label.toLowerCase() ||
+          resolvedSeller.toLowerCase() == _selectedSellerFilter.toLowerCase() ||
+          p.vendor.toLowerCase() == _selectedSellerFilter.toLowerCase() ||
+          p.vendor.toLowerCase() == activeSellerOption.label.toLowerCase();
 
       final matchesStock = _selectedStockFilter == 'All Stock' ||
           (_selectedStockFilter == 'In Stock' && p.stock > 50) ||
@@ -197,7 +330,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
             cmp = a.productCode.toLowerCase().compareTo(b.productCode.toLowerCase());
             break;
           case 'seller':
-            cmp = _resolveSellerName(a).toLowerCase().compareTo(_resolveSellerName(b).toLowerCase());
+            cmp = _resolveSellerName(a, activeSellers).toLowerCase().compareTo(_resolveSellerName(b, activeSellers).toLowerCase());
             break;
           case 'category':
             cmp = a.category.toLowerCase().compareTo(b.category.toLowerCase());
@@ -218,7 +351,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       });
     }
 
-    final hasActiveFilters = _selectedSellerFilter != 'All Sellers' ||
+    final hasActiveFilters = activeSellerOption.key != 'All Sellers' ||
         _selectedCategoryFilter != 'All' ||
         _selectedStockFilter != 'All Stock' ||
         _selectedAvailabilityFilter != 'All Status' ||
@@ -226,8 +359,9 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
 
     // Server vs Client Pagination calculations
     final isServerPaginated = !hasActiveFilters &&
+        productState.allCatalogProducts.isEmpty &&
         productState.pageData.totalElements > 0 &&
-        (productState.pageData.totalElements > widget.products.length || productState.totalPages > 1);
+        (productState.pageData.totalElements > catalog.length || productState.totalPages > 1);
 
     final activeRowsPerPage = isServerPaginated ? productState.pageSize : _rowsPerPage;
     final totalItems = isServerPaginated ? productState.totalProducts : filtered.length;
@@ -247,9 +381,9 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
         ? filtered
         : (totalItems == 0 ? <Product>[] : filtered.sublist(startIndex, endIndex));
 
-    final inStockCount = widget.products.where((p) => p.stock > 50).length;
-    final lowStockCount = widget.products.where((p) => p.stock > 0 && p.stock <= 50).length;
-    final sellersCount = _sellerFilterOptions.where((s) => s != 'All Sellers').length;
+    final inStockCount = catalog.where((p) => p.stock > 50).length;
+    final lowStockCount = catalog.where((p) => p.stock > 0 && p.stock <= 50).length;
+    final sellersCount = sellerOptions.where((s) => s.key != 'All Sellers').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,7 +460,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: _sellerFilterOptions.contains(_selectedSellerFilter) ? _selectedSellerFilter : 'All Sellers',
+                  value: activeSellerOption.key,
                   icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
@@ -335,19 +469,61 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                   ),
                   dropdownColor: surfaceColor,
                   borderRadius: BorderRadius.circular(8),
-                  items: _sellerFilterOptions.map((s) {
+                  items: sellerOptions.map((opt) {
+                    final isAll = opt.key == 'All Sellers';
                     return DropdownMenuItem<String>(
-                      value: s,
+                      value: opt.key,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            s == 'All Sellers' ? Icons.storefront_rounded : Icons.business_rounded,
+                            isAll ? Icons.storefront_rounded : Icons.business_rounded,
                             size: 14,
                             color: const Color(0xFF059669),
                           ),
                           const SizedBox(width: 6),
-                          Text(s.length > 20 ? '${s.substring(0, 18)}...' : s),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 160),
+                            child: Text(
+                              opt.label,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                          if (opt.sellerId != null && opt.sellerId!.isNotEmpty && !isAll) ...[
+                            const SizedBox(width: 6),
+                            Tooltip(
+                              message: 'Seller ID: ${opt.sellerId}',
+                              child: Text(
+                                '(ID: ${opt.sellerId!.length > 8 ? '${opt.sellerId!.substring(0, 8)}...' : opt.sellerId})',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              '${opt.productCount}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF059669),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -499,9 +675,9 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
                       ),
                       children: [
-                        if (_selectedSellerFilter != 'All Sellers')
+                        if (activeSellerOption.key != 'All Sellers')
                           TextSpan(
-                            text: 'Seller: $_selectedSellerFilter • ',
+                            text: 'Seller: ${activeSellerOption.label} • ',
                             style: GoogleFonts.plusJakartaSans(
                               fontWeight: FontWeight.w800,
                               color: isDark ? Colors.white : const Color(0xFF0F172A),
@@ -634,7 +810,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
             ),
             if (widget.isWide) ...[
               const SizedBox(width: 8),
-              _buildMiniMetricBadge('Total', '${filtered.length}', const Color(0xFF059669), isDark),
+              _buildMiniMetricBadge('Total', '${hasActiveFilters ? filtered.length : totalCatalogCount}', const Color(0xFF059669), isDark),
               const SizedBox(width: 6),
               _buildMiniMetricBadge('In Stock', '$inStockCount', const Color(0xFF10B981), isDark),
               const SizedBox(width: 6),
@@ -1088,7 +1264,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                   itemBuilder: (context, index) {
                     final p = paginatedProducts[index];
                     final isSelected = _selectedProductCodes.contains(p.productCode);
-                    final sellerName = _resolveSellerName(p);
+                    final sellerName = _resolveSellerName(p, activeSellers);
                     final catColor = _getCategoryColor(p.category);
 
                     return widget.isWide

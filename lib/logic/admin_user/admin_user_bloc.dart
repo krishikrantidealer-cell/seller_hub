@@ -46,7 +46,7 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     // Always fetch fresh data from remote
     add(FetchAdminUsers(
       page: 0,
-      size: state.pageSize,
+      size: 100,
       isBackground: cached != null && cached.content.isNotEmpty,
     ));
   }

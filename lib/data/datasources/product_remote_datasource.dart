@@ -14,6 +14,7 @@ abstract class ProductRemoteDataSource {
     required List<String> collectionIds,
     required List<String> subCollectionIds,
   });
+  Future<Product> createProduct(Map<String, dynamic> productPayload);
 }
 
 class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
@@ -78,12 +79,30 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
     }
 
     final rawData = response['data'] ?? response;
-    if (rawData is Map<String, dynamic>) {
-      return Product.fromJson(rawData);
+    if (rawData is Map) {
+      return Product.fromJson(Map<String, dynamic>.from(rawData));
     }
 
     throw const ApiException(
       message: 'Unexpected product collections response format from server.',
+    );
+  }
+
+  @override
+  Future<Product> createProduct(Map<String, dynamic> productPayload) async {
+    final response = await _apiClient.post(
+      ApiEndpoints.adminProducts,
+      body: productPayload,
+      requiresAuth: true,
+    );
+
+    final rawData = response['data'] ?? response;
+    if (rawData is Map) {
+      return Product.fromJson(Map<String, dynamic>.from(rawData));
+    }
+
+    throw const ApiException(
+      message: 'Unexpected product creation response format from server.',
     );
   }
 }

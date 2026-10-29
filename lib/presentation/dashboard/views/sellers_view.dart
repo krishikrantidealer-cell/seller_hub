@@ -29,6 +29,7 @@ class SellersView extends StatefulWidget {
 class _SellersViewState extends State<SellersView> {
   String _searchQuery = '';
   String _selectedStatusFilter = 'All';
+  bool _showTrash = false;
 
   final List<String> _statusOptions = const [
     'All',
@@ -45,8 +46,12 @@ class _SellersViewState extends State<SellersView> {
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
     final isWide = MediaQuery.of(context).size.width >= 960;
 
+    final activeSellers = widget.sellers.where((s) => !s.isDeleted).toList();
+    final trashSellers = widget.sellers.where((s) => s.isDeleted).toList();
+    final currentPool = _showTrash ? trashSellers : activeSellers;
+
     // Filter sellers by query & status
-    final filtered = widget.sellers.where((s) {
+    final filtered = currentPool.where((s) {
       final matchesSearch = _searchQuery.isEmpty ||
           s.tradeName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           s.companyName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -57,15 +62,139 @@ class _SellersViewState extends State<SellersView> {
 
       final matchesStatus = _selectedStatusFilter == 'All' || s.status == _selectedStatusFilter;
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && (_showTrash ? true : matchesStatus);
     }).toList();
 
-    final verifiedCount = widget.sellers.where((s) => s.status == 'VERIFIED').length;
-    final pendingCount = widget.sellers.where((s) => s.status == 'KYC_PENDING').length;
+    final verifiedCount = activeSellers.where((s) => s.status == 'VERIFIED').length;
+    final pendingCount = activeSellers.where((s) => s.status == 'KYC_PENDING').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Active Sellers vs Trash Switcher
+        Row(
+          children: [
+            InkWell(
+              onTap: () => setState(() {
+                _showTrash = false;
+                _selectedStatusFilter = 'All';
+              }),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: !_showTrash
+                      ? const Color(0xFF059669).withValues(alpha: isDark ? 0.22 : 0.12)
+                      : surfaceColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: !_showTrash ? const Color(0xFF059669) : borderColor,
+                    width: !_showTrash ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.storefront_rounded,
+                      size: 16,
+                      color: !_showTrash
+                          ? const Color(0xFF059669)
+                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Active Sellers (${activeSellers.length})',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: !_showTrash ? FontWeight.w700 : FontWeight.w600,
+                        color: !_showTrash
+                            ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: () => setState(() {
+                _showTrash = true;
+                _selectedStatusFilter = 'All';
+              }),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _showTrash
+                      ? const Color(0xFFE11D48).withValues(alpha: isDark ? 0.22 : 0.12)
+                      : surfaceColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _showTrash ? const Color(0xFFE11D48) : borderColor,
+                    width: _showTrash ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.delete_outline_rounded,
+                      size: 16,
+                      color: _showTrash
+                          ? const Color(0xFFE11D48)
+                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Trash (${trashSellers.length})',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: _showTrash ? FontWeight.w700 : FontWeight.w600,
+                        color: _showTrash
+                            ? (isDark ? const Color(0xFFFDA4AF) : const Color(0xFFE11D48))
+                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        if (_showTrash)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF881337).withValues(alpha: 0.2) : const Color(0xFFFFF1F2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark ? const Color(0xFFBE123C).withValues(alpha: 0.4) : const Color(0xFFFECDD3),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFE11D48)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Trash View: Sellers here have been soft-deleted. Click "Restore" to reactivate their account and storefront, or "Delete Forever" to permanently purge.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFFFDA4AF) : const Color(0xFF9F1239),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         // Search Bar
         SizedBox(
           height: 40,
@@ -77,7 +206,9 @@ class _SellersViewState extends State<SellersView> {
               color: isDark ? Colors.white : const Color(0xFF0F172A),
             ),
             decoration: InputDecoration(
-              hintText: 'Search sellers by Trade Name, Legal Name, ID, GSTIN, or City...',
+              hintText: _showTrash
+                  ? 'Search soft-deleted sellers in trash...'
+                  : 'Search sellers by Trade Name, Legal Name, ID, GSTIN, or City...',
               hintStyle: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
@@ -103,59 +234,60 @@ class _SellersViewState extends State<SellersView> {
 
         const SizedBox(height: 10),
 
-        // Status Filter Chips & Metrics Strip
-        Row(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _statusOptions.map((status) {
-                    final isSelected = _selectedStatusFilter == status;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: FilterChip(
-                        showCheckmark: false,
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        label: Text(status.replaceAll('_', ' ')),
-                        selected: isSelected,
-                        selectedColor: isDark
-                            ? const Color(0xFF059669).withValues(alpha: 0.22)
-                            : const Color(0xFF059669).withValues(alpha: 0.12),
-                        backgroundColor: surfaceColor,
-                        side: BorderSide(
-                          color: isSelected ? const Color(0xFF059669) : borderColor,
-                          width: isSelected ? 1.5 : 1,
+        // Status Filter Chips & Metrics Strip (only on Active Sellers)
+        if (!_showTrash)
+          Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _statusOptions.map((status) {
+                      final isSelected = _selectedStatusFilter == status;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: FilterChip(
+                          showCheckmark: false,
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          label: Text(status.replaceAll('_', ' ')),
+                          selected: isSelected,
+                          selectedColor: isDark
+                              ? const Color(0xFF059669).withValues(alpha: 0.22)
+                              : const Color(0xFF059669).withValues(alpha: 0.12),
+                          backgroundColor: surfaceColor,
+                          side: BorderSide(
+                            color: isSelected ? const Color(0xFF059669) : borderColor,
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                          labelStyle: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                          ),
+                          onSelected: (_) => setState(() => _selectedStatusFilter = status),
                         ),
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected
-                              ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                              : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                        ),
-                        onSelected: (_) => setState(() => _selectedStatusFilter = status),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
-            ),
-            if (isWide) ...[
-              const SizedBox(width: 8),
-              _buildMiniMetricBadge('Total Sellers', '${widget.sellers.length}', const Color(0xFF059669), isDark),
-              const SizedBox(width: 6),
-              _buildMiniMetricBadge('Verified', '$verifiedCount', const Color(0xFF10B981), isDark),
-              const SizedBox(width: 6),
-              _buildMiniMetricBadge('KYC Pending', '$pendingCount', const Color(0xFFF59E0B), isDark),
+              if (isWide) ...[
+                const SizedBox(width: 8),
+                _buildMiniMetricBadge('Total Active', '${activeSellers.length}', const Color(0xFF059669), isDark),
+                const SizedBox(width: 6),
+                _buildMiniMetricBadge('Verified', '$verifiedCount', const Color(0xFF10B981), isDark),
+                const SizedBox(width: 6),
+                _buildMiniMetricBadge('KYC Pending', '$pendingCount', const Color(0xFFF59E0B), isDark),
+              ],
             ],
-          ],
-        ),
+          ),
 
-        const SizedBox(height: 12),
+        if (!_showTrash) const SizedBox(height: 12),
 
         // High-Density Responsive Table Container
         Container(
@@ -194,10 +326,16 @@ class _SellersViewState extends State<SellersView> {
                     padding: const EdgeInsets.symmetric(vertical: 36),
                     child: Column(
                       children: [
-                        Icon(Icons.search_off_rounded, size: 36, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                        Icon(
+                          _showTrash ? Icons.auto_delete_outlined : Icons.search_off_rounded,
+                          size: 36,
+                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        ),
                         const SizedBox(height: 8),
                         Text(
-                          'No sellers matching your search criteria',
+                          _showTrash
+                              ? 'Trash is empty. Soft-deleted sellers will appear here.'
+                              : 'No sellers matching your search criteria',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,

@@ -211,7 +211,7 @@ void main() {
       expect(payload['hsnCode'], '3808');
       expect(payload['title'], 'Postman Admin Test Product 1793010415573');
       expect(payload['technicalName'], 'Bio Organic Nutrient Formulation');
-      expect(payload['vendor'], 'EBS Agro Sciences');
+      expect(payload.containsKey('vendor'), isFalse); // vendor removed from payload per real API schema
       expect(payload['description'], 'High grade bio solution for organic farming.');
       expect(payload['categoryId'], '6ab4f6f619ec643fd9bf3621');
       expect(payload['productWeight'], 500.0);
@@ -353,6 +353,142 @@ void main() {
       expect(product.displayRate, 450.0);
       expect(product.printedMrp, 500.0);
       expect(product.stock, 100);
+    });
+
+    test('Product.fromJson parses the new POST /api/v1/admin/products response with sellerName', () {
+      final Map<String, dynamic> responseJson = {
+        "success": true,
+        "message": "Product created",
+        "data": {
+          "id": "6ae31aab138ace11168cf6bf",
+          "sku": "EBS-ADM-SKU-1793268393",
+          "productCode": "PRD-6AE2D682477DABE731E2C1F2-000033",
+          "hsnCode": "3808",
+          "sellerId": "6ae2d682477dabe731e2c1f2",
+          "title": "Postman Admin Test Product 1793268393",
+          "technicalName": "Bio Organic Nutrient Formulation",
+          "sellerName": "Patel Agro Traders",
+          "description": "High grade bio solution for organic farming.",
+          "images": [],
+          "technicalContent": null,
+          "features": [],
+          "benefits": [],
+          "modeOfAction": null,
+          "suitableCrops": [],
+          "targetPests": [],
+          "targetDiseases": [],
+          "dosage": null,
+          "applicationMethod": null,
+          "categoryId": "6ab4f6f619ec643fd9bf3621",
+          "assignedCollections": [],
+          "dimensions": {
+            "length": 20.0,
+            "width": 10.0,
+            "height": 10.0,
+            "unit": "cm"
+          },
+          "isAvailable": false,
+          "isFeatured": false,
+          "variants": [
+            {
+              "id": "6ae31aaa138ace11168cf6be",
+              "label": "500 ml Bottle",
+              "unit": "ml",
+              "packSize": 500,
+              "packSizeUnit": "ml",
+              "packQuantity": 1,
+              "packUnit": "bottle",
+              "shippedBy": "EBS Direct",
+              "swg": null,
+              "totalBaseQuantity": 500,
+              "totalBaseUnit": "ml",
+              "dimensions": null,
+              "displayRate": 450.0,
+              "printedMrp": 500.0,
+              "costPrice": 250.0,
+              "discountRs": 50.0,
+              "gstPercentage": 5.0,
+              "discountPercentage": 10.0,
+              "stock": 100,
+              "pricePerBaseUnit": 0.9,
+              "displayOrder": null,
+              "isDefault": false
+            }
+          ],
+          "averageRating": null,
+          "totalReviews": 0,
+          "refundPolicy": null,
+          "productWeight": 500.0,
+          "productWeightUnit": "g",
+          "status": "INACTIVE",
+          "isDeleted": false,
+          "deletedAt": null,
+          "createdAt": "2026-10-29T10:06:35.372129297",
+          "updatedAt": "2026-10-29T10:06:35.372129297"
+        },
+        "timestamp": "2026-10-29T10:06:37.269855588"
+      };
+
+      final product = Product.fromJson(responseJson['data'] as Map<String, dynamic>);
+
+      expect(product.id, '6ae31aab138ace11168cf6bf');
+      expect(product.sellerId, '6ae2d682477dabe731e2c1f2');
+      expect(product.sellerName, 'Patel Agro Traders');
+      expect(product.vendor, 'Patel Agro Traders');
+      expect(product.sku, 'EBS-ADM-SKU-1793268393');
+      expect(product.productCode, 'PRD-6AE2D682477DABE731E2C1F2-000033');
+      expect(product.status, 'INACTIVE');
+      expect(product.isAvailable, isFalse);
+      expect(product.productDimensions.length, 20.0);
+      expect(product.variants.length, 1);
+      expect(product.variants.first.label, '500 ml Bottle');
+      expect(product.variants.first.pricePerBaseUnit, 0.9);
+    });
+
+    test('Parses GET /api/v1/products payload where vendor is replaced with sellerName', () {
+      final item = {
+        "id": "6ad871a31df71c7f599dd954",
+        "sellerId": "6ae2d682477dabe731e2c1f3",
+        "sku": "KKR - 35",
+        "productCode": "PRD-6AE2D682477DABE731E2C1F3-000035",
+        "hsnCode": "3808",
+        "title": "Beauveria Bassiana - Bio Pesticide",
+        "technicalName": null,
+        "sellerName": "Verma Organic Farms",
+        "description": "<p><strong>Beauveria Bassiana Bio Pesticide</strong></p>",
+        "images": [],
+        "productImages": [],
+        "categoryId": "6ad8582568a1edff7a609fee",
+        "isAvailable": true,
+        "isFeatured": false,
+        "variants": [
+          {
+            "id": "d4642c25c62d3220a533aa5d",
+            "label": "1 ltr (1000ml x 1)",
+            "unit": "ml",
+            "packSize": 1000,
+            "packSizeUnit": "ml",
+            "packQuantity": 1,
+            "shippedBy": "essentialbiocropscience",
+            "displayRate": 510.0,
+            "printedMrp": 1200.0,
+            "stock": 100,
+            "pricePerBaseUnit": 0.51,
+            "isDefault": true
+          }
+        ]
+      };
+
+      final product = Product.fromJson(item);
+      expect(product.id, '6ad871a31df71c7f599dd954');
+      expect(product.sellerId, '6ae2d682477dabe731e2c1f3');
+      expect(product.sellerName, 'Verma Organic Farms');
+      expect(product.vendor, 'Verma Organic Farms');
+      expect(product.sku, 'KKR - 35');
+      expect(product.productCode, 'PRD-6AE2D682477DABE731E2C1F3-000035');
+      expect(product.isAvailable, isTrue);
+      expect(product.variants.length, 1);
+      expect(product.displayRate, 510.0);
     });
   });
 }

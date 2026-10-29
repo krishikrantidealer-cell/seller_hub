@@ -284,6 +284,68 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
     );
   }
 
+  void _confirmPermanentDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Permanently Delete Customer?',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete "${_currentCustomer.fullName.isNotEmpty ? _currentCustomer.fullName : _currentCustomer.phoneNumber}" (ID: ${_currentCustomer.id}) from the database?',
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Text(
+                'Endpoint: DELETE /api/v1/admin/users/${_currentCustomer.id}/permanent\n\n'
+                'Warning: This action is permanent and IRREVERSIBLE. All customer details and credentials will be permanently erased. Note: Accounts with existing orders cannot be permanently deleted.',
+                style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF991B1B)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<CustomerBloc>().add(
+                    PermanentlyDeleteAdminUser(_currentCustomer.id),
+                  );
+              widget.onBack();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- TOP ACTION BAR ---
   Widget _buildTopActionBar(
     BuildContext context,
@@ -360,6 +422,32 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
           ),
+          if (_currentCustomer.isDeleted) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () => _confirmPermanentDelete(context),
+              icon: const Icon(
+                Icons.delete_forever_rounded,
+                size: 15,
+                color: Color(0xFFDC2626),
+              ),
+              label: Text(
+                'Delete Forever',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFDC2626),
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                  color: const Color(0xFFDC2626).withValues(alpha: 0.6),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
           const SizedBox(width: 8),
           OutlinedButton.icon(
             onPressed: () => setState(() => _isEditing = true),

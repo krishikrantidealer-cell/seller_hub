@@ -5,6 +5,7 @@ import '../../core/models/admin_user.dart';
 abstract class AdminUserLocalDataSource {
   Future<AdminUserPageData?> getCachedUsers(String role);
   Future<void> cacheUsers(String role, AdminUserPageData data);
+  Future<void> removeUserFromCache(String userId);
   Future<void> clearCache();
 }
 
@@ -35,6 +36,32 @@ class AdminUserLocalDataSourceImpl implements AdminUserLocalDataSource {
     try {
       final encoded = jsonEncode(data.toJson());
       await prefs.setString(_buildKey(role), encoded);
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> removeUserFromCache(String userId) async {
+    try {
+      final keys = prefs.getKeys().where((k) => k.startsWith(_userCachePrefix)).toList();
+      for (final key in keys) {
+        final raw = prefs.getString(key);
+        if (raw == null || raw.isEmpty) continue;
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        final pageData = AdminUserPageData.fromJson(decoded);
+        final filtered = pageData.content.where((u) => u.id != userId).toList();
+        if (filtered.length != pageData.content.length) {
+          final updated = AdminUserPageData(
+            content: filtered,
+            page: pageData.page,
+            size: pageData.size,
+            totalElements: pageData.totalElements > 0 ? pageData.totalElements - 1 : filtered.length,
+            totalPages: pageData.totalPages,
+            first: pageData.first,
+            last: pageData.last,
+          );
+          await prefs.setString(key, jsonEncode(updated.toJson()));
+        }
+      }
     } catch (_) {}
   }
 

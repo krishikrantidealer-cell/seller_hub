@@ -20,6 +20,7 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     on<FilterAdminUsersStatus>(_onFilterStatus);
     on<ToggleBlockAdminUser>(_onToggleBlock);
     on<ToggleDeleteAdminUser>(_onToggleDelete);
+    on<PermanentlyDeleteAdminUser>(_onPermanentlyDelete);
     on<UpdateLocalAdminUser>(_onUpdateLocalUser);
   }
 
@@ -161,7 +162,18 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     ToggleDeleteAdminUser event,
     Emitter<AdminUserState> emit,
   ) async {
-    emit(state.copyWith(isActionInProgress: true, clearError: true, clearActionMessage: true));
+    final previousUsers = state.users;
+    final optimisticList = state.users.map((u) {
+      return u.id == event.userId ? u.copyWith(isDeleted: event.deleted) : u;
+    }).toList();
+
+    // 0ms instant optimistic update so item moves between active & trash immediately
+    emit(state.copyWith(
+      users: optimisticList,
+      isActionInProgress: true,
+      clearError: true,
+      clearActionMessage: true,
+    ));
 
     try {
       final updated = await repository.updateUserDeletedStatus(
@@ -176,12 +188,46 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
       emit(state.copyWith(
         isActionInProgress: false,
         users: updatedList,
-        actionSuccessMessage: 'User ${event.deleted ? "deleted" : "restored"} successfully',
+        actionSuccessMessage: 'User ${event.deleted ? "deactivated" : "restored"} successfully',
       ));
     } catch (e) {
       emit(state.copyWith(
+        users: previousUsers,
         isActionInProgress: false,
         errorMessage: e is ApiException ? e.message : 'Failed to update user deleted status',
+      ));
+    }
+  }
+
+  Future<void> _onPermanentlyDelete(
+    PermanentlyDeleteAdminUser event,
+    Emitter<AdminUserState> emit,
+  ) async {
+    final previousUsers = state.users;
+    final previousTotal = state.totalElements;
+    final optimisticList = state.users.where((u) => u.id != event.userId).toList();
+
+    emit(state.copyWith(
+      users: optimisticList,
+      totalElements: state.totalElements > 0 ? state.totalElements - 1 : optimisticList.length,
+      isActionInProgress: true,
+      clearError: true,
+      clearActionMessage: true,
+    ));
+
+    try {
+      await repository.permanentlyDeleteUser(event.userId);
+
+      emit(state.copyWith(
+        isActionInProgress: false,
+        actionSuccessMessage: 'User permanently deleted successfully',
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        users: previousUsers,
+        totalElements: previousTotal,
+        isActionInProgress: false,
+        errorMessage: e is ApiException ? e.message : 'Failed to permanently delete user',
       ));
     }
   }

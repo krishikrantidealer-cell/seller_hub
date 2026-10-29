@@ -11,7 +11,13 @@ class MockProductRepository implements ProductRepository {
   String errorMessage = 'Failed to fetch products';
   ProductPageData? pageDataToReturn;
   ProductPageData? cachedDataToReturn;
+  List<Product>? cachedFullCatalogToReturn;
   Product? lastUpdatedProduct;
+
+  @override
+  Future<List<Product>?> getCachedFullCatalog() async {
+    return cachedFullCatalogToReturn;
+  }
 
   @override
   Future<ProductPageData?> getCachedProducts({
@@ -74,6 +80,48 @@ class MockProductRepository implements ProductRepository {
       id: product.id.isNotEmpty ? product.id : 'created_id_123',
     );
     return lastUpdatedProduct!;
+  }
+
+  @override
+  Future<void> deleteProductPermanently(String productId) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+  }
+
+  @override
+  Future<Product> updateProductAvailability({
+    required String productId,
+    required bool isAvailable,
+  }) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+    final existing = lastUpdatedProduct ??
+        Product(
+          id: productId,
+          title: 'Test Product',
+          isAvailable: !isAvailable,
+        );
+    lastUpdatedProduct = existing.copyWith(isAvailable: isAvailable);
+    return lastUpdatedProduct!;
+  }
+
+  @override
+  Future<Product> uploadProductImages({
+    required String productId,
+    required List<List<int>> filesBytes,
+    required List<String> fileNames,
+  }) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+    final existing = lastUpdatedProduct ??
+        Product(
+          id: productId,
+          title: 'Test Product',
+        );
+    return existing;
   }
 
   @override
@@ -521,6 +569,53 @@ void main() {
 
       expect(productBloc.state.allCatalogProducts.length, 67);
       expect(productBloc.state.totalProducts, 67);
+    });
+
+    test('DeleteProductPermanently removes product from state and updates total', () async {
+      final initialProduct = Product(
+        id: 'delete_target_123',
+        productCode: 'PRD-DEL',
+        hsnCode: '3808',
+        title: 'Delete Target Product',
+        technicalName: '',
+        vendor: '',
+        description: '',
+        images: const [],
+        technicalContent: '',
+        modeOfAction: '',
+        dosage: '',
+        applicationMethod: '',
+        category: 'Bio-Fertilizers',
+        isAvailable: true,
+        isFeatured: false,
+        ratings: 4.5,
+        refundPolicy: '',
+        productWeight: 1.0,
+        productWeightUnit: 'kg',
+      );
+
+      repository.pageDataToReturn = ProductPageData(
+        content: [initialProduct],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      );
+
+      productBloc.add(const FetchProducts());
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(productBloc.state.products.length, 1);
+
+      bool successCalled = false;
+      productBloc.add(DeleteProductPermanently(
+        'delete_target_123',
+        onSuccess: () => successCalled = true,
+      ));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(successCalled, true);
+      expect(productBloc.state.products.isEmpty, true);
+      expect(productBloc.state.pageData.totalElements, 0);
     });
   });
 }

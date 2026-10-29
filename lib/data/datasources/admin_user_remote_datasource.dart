@@ -22,6 +22,10 @@ abstract class AdminUserRemoteDataSource {
     required String userId,
     required bool deleted,
   });
+
+  Future<String> permanentlyDeleteUser({
+    required String userId,
+  });
 }
 
 class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
@@ -112,5 +116,25 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
     }
 
     return AdminUser.fromJson(data);
+  }
+
+  @override
+  Future<String> permanentlyDeleteUser({
+    required String userId,
+  }) async {
+    final response = await _apiClient.delete(
+      ApiEndpoints.adminUserPermanentDeletion(userId),
+      requiresAuth: true,
+    );
+
+    final success = response['success'] == true;
+    final data = response['data']?.toString() ?? userId;
+
+    if (!success) {
+      final msg = response['message']?.toString() ?? 'Failed to permanently delete user';
+      throw ApiException(message: msg, details: response);
+    }
+
+    return data;
   }
 }

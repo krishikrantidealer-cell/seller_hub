@@ -26,6 +26,9 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<AssignProductCollections>(_onAssignProductCollections);
     on<FetchAllCatalogProducts>(_onFetchAllCatalogProducts);
     on<CreateProduct>(_onCreateProduct);
+    on<DeleteProductPermanently>(_onDeleteProductPermanently);
+    on<ToggleProductAvailability>(_onToggleProductAvailability);
+    on<UploadProductImages>(_onUploadProductImages);
 
     // Subscribe to live WebSocket product and inventory events
     _wsSubscription = _webSocketService.productUpdates.listen((payload) {
@@ -48,6 +51,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       page: event.page,
       size: event.size,
     );
+    final cachedFull = await productRepository.getCachedFullCatalog();
 
     if (cached != null && cached.content.isNotEmpty) {
       final bool hasExpired = cached.hasExpiredImages;
@@ -57,6 +61,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         pageData: cached,
         currentPage: event.page,
         pageSize: event.size,
+        allCatalogProducts: cachedFull ?? const [],
         isBackgroundSyncing: true,
       ));
 
@@ -67,6 +72,9 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         isBackground: !hasExpired,
       ));
     } else {
+      if (cachedFull != null && cachedFull.isNotEmpty) {
+        emit(state.copyWith(allCatalogProducts: cachedFull));
+      }
       // No local cache yet: standard initial fetch with loading indicator
       add(FetchProducts(
         page: event.page,
@@ -116,14 +124,23 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         size: event.size,
       );
 
+      final allCatalog = state.allCatalogProducts.isNotEmpty
+          ? state.allCatalogProducts
+          : (pageData.totalElements > 0 && pageData.totalElements <= pageData.content.length ? pageData.content : null);
+
       emit(state.copyWith(
         status: ProductStatus.loaded,
         pageData: pageData,
         currentPage: event.page,
         pageSize: event.size,
+        allCatalogProducts: allCatalog,
         errorMessage: null,
         isBackgroundSyncing: false,
       ));
+
+      if (state.allCatalogProducts.isEmpty && pageData.totalElements > pageData.content.length) {
+        add(const FetchAllCatalogProducts());
+      }
     } on ApiException catch (e) {
       if (!hasExistingData) {
         emit(state.copyWith(
@@ -406,6 +423,154 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       emit(state.copyWith(
         errorMessage: message,
       ));
+      event.onError?.call(message);
+    }
+  }
+
+  Future<void> _onDeleteProductPermanently(
+    DeleteProductPermanently event,
+    Emitter<ProductState> emit,
+  ) async {
+    final previousState = state;
+    bool matches(Product p) =>
+        (p.id.isNotEmpty && p.id == event.productId) ||
+        p.productCode == event.productId ||
+        p.sku == event.productId;
+
+    final currentList = List<Product>.from(state.pageData.content)..removeWhere(matches);
+    final currentAll = List<Product>.from(state.allCatalogProducts)..removeWhere(matches);
+
+    final newTotal = state.pageData.totalElements > 0
+        ? state.pageData.totalElements - 1
+        : currentList.length;
+    final safePageSize = state.pageData.size > 0 ? state.pageData.size : 20;
+
+    final updatedPageData = ProductPageData(
+      content: currentList,
+      page: state.pageData.page,
+      size: state.pageData.size,
+      totalElements: newTotal,
+      totalPages: (newTotal / safePageSize).ceil().clamp(1, 999999),
+      first: state.pageData.first,
+      last: state.pageData.last,
+      count: currentList.length,
+    );
+
+    // 1. Optimistic instant emission (0ms) so product table and SKU counts update immediately
+    emit(state.copyWith(
+      status: ProductStatus.loaded,
+      pageData: updatedPageData,
+      allCatalogProducts: currentAll,
+      errorMessage: null,
+    ));
+
+    event.onSuccess?.call();
+
+    try {
+      await productRepository.deleteProductPermanently(event.productId);
+    } catch (e) {
+      // Revert if API fails
+      final message = e is ApiException ? e.message : 'Failed to delete product: $e';
+      emit(previousState.copyWith(
+        errorMessage: message,
+      ));
+      event.onError?.call(message);
+    }
+  }
+
+  Future<void> _onToggleProductAvailability(
+    ToggleProductAvailability event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      final updated = await productRepository.updateProductAvailability(
+        productId: event.productId,
+        isAvailable: event.isAvailable,
+      );
+
+      final currentList = List<Product>.from(state.pageData.content);
+      final idx = currentList.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
+      if (idx != -1) {
+        currentList[idx] = updated;
+      }
+
+      final currentAll = List<Product>.from(state.allCatalogProducts);
+      final allIdx = currentAll.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
+      if (allIdx != -1) {
+        currentAll[allIdx] = updated;
+      }
+
+      final updatedPageData = ProductPageData(
+        content: currentList,
+        page: state.pageData.page,
+        size: state.pageData.size,
+        totalElements: state.pageData.totalElements,
+        totalPages: state.pageData.totalPages,
+        first: state.pageData.first,
+        last: state.pageData.last,
+        count: currentList.length,
+      );
+
+      emit(state.copyWith(
+        status: ProductStatus.loaded,
+        pageData: updatedPageData,
+        allCatalogProducts: currentAll,
+        errorMessage: null,
+      ));
+
+      event.onSuccess?.call(updated);
+    } catch (e) {
+      final message = e is ApiException ? e.message : 'Failed to update availability: $e';
+      emit(state.copyWith(errorMessage: message));
+      event.onError?.call(message);
+    }
+  }
+
+  Future<void> _onUploadProductImages(
+    UploadProductImages event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      final updated = await productRepository.uploadProductImages(
+        productId: event.productId,
+        filesBytes: event.filesBytes,
+        fileNames: event.fileNames,
+      );
+
+      final currentList = List<Product>.from(state.pageData.content);
+      final idx = currentList.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
+      if (idx != -1) {
+        currentList[idx] = updated;
+      }
+
+      final currentAll = List<Product>.from(state.allCatalogProducts);
+      final allIdx = currentAll.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
+      if (allIdx != -1) {
+        currentAll[allIdx] = updated;
+      }
+
+      final updatedPageData = ProductPageData(
+        content: currentList,
+        page: state.pageData.page,
+        size: state.pageData.size,
+        totalElements: state.pageData.totalElements,
+        totalPages: state.pageData.totalPages,
+        first: state.pageData.first,
+        last: state.pageData.last,
+        count: currentList.length,
+      );
+
+      emit(state.copyWith(
+        status: ProductStatus.loaded,
+        pageData: updatedPageData,
+        allCatalogProducts: currentAll,
+        errorMessage: null,
+      ));
+
+      event.onSuccess?.call(updated);
+    } catch (e) {
+      final message = e is ApiException ? e.message : 'Failed to upload images: $e';
+      emit(state.copyWith(errorMessage: message));
       event.onError?.call(message);
     }
   }

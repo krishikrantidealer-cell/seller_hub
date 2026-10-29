@@ -383,6 +383,7 @@ class Product extends Equatable {
   final String title;
   final String technicalName;
   final String vendor;
+  final String sellerName;
   final String description;
   final List<String> images;
   final List<ProductImage> productImages;
@@ -441,7 +442,8 @@ class Product extends Equatable {
     this.sellerId = '',
     required this.title,
     this.technicalName = '',
-    this.vendor = '',
+    String vendor = '',
+    String sellerName = '',
     this.description = '',
     this.images = const [],
     this.productImages = const [],
@@ -495,7 +497,9 @@ class Product extends Equatable {
     String swg = '',
     int stock = 0,
     String dimensions = '',
-  })  : featuresList = featuresList ?? (features.isNotEmpty ? [features] : const []),
+  })  : vendor = vendor.isNotEmpty ? vendor : sellerName,
+        sellerName = sellerName.isNotEmpty ? sellerName : vendor,
+        featuresList = featuresList ?? (features.isNotEmpty ? [features] : const []),
         benefitsList = benefitsList ?? (benefits.isNotEmpty ? [benefits] : const []),
         suitableCropsList = suitableCropsList ?? (suitableCrop.isNotEmpty ? [suitableCrop] : const []),
         targetPestsList = targetPestsList ?? (targetPests.isNotEmpty ? [targetPests] : const []),
@@ -622,6 +626,7 @@ class Product extends Equatable {
       final first = productImages.first;
       if (first.lowUrl.isNotEmpty) return first.lowUrl;
       if (first.midUrl.isNotEmpty) return first.midUrl;
+      if (first.originalUrl.isNotEmpty) return first.originalUrl;
     }
     if (images.isNotEmpty) {
       for (final img in images) {
@@ -644,6 +649,7 @@ class Product extends Equatable {
       final first = productImages.first;
       if (first.midUrl.isNotEmpty) return first.midUrl;
       if (first.lowUrl.isNotEmpty) return first.lowUrl;
+      if (first.originalUrl.isNotEmpty) return first.originalUrl;
     }
     if (images.isNotEmpty) {
       for (final img in images) {
@@ -747,7 +753,10 @@ class Product extends Equatable {
     final sellerId = _parseString(json['sellerId'] ?? json['seller_id']);
     final title = _parseString(json['title'] ?? json['Title']);
     final technicalName = _parseString(json['technicalName'] ?? json['Technical Name']);
-    final vendor = _parseString(json['vendor'] ?? json['Vendor']);
+    final rawSellerName = _parseString(json['sellerName'] ?? json['Seller Name'] ?? json['seller_name']);
+    final rawVendor = _parseString(json['vendor'] ?? json['Vendor']);
+    final effectiveSellerName = rawSellerName.isNotEmpty ? rawSellerName : rawVendor;
+    final effectiveVendor = rawVendor.isNotEmpty ? rawVendor : effectiveSellerName;
     final description = _parseString(json['description'] ?? json['Description']);
 
     List<ProductImage> parsedProductImages = [];
@@ -865,7 +874,8 @@ class Product extends Equatable {
       sellerId: sellerId,
       title: title,
       technicalName: technicalName,
-      vendor: vendor,
+      vendor: effectiveVendor,
+      sellerName: effectiveSellerName,
       description: description,
       images: images,
       productImages: parsedProductImages,
@@ -929,6 +939,7 @@ class Product extends Equatable {
     'title': title,
     'technicalName': technicalName,
     'vendor': vendor,
+    'sellerName': sellerName,
     'description': description,
     'images': images,
     'productImages': productImages.map((p) => p.toJson()).toList(),
@@ -967,17 +978,21 @@ class Product extends Equatable {
   /// Exports in exact structure expected by POST /api/v1/admin/products
   Map<String, dynamic> toAdminCreatePayload() => {
     'sellerId': sellerId,
-    'sku': sku.isNotEmpty ? sku : productCode,
+    'sku': sku.isNotEmpty ? sku : 'EBS-ADM-SKU-${DateTime.now().millisecondsSinceEpoch}',
     'hsnCode': hsnCode.isNotEmpty ? hsnCode : '3808',
     'title': title,
     if (technicalName.isNotEmpty) 'technicalName': technicalName,
-    'vendor': vendor.isNotEmpty ? vendor : 'EBS Agro Sciences',
     'description': description.isNotEmpty ? description : title,
     'categoryId': categoryId.isNotEmpty ? categoryId : '6ab4f6f619ec643fd9bf3621',
     'productWeight': productWeight > 0 ? productWeight : 500.0,
     'productWeightUnit': productWeightUnit.isNotEmpty ? productWeightUnit : 'g',
     'dimensions': (productDimensions.length > 0 || productDimensions.width > 0 || productDimensions.height > 0)
-        ? productDimensions.toJson()
+        ? {
+            'length': productDimensions.length > 0 ? productDimensions.length : 20.0,
+            'width': productDimensions.width > 0 ? productDimensions.width : 10.0,
+            'height': productDimensions.height > 0 ? productDimensions.height : 10.0,
+            'unit': productDimensions.unit.isNotEmpty ? productDimensions.unit : 'cm',
+          }
         : const {
             'length': 20.0,
             'width': 10.0,
@@ -1022,6 +1037,8 @@ class Product extends Equatable {
     'technicalName': technicalName,
     'Vendor': vendor,
     'vendor': vendor,
+    'Seller Name': sellerName,
+    'sellerName': sellerName,
     'Description': description,
     'description': description,
     'Images': images,
@@ -1081,6 +1098,7 @@ class Product extends Equatable {
     String? title,
     String? technicalName,
     String? vendor,
+    String? sellerName,
     String? description,
     List<String>? images,
     List<ProductImage>? productImages,
@@ -1172,6 +1190,7 @@ class Product extends Equatable {
       title: title ?? this.title,
       technicalName: technicalName ?? this.technicalName,
       vendor: vendor ?? this.vendor,
+      sellerName: sellerName ?? this.sellerName,
       description: description ?? this.description,
       images: images ?? this.images,
       productImages: productImages ?? this.productImages,
@@ -1234,6 +1253,7 @@ class Product extends Equatable {
     title,
     technicalName,
     vendor,
+    sellerName,
     category,
     packSize,
     unit,

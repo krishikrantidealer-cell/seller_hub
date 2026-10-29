@@ -10,6 +10,9 @@ abstract class ProductRepository {
   /// Fetch all catalog products across pages (bounded by backend MAX_SIZE 100 per request)
   Future<List<Product>> getAllProducts();
 
+  /// Retrieve locally cached full catalog across all pages (0ms) on startup / restart
+  Future<List<Product>?> getCachedFullCatalog();
+
   /// Immediately retrieve locally cached products (0ms) on startup / restart
   Future<ProductPageData?> getCachedProducts({
     int page = 0,
@@ -28,4 +31,20 @@ abstract class ProductRepository {
 
   /// Create / assign a product to a seller via POST /api/v1/admin/products
   Future<Product> createProduct(Product product);
+
+  /// Permanently delete a product listing via DELETE /api/v1/admin/products/{productId}/permanent
+  Future<void> deleteProductPermanently(String productId);
+
+  /// Toggle product availability (in stock / out of stock) via PATCH /api/v1/admin/products/{productId}/availability
+  Future<Product> updateProductAvailability({
+    required String productId,
+    required bool isAvailable,
+  });
+
+  /// Upload product images via POST /api/v1/admin/products/{productId}/images
+  Future<Product> uploadProductImages({
+    required String productId,
+    required List<List<int>> filesBytes,
+    required List<String> fileNames,
+  });
 }

@@ -218,6 +218,7 @@ class _SellersViewState extends State<SellersView> {
                     final seller = filtered[index];
                     final productCount = widget.products.where((p) =>
                         p.sellerId == seller.id ||
+                        (p.sellerName.isNotEmpty && p.sellerName.toLowerCase() == seller.tradeName.toLowerCase()) ||
                         (p.vendor.isNotEmpty && p.vendor.toLowerCase() == seller.tradeName.toLowerCase())).length;
 
                     return isWide
@@ -498,6 +499,32 @@ class _SellersViewState extends State<SellersView> {
                           ),
                         ),
                       ),
+                      if (s.isDeleted) ...[
+                        const SizedBox(width: 6),
+                        Tooltip(
+                          message: 'Permanently Delete Seller',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(6),
+                            onTap: () => _confirmPermanentDeleteSeller(context, s),
+                            child: Container(
+                              width: 32,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF991B1B).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: const Color(0xFF991B1B).withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.delete_forever_rounded,
+                                size: 16,
+                                color: Color(0xFFDC2626),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -608,6 +635,26 @@ class _SellersViewState extends State<SellersView> {
                         ),
                       ),
                     ),
+                    if (s.isDeleted) ...[
+                      const SizedBox(width: 8),
+                      OutlinedButton(
+                        onPressed: () => _confirmPermanentDeleteSeller(context, s),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          side: const BorderSide(color: Color(0xFFDC2626)),
+                        ),
+                        child: Text(
+                          'Delete Forever',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -665,6 +712,67 @@ class _SellersViewState extends State<SellersView> {
               foregroundColor: Colors.white,
             ),
             child: Text(willDelete ? 'Deactivate' : 'Restore'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmPermanentDeleteSeller(BuildContext context, SellerProfile s) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Permanently Delete Seller?',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete "${s.tradeName}" (ID: ${s.id}) from the database?',
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Text(
+                'Endpoint: DELETE /api/v1/admin/users/${s.id}/permanent\n\n'
+                'Warning: This action is permanent and IRREVERSIBLE. All seller credentials and access will be completely wiped from the database. Note: Accounts with existing orders or products cannot be permanently deleted.',
+                style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF991B1B)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<SellerBloc>().add(
+                    PermanentlyDeleteAdminUser(s.id),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Permanently'),
           ),
         ],
       ),

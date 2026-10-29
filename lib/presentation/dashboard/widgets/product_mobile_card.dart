@@ -13,7 +13,8 @@ class ProductMobileCard extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<bool> onToggleSelect;
   final ValueChanged<String> onSelectSeller;
-  final VoidCallback onView;
+  final VoidCallback? onView;
+  final VoidCallback? onDelete;
   final VoidCallback onEdit;
 
   const ProductMobileCard({
@@ -27,7 +28,8 @@ class ProductMobileCard extends StatelessWidget {
     required this.onTap,
     required this.onToggleSelect,
     required this.onSelectSeller,
-    required this.onView,
+    this.onView,
+    this.onDelete,
     required this.onEdit,
   });
 
@@ -233,10 +235,12 @@ class ProductMobileCard extends StatelessWidget {
                 Row(
                   children: [
                     OutlinedButton.icon(
-                      onPressed: onView,
-                      icon: const Icon(Icons.visibility_outlined, size: 12),
-                      label: Text('View', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700)),
+                      onPressed: onDelete ?? onView,
+                      icon: const Icon(Icons.delete_outline_rounded, size: 12, color: Color(0xFFEF4444)),
+                      label: Text('Delete', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFFEF4444))),
                       style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFEF4444),
+                        side: const BorderSide(color: Color(0xFFEF4444), width: 0.8),
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

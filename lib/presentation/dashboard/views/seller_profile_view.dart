@@ -188,6 +188,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     // Filter products belonging to this seller
     final sellerProducts = widget.allProducts.where((p) =>
         p.sellerId == _currentSeller.id ||
+        (p.sellerName.isNotEmpty && p.sellerName.toLowerCase() == _currentSeller.tradeName.toLowerCase()) ||
         (p.vendor.isNotEmpty && p.vendor.toLowerCase() == _currentSeller.tradeName.toLowerCase())).toList();
 
     return Column(
@@ -297,6 +298,68 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     );
   }
 
+  void _confirmPermanentDeleteSeller(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Permanently Delete Seller?',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete "${_currentSeller.tradeName}" (ID: ${_currentSeller.id}) from the database?',
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Text(
+                'Endpoint: DELETE /api/v1/admin/users/${_currentSeller.id}/permanent\n\n'
+                'Warning: This action is permanent and IRREVERSIBLE. All seller credentials and access will be completely wiped from the database. Note: Accounts with existing orders or products cannot be permanently deleted.',
+                style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF991B1B)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<SellerBloc>().add(
+                    PermanentlyDeleteAdminUser(_currentSeller.id),
+                  );
+              widget.onBack();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- TOP ACTION BAR ---
   Widget _buildTopActionBar(
     BuildContext context,
@@ -394,6 +457,30 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
+            if (_currentSeller.isDeleted)
+              OutlinedButton.icon(
+                onPressed: () => _confirmPermanentDeleteSeller(context),
+                icon: const Icon(
+                  Icons.delete_forever_rounded,
+                  size: 15,
+                  color: Color(0xFFDC2626),
+                ),
+                label: Text(
+                  'Delete Forever',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFDC2626),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: const Color(0xFFDC2626).withValues(alpha: 0.6),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
             if (_isEditing) ...[
               OutlinedButton(
                 onPressed: () {
@@ -1548,14 +1635,49 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
             final pToCreate = p.copyWith(
               sellerId: _currentSeller.id,
               vendor: _currentSeller.tradeName,
+              sellerName: _currentSeller.tradeName,
             );
-            context.read<ProductBloc>().add(CreateProduct(pToCreate));
+            context.read<ProductBloc>().add(CreateProduct(
+              pToCreate,
+              onSuccess: (created) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Assigned "${created.title}" to ${_currentSeller.tradeName} (SKU: ${created.sku}).',
+                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                      ),
+                      backgroundColor: const Color(0xFF059669),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                }
+              },
+              onError: (err) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Failed to assign product: $err',
+                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                      ),
+                      backgroundColor: const Color(0xFFEF4444),
+                      duration: const Duration(seconds: 4),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                }
+              },
+            ));
             count++;
           }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Initiated assignment & creation of $count products for ${_currentSeller.tradeName}.',
+                'Assigning $count product(s) to ${_currentSeller.tradeName}...',
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
               ),
               backgroundColor: const Color(0xFF059669),

@@ -96,6 +96,14 @@ class SellerProfile extends Equatable {
   final DateTime? joinedAt;
   final DateTime? updatedAt;
   final List<String> kycDocuments;
+  final int productCodeSequence;
+  final int orderNumberSequence;
+  final bool isProfileComplete;
+  final bool isKycComplete;
+  final String? notes;
+  final List<String> notesHistory;
+  final int? monthlyTarget;
+  final String? preferredLanguage;
 
   const SellerProfile({
     required this.id,
@@ -128,7 +136,17 @@ class SellerProfile extends Equatable {
     this.joinedAt,
     this.updatedAt,
     this.kycDocuments = const [],
+    this.productCodeSequence = 0,
+    this.orderNumberSequence = 0,
+    this.isProfileComplete = false,
+    this.isKycComplete = false,
+    this.notes,
+    this.notesHistory = const [],
+    this.monthlyTarget,
+    this.preferredLanguage,
   });
+
+  String get phoneNumber => phone;
 
   factory SellerProfile.fromAdminUser(AdminUser u) {
     String derivedPan = '';
@@ -159,7 +177,11 @@ class SellerProfile extends Equatable {
       warehouseAddress: u.fullAddress,
       status: u.isDeleted
           ? 'DEACTIVATED'
-          : (u.isBlocked ? 'SUSPENDED' : (u.isVerified || u.isKycComplete ? 'VERIFIED' : 'ACTIVE')),
+          : (u.isBlocked
+              ? 'SUSPENDED'
+              : (u.status.isNotEmpty && u.status != 'ACTIVE'
+                  ? u.status
+                  : (u.isVerified || u.isKycComplete ? 'VERIFIED' : 'ACTIVE'))),
       isVerified: u.isVerified,
       isBlocked: u.isBlocked,
       isDeleted: u.isDeleted,
@@ -167,6 +189,14 @@ class SellerProfile extends Equatable {
       updatedAt: u.updatedAt,
       licenseNumber: u.licenceImage ?? '',
       kycDocuments: docs,
+      productCodeSequence: u.productCodeSequence ?? 0,
+      orderNumberSequence: u.orderNumberSequence ?? 0,
+      isProfileComplete: u.isProfileComplete,
+      isKycComplete: u.isKycComplete,
+      notes: u.notes,
+      notesHistory: u.notesHistory,
+      monthlyTarget: u.monthlyTarget,
+      preferredLanguage: u.preferredLanguage,
     );
   }
 
@@ -177,7 +207,7 @@ class SellerProfile extends Equatable {
     String stateStr = json['state']?.toString() ?? '';
     String pinStr = json['pincode']?.toString() ?? '';
 
-    if (rawAddress is Map<String, dynamic>) {
+    if (rawAddress is Map) {
       final parts = [
         rawAddress['villageArea'],
         rawAddress['address2'],
@@ -191,26 +221,49 @@ class SellerProfile extends Equatable {
       pinStr = rawAddress['pincode']?.toString() ?? pinStr;
     }
 
+    final id = json['_id']?.toString() ?? json['id']?.toString() ?? '';
+    final phone = json['phoneNumber']?.toString() ?? json['phone']?.toString() ?? '';
     final firstName = json['firstName']?.toString();
     final lastName = json['lastName']?.toString();
     final fullName = [firstName, lastName].where((e) => e != null && e.isNotEmpty).join(' ');
     final shopName = json['shopName']?.toString();
-    final computedName = (shopName != null && shopName.isNotEmpty)
-        ? shopName
-        : (fullName.isNotEmpty ? fullName : (json['companyName']?.toString() ?? json['vendor']?.toString() ?? ''));
+    final computedName = (shopName != null && shopName.trim().isNotEmpty)
+        ? shopName.trim()
+        : (fullName.isNotEmpty
+            ? fullName
+            : (phone.isNotEmpty
+                ? 'Seller ($phone)'
+                : (json['companyName']?.toString() ?? json['vendor']?.toString() ?? 'Seller #${id.length > 6 ? id.substring(id.length - 6) : id}')));
 
     final isBlocked = json['isBlocked'] == true;
+    final isDeleted = json['isDeleted'] == true;
     final isKyc = json['isKycComplete'] == true;
-    final statusStr = isBlocked ? 'SUSPENDED' : (isKyc ? 'VERIFIED' : (json['status']?.toString() ?? 'ACTIVE'));
+    final rawStatus = json['status']?.toString();
+    final statusStr = isDeleted
+        ? 'DEACTIVATED'
+        : (isBlocked
+            ? 'SUSPENDED'
+            : (rawStatus != null && rawStatus.isNotEmpty
+                ? rawStatus
+                : (isKyc ? 'VERIFIED' : 'ACTIVE')));
+
+    final productCodeSeq = (json['productCodeSequence'] as num?)?.toInt() ?? 0;
+    final orderNumberSeq = (json['orderNumberSequence'] as num?)?.toInt() ?? 0;
+    final isProfileComplete = json['isProfileComplete'] == true;
+    final isKycComplete = isKyc;
+    final notes = json['notes']?.toString();
+    final notesHistory = (json['notesHistory'] as List?)?.map((e) => e.toString()).toList() ?? const [];
+    final monthlyTarget = (json['monthlyTarget'] as num?)?.toInt();
+    final preferredLanguage = json['preferredLanguage']?.toString();
 
     return SellerProfile(
-      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
-      sellerCode: json['sellerCode']?.toString() ?? '',
+      id: id,
+      sellerCode: json['sellerCode']?.toString() ?? (id.isNotEmpty ? id : ''),
       companyName: computedName,
       tradeName: computedName,
       contactPerson: fullName.isNotEmpty ? fullName : (json['contactPerson']?.toString() ?? ''),
       email: json['email']?.toString() ?? '',
-      phone: json['phoneNumber']?.toString() ?? json['phone']?.toString() ?? '',
+      phone: phone,
       gstin: json['gstNumber']?.toString() ?? json['gstin']?.toString() ?? '',
       panNumber: (json['panNumber'] != null && json['panNumber'].toString().isNotEmpty)
           ? json['panNumber'].toString()
@@ -235,13 +288,21 @@ class SellerProfile extends Equatable {
       grossSalesValue: (json['grossSalesValue'] as num?)?.toDouble() ?? 0.0,
       status: statusStr,
       isVerified: json['isVerified'] as bool? ?? true,
-      isBlocked: json['isBlocked'] == true,
-      isDeleted: json['isDeleted'] == true,
+      isBlocked: isBlocked,
+      isDeleted: isDeleted,
       joinedAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : (json['joinedAt'] != null ? DateTime.tryParse(json['joinedAt'].toString()) : null),
       updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null,
       kycDocuments: (json['kycDocuments'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      productCodeSequence: productCodeSeq,
+      orderNumberSequence: orderNumberSeq,
+      isProfileComplete: isProfileComplete,
+      isKycComplete: isKycComplete,
+      notes: notes,
+      notesHistory: notesHistory,
+      monthlyTarget: monthlyTarget,
+      preferredLanguage: preferredLanguage,
     );
   }
 
@@ -276,6 +337,14 @@ class SellerProfile extends Equatable {
     if (joinedAt != null) 'joinedAt': joinedAt!.toIso8601String(),
     if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
     'kycDocuments': kycDocuments,
+    'productCodeSequence': productCodeSequence,
+    'orderNumberSequence': orderNumberSequence,
+    'isProfileComplete': isProfileComplete,
+    'isKycComplete': isKycComplete,
+    if (notes != null) 'notes': notes,
+    'notesHistory': notesHistory,
+    if (monthlyTarget != null) 'monthlyTarget': monthlyTarget,
+    if (preferredLanguage != null) 'preferredLanguage': preferredLanguage,
   };
 
   SellerProfile copyWith({
@@ -309,6 +378,14 @@ class SellerProfile extends Equatable {
     DateTime? joinedAt,
     DateTime? updatedAt,
     List<String>? kycDocuments,
+    int? productCodeSequence,
+    int? orderNumberSequence,
+    bool? isProfileComplete,
+    bool? isKycComplete,
+    String? notes,
+    List<String>? notesHistory,
+    int? monthlyTarget,
+    String? preferredLanguage,
   }) {
     return SellerProfile(
       id: id ?? this.id,
@@ -341,6 +418,14 @@ class SellerProfile extends Equatable {
       joinedAt: joinedAt ?? this.joinedAt,
       updatedAt: updatedAt ?? this.updatedAt,
       kycDocuments: kycDocuments ?? this.kycDocuments,
+      productCodeSequence: productCodeSequence ?? this.productCodeSequence,
+      orderNumberSequence: orderNumberSequence ?? this.orderNumberSequence,
+      isProfileComplete: isProfileComplete ?? this.isProfileComplete,
+      isKycComplete: isKycComplete ?? this.isKycComplete,
+      notes: notes ?? this.notes,
+      notesHistory: notesHistory ?? this.notesHistory,
+      monthlyTarget: monthlyTarget ?? this.monthlyTarget,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
     );
   }
 
@@ -359,6 +444,10 @@ class SellerProfile extends Equatable {
     isBlocked,
     isDeleted,
     rating,
+    productCodeSequence,
+    orderNumberSequence,
+    isProfileComplete,
+    isKycComplete,
   ];
 
   /// Standard authentic sample sellers representing the enterprise multi-tenant ecosystem

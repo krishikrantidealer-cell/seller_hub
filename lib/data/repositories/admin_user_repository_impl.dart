@@ -76,4 +76,11 @@ class AdminUserRepositoryImpl implements AdminUserRepository {
       deleted: deleted,
     );
   }
+
+  @override
+  Future<String> permanentlyDeleteUser(String userId) async {
+    final result = await remoteDataSource.permanentlyDeleteUser(userId: userId);
+    await localDataSource?.removeUserFromCache(userId);
+    return result;
+  }
 }

@@ -219,7 +219,7 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
                       ),
                       const SizedBox(width: 14),
                       Text(
-                        'Vendor: ${p.vendor}',
+                        'Vendor / Seller: ${p.sellerName.isNotEmpty ? p.sellerName : p.vendor}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -254,7 +254,7 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildInfoRow('Product Code', p.productCode, 'HSN Code', p.hsnCode, isDark),
-          _buildInfoRow('Technical Name', p.technicalName, 'Vendor / Brand', p.vendor, isDark),
+          _buildInfoRow('Technical Name', p.technicalName, 'Vendor / Brand', p.sellerName.isNotEmpty ? p.sellerName : p.vendor, isDark),
           _buildInfoRow('Category', p.category, 'Collections', p.collections, isDark),
           _buildInfoRow('Sub Collections', p.subCollections, 'Variant', p.variant, isDark),
           _buildInfoRow('Pack Size', '${p.packSize} ${p.unit}', 'Refund Policy', p.refundPolicy, isDark),

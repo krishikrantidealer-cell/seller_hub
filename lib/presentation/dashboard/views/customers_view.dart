@@ -741,6 +741,18 @@ class _CustomersViewState extends State<CustomersView> {
                                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                 onPressed: () => _confirmToggleDelete(context, user),
                               ),
+                              if (user.isDeleted)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_forever_rounded,
+                                    size: 16,
+                                    color: Color(0xFFDC2626),
+                                  ),
+                                  tooltip: 'Permanently delete customer',
+                                  padding: const EdgeInsets.all(6),
+                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                  onPressed: () => _confirmPermanentDelete(context, user),
+                                ),
                             ],
                           ),
                         ),
@@ -905,6 +917,16 @@ class _CustomersViewState extends State<CustomersView> {
                         tooltip: user.isDeleted ? 'Restore customer account' : 'Deactivate customer',
                         onPressed: () => _confirmToggleDelete(context, user),
                       ),
+                      if (user.isDeleted)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_forever_rounded,
+                            size: 16,
+                            color: Color(0xFFDC2626),
+                          ),
+                          tooltip: 'Permanently delete customer',
+                          onPressed: () => _confirmPermanentDelete(context, user),
+                        ),
                     ],
                   ),
                 ],
@@ -1028,6 +1050,67 @@ class _CustomersViewState extends State<CustomersView> {
               foregroundColor: Colors.white,
             ),
             child: Text(willDelete ? 'Deactivate' : 'Restore'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmPermanentDelete(BuildContext context, AdminUser user) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Permanently Delete Customer?',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete "${user.fullName.isNotEmpty ? user.fullName : user.phoneNumber}" (ID: ${user.id}) from the database?',
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Text(
+                'Endpoint: DELETE /api/v1/admin/users/${user.id}/permanent\n\n'
+                'Warning: This action is permanent and IRREVERSIBLE. All customer details and credentials will be removed. Note: Accounts with existing orders cannot be permanently deleted.',
+                style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF991B1B)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<CustomerBloc>().add(
+                    PermanentlyDeleteAdminUser(user.id),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Permanently'),
           ),
         ],
       ),
@@ -1193,6 +1276,24 @@ class _CustomersViewState extends State<CustomersView> {
                           foregroundColor: Colors.white,
                         ),
                       ),
+                      if (user.isDeleted) ...[
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(dialogCtx).pop();
+                            _confirmPermanentDelete(context, user);
+                          },
+                          icon: const Icon(
+                            Icons.delete_forever_rounded,
+                            size: 15,
+                          ),
+                          label: const Text('Delete Permanently'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFDC2626),
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],

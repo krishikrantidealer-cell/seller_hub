@@ -116,3 +116,54 @@ class CreateProduct extends ProductEvent {
   @override
   List<Object?> get props => [product];
 }
+
+class DeleteProductPermanently extends ProductEvent {
+  final String productId;
+  final void Function()? onSuccess;
+  final void Function(String errorMessage)? onError;
+
+  const DeleteProductPermanently(
+    this.productId, {
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [productId];
+}
+
+class ToggleProductAvailability extends ProductEvent {
+  final String productId;
+  final bool isAvailable;
+  final void Function(Product updatedProduct)? onSuccess;
+  final void Function(String errorMessage)? onError;
+
+  const ToggleProductAvailability({
+    required this.productId,
+    required this.isAvailable,
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [productId, isAvailable];
+}
+
+class UploadProductImages extends ProductEvent {
+  final String productId;
+  final List<List<int>> filesBytes;
+  final List<String> fileNames;
+  final void Function(Product updatedProduct)? onSuccess;
+  final void Function(String errorMessage)? onError;
+
+  const UploadProductImages({
+    required this.productId,
+    required this.filesBytes,
+    required this.fileNames,
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [productId, fileNames];
+}

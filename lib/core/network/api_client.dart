@@ -158,6 +158,70 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> postMultipartFiles(
+    String path, {
+    required String fileFieldName,
+    required List<List<int>> filesBytes,
+    required List<String> fileNames,
+    Map<String, String>? fields,
+    bool requiresAuth = false,
+  }) async {
+    try {
+      final uri = _buildUri(path);
+      final request = http.MultipartRequest('POST', uri);
+
+      if (requiresAuth) {
+        final token = await _tokenStorage.getAccessToken();
+        if (token != null && token.isNotEmpty) {
+          request.headers['Authorization'] = 'Bearer $token';
+        }
+      }
+      request.headers['Accept'] = 'application/json';
+
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      for (int i = 0; i < filesBytes.length; i++) {
+        final name = i < fileNames.length ? fileNames[i] : 'image_$i.jpg';
+        final ext = name.split('.').last.toLowerCase();
+        final mimeType = (ext == 'png') ? 'image/png' : (ext == 'webp' ? 'image/webp' : 'image/jpeg');
+        final parts = mimeType.split('/');
+        request.files.add(http.MultipartFile.fromBytes(
+          fileFieldName,
+          filesBytes[i],
+          filename: name,
+          contentType: MediaType(parts[0], parts[1]),
+        ));
+      }
+
+      final streamedResponse = await _client.send(request).timeout(_timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+      return _processResponse(response);
+    } on SocketException catch (e) {
+      throw NetworkException(
+        message: 'No internet connection or server unreachable: ${e.message}',
+        details: e,
+      );
+    } on TimeoutException {
+      throw const NetworkException(
+        message: 'The server took too long to respond while uploading. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      throw NetworkException(
+        message: 'Network communication failure during upload: ${e.message}',
+        details: e,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Unexpected error during upload: $e',
+        details: e,
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> delete(
     String path, {
     Map<String, dynamic>? body,

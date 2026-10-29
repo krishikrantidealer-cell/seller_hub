@@ -16,15 +16,16 @@ class UserAddress extends Equatable {
   });
 
   factory UserAddress.fromJson(dynamic json) {
-    if (json == null || json is! Map<String, dynamic>) {
+    if (json == null || json is! Map) {
       return const UserAddress();
     }
+    final map = Map<String, dynamic>.from(json);
     return UserAddress(
-      villageArea: json['villageArea']?.toString() ?? '',
-      address2: json['address2']?.toString() ?? '',
-      cityTehsil: json['cityTehsil']?.toString() ?? '',
-      state: json['state']?.toString() ?? '',
-      pincode: json['pincode']?.toString() ?? '',
+      villageArea: map['villageArea']?.toString() ?? '',
+      address2: map['address2']?.toString() ?? '',
+      cityTehsil: map['cityTehsil']?.toString() ?? '',
+      state: map['state']?.toString() ?? '',
+      pincode: map['pincode']?.toString() ?? '',
     );
   }
 
@@ -68,13 +69,20 @@ class AdminUser extends Equatable {
   final bool isDeleted;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String status;
+  final String? notes;
+  final List<String> notesHistory;
+  final int? monthlyTarget;
+  final String? preferredLanguage;
+  final int? productCodeSequence;
+  final int? orderNumberSequence;
 
   const AdminUser({
     required this.id,
     required this.phoneNumber,
     this.email,
-    required this.firstName,
-    required this.lastName,
+    this.firstName = '',
+    this.lastName = '',
     this.shopName,
     required this.role,
     this.address,
@@ -90,25 +98,46 @@ class AdminUser extends Equatable {
     this.isDeleted = false,
     this.createdAt,
     this.updatedAt,
+    this.status = 'ACTIVE',
+    this.notes,
+    this.notesHistory = const [],
+    this.monthlyTarget,
+    this.preferredLanguage,
+    this.productCodeSequence,
+    this.orderNumberSequence,
   });
 
   factory AdminUser.fromJson(Map<String, dynamic> json) {
     List<UserAddress> shipping = [];
-    if (json['shippingAddresses'] is List) {
-      shipping = (json['shippingAddresses'] as List)
+    final rawShipping = json['shippingAddresses'] ?? json['shipping_addresses'];
+    if (rawShipping is List) {
+      shipping = rawShipping
+          .whereType<Map>()
           .map((a) => UserAddress.fromJson(a))
           .toList();
     }
 
+    final rawHistory = json['notesHistory'] ?? json['notes_history'];
+    List<String> parsedHistory = [];
+    if (rawHistory is List) {
+      parsedHistory = rawHistory.map((e) => e.toString()).toList();
+    }
+
+    final rawAddress = json['address'];
+    UserAddress? parsedAddress;
+    if (rawAddress != null && rawAddress is Map) {
+      parsedAddress = UserAddress.fromJson(rawAddress);
+    }
+
     return AdminUser(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
-      phoneNumber: json['phoneNumber']?.toString() ?? '',
+      phoneNumber: json['phoneNumber']?.toString() ?? json['phone']?.toString() ?? '',
       email: json['email']?.toString(),
       firstName: json['firstName']?.toString() ?? '',
       lastName: json['lastName']?.toString() ?? '',
       shopName: json['shopName']?.toString(),
       role: json['role']?.toString() ?? 'ROLE_CUSTOMER',
-      address: json['address'] != null ? UserAddress.fromJson(json['address']) : null,
+      address: parsedAddress,
       isVerified: json['isVerified'] == true,
       isProfileComplete: json['isProfileComplete'] == true,
       kycStatus: json['kycStatus']?.toString(),
@@ -125,6 +154,13 @@ class AdminUser extends Equatable {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'].toString())
           : null,
+      status: json['status']?.toString() ?? 'ACTIVE',
+      notes: json['notes']?.toString(),
+      notesHistory: parsedHistory,
+      monthlyTarget: (json['monthlyTarget'] as num?)?.toInt(),
+      preferredLanguage: json['preferredLanguage']?.toString(),
+      productCodeSequence: (json['productCodeSequence'] as num?)?.toInt(),
+      orderNumberSequence: (json['orderNumberSequence'] as num?)?.toInt(),
     );
   }
 
@@ -149,18 +185,37 @@ class AdminUser extends Equatable {
         'isDeleted': isDeleted,
         'createdAt': createdAt?.toIso8601String(),
         'updatedAt': updatedAt?.toIso8601String(),
+        'status': status,
+        if (notes != null) 'notes': notes,
+        'notesHistory': notesHistory,
+        if (monthlyTarget != null) 'monthlyTarget': monthlyTarget,
+        if (preferredLanguage != null) 'preferredLanguage': preferredLanguage,
+        if (productCodeSequence != null) 'productCodeSequence': productCodeSequence,
+        if (orderNumberSequence != null) 'orderNumberSequence': orderNumberSequence,
       };
 
   String get fullName {
     final name = '$firstName $lastName'.trim();
-    return name.isNotEmpty ? name : 'User #$id';
+    if (name.isNotEmpty) return name;
+    if (shopName != null && shopName!.trim().isNotEmpty) return shopName!.trim();
+    if (phoneNumber.isNotEmpty) return phoneNumber;
+    final snippet = id.length > 8 ? id.substring(0, 8) : id;
+    return 'User #$snippet';
   }
 
   String get displayName {
     if (shopName != null && shopName!.trim().isNotEmpty) {
       return shopName!.trim();
     }
-    return fullName;
+    final name = '$firstName $lastName'.trim();
+    if (name.isNotEmpty) {
+      return name;
+    }
+    if (phoneNumber.isNotEmpty) {
+      return role == 'ROLE_SELLER' ? 'Seller ($phoneNumber)' : 'Customer ($phoneNumber)';
+    }
+    final snippet = id.length > 8 ? id.substring(0, 8) : id;
+    return 'User #$snippet';
   }
 
   String get fullAddress {
@@ -168,10 +223,11 @@ class AdminUser extends Equatable {
   }
 
   String get statusBadge {
-    if (isBlocked) return 'BLOCKED';
     if (isDeleted) return 'DELETED';
+    if (isBlocked) return 'BLOCKED';
+    if (status.isNotEmpty && status != 'ACTIVE') return status;
     if (isVerified || isKycComplete) return 'VERIFIED';
-    return 'ACTIVE';
+    return status.isNotEmpty ? status : 'ACTIVE';
   }
 
   AdminUser copyWith({
@@ -195,6 +251,13 @@ class AdminUser extends Equatable {
     bool? isDeleted,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? status,
+    String? notes,
+    List<String>? notesHistory,
+    int? monthlyTarget,
+    String? preferredLanguage,
+    int? productCodeSequence,
+    int? orderNumberSequence,
   }) {
     return AdminUser(
       id: id ?? this.id,
@@ -217,6 +280,13 @@ class AdminUser extends Equatable {
       isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      status: status ?? this.status,
+      notes: notes ?? this.notes,
+      notesHistory: notesHistory ?? this.notesHistory,
+      monthlyTarget: monthlyTarget ?? this.monthlyTarget,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
+      productCodeSequence: productCodeSequence ?? this.productCodeSequence,
+      orderNumberSequence: orderNumberSequence ?? this.orderNumberSequence,
     );
   }
 
@@ -239,6 +309,13 @@ class AdminUser extends Equatable {
         isDeleted,
         createdAt,
         updatedAt,
+        status,
+        notes,
+        notesHistory,
+        monthlyTarget,
+        preferredLanguage,
+        productCodeSequence,
+        orderNumberSequence,
       ];
 }
 

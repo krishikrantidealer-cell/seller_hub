@@ -42,12 +42,22 @@ class ProductRepositoryImpl implements ProductRepository {
         page++;
         if (pageData.content.isEmpty || page >= 20) break;
       }
+      if (all.isNotEmpty) {
+        localDataSource?.cacheFullCatalog(all);
+      }
       return all;
     } catch (_) {
+      final cachedFull = await localDataSource?.getCachedFullCatalog();
+      if (cachedFull != null && cachedFull.isNotEmpty) return cachedFull;
       final cached = await getCachedProducts(page: 0, size: 100) ??
           await getCachedProducts(page: 0, size: 20);
       return cached?.content ?? [];
     }
+  }
+
+  @override
+  Future<List<Product>?> getCachedFullCatalog() async {
+    return localDataSource?.getCachedFullCatalog();
   }
 
   @override
@@ -85,5 +95,32 @@ class ProductRepositoryImpl implements ProductRepository {
     );
     await localDataSource?.updateCachedProduct(created);
     return created;
+  }
+
+  @override
+  Future<void> deleteProductPermanently(String productId) async {
+    await remoteDataSource.deleteProductPermanently(productId);
+    await localDataSource?.removeCachedProduct(productId);
+  }
+
+  @override
+  Future<Product> updateProductAvailability({
+    required String productId,
+    required bool isAvailable,
+  }) async {
+    final updated = await remoteDataSource.updateProductAvailability(productId, isAvailable);
+    await localDataSource?.updateCachedProduct(updated);
+    return updated;
+  }
+
+  @override
+  Future<Product> uploadProductImages({
+    required String productId,
+    required List<List<int>> filesBytes,
+    required List<String> fileNames,
+  }) async {
+    final updated = await remoteDataSource.uploadProductImages(productId, filesBytes, fileNames);
+    await localDataSource?.updateCachedProduct(updated);
+    return updated;
   }
 }

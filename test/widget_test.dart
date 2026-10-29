@@ -1027,7 +1027,7 @@ void main() {
     expect(find.text('CATEGORY & PACK'), findsOneWidget);
     expect(find.text('PRICE / MRP'), findsOneWidget);
     expect(find.text('STOCK LEVEL'), findsOneWidget);
-    expect(find.text('STATUS'), findsOneWidget);
+    expect(find.text('AVAILABILITY'), findsOneWidget);
 
     // Verify master Select-All checkbox is present and tap it
     final headerCheckbox = find.byType(Checkbox).first;

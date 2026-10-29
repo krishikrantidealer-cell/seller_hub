@@ -67,6 +67,12 @@ class MockAdminUserRemoteDataSource implements AdminUserRemoteDataSource {
       isDeleted: deleted,
     );
   }
+
+  @override
+  Future<String> permanentlyDeleteUser({required String userId}) async {
+    if (throwError) throw Exception('Network error');
+    return userId;
+  }
 }
 
 class MockAdminUserLocalDataSource implements AdminUserLocalDataSource {
@@ -80,6 +86,23 @@ class MockAdminUserLocalDataSource implements AdminUserLocalDataSource {
   @override
   Future<void> cacheUsers(String role, AdminUserPageData data) async {
     cache[role.toUpperCase()] = data;
+  }
+
+  @override
+  Future<void> removeUserFromCache(String userId) async {
+    for (final key in cache.keys.toList()) {
+      final data = cache[key]!;
+      final filtered = data.content.where((u) => u.id != userId).toList();
+      cache[key] = AdminUserPageData(
+        content: filtered,
+        page: data.page,
+        size: data.size,
+        totalElements: filtered.length,
+        totalPages: data.totalPages,
+        first: data.first,
+        last: data.last,
+      );
+    }
   }
 
   @override

@@ -102,6 +102,13 @@ class FakeAdminUserRepository implements AdminUserRepository {
       isDeleted: deleted,
     );
   }
+
+  @override
+  Future<String> permanentlyDeleteUser(String userId) async {
+    sellersList.removeWhere((u) => u.id == userId);
+    customersList.removeWhere((u) => u.id == userId);
+    return userId;
+  }
 }
 
 void main() {
@@ -203,6 +210,26 @@ void main() {
         ),
       );
     });
+
+    test('PermanentlyDeleteAdminUser permanently removes customer from state and totalElements', () async {
+      bloc.add(const InitializeAdminUsers());
+      await expectLater(
+        bloc.stream,
+        emitsThrough(predicate<AdminUserState>((state) => state.status == AdminUserStatus.loaded)),
+      );
+
+      bloc.add(const PermanentlyDeleteAdminUser('6ab6248acf88a4428f9b1e26'));
+
+      await expectLater(
+        bloc.stream,
+        emitsThrough(
+          predicate<AdminUserState>((s) =>
+              s.actionSuccessMessage == 'User permanently deleted successfully' &&
+              s.users.isEmpty &&
+              s.totalElements == 0),
+        ),
+      );
+    });
   });
 
   group('SellerBloc Tests', () {
@@ -252,6 +279,26 @@ void main() {
               state.users.first.isDeleted == true &&
               bloc.sellerProfiles.first.isDeleted == true &&
               bloc.sellerProfiles.first.status == 'DEACTIVATED'),
+        ),
+      );
+    });
+
+    test('PermanentlyDeleteAdminUser permanently removes seller from state and sellerProfiles', () async {
+      bloc.add(const InitializeAdminUsers());
+      await expectLater(
+        bloc.stream,
+        emitsThrough(predicate<AdminUserState>((state) => state.status == AdminUserStatus.loaded)),
+      );
+
+      bloc.add(const PermanentlyDeleteAdminUser('6ab62c7f4aec9f42cea26a49'));
+
+      await expectLater(
+        bloc.stream,
+        emitsThrough(
+          predicate<AdminUserState>((state) =>
+              state.actionSuccessMessage == 'User permanently deleted successfully' &&
+              state.users.isEmpty &&
+              bloc.sellerProfiles.isEmpty),
         ),
       );
     });

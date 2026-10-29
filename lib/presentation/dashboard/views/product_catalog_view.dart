@@ -6,6 +6,9 @@ import 'package:seller_hub/presentation/dashboard/widgets/pagination_footer.dart
 import 'package:seller_hub/presentation/dashboard/widgets/product_mobile_card.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/product_table_row.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:seller_hub/core/models/category.dart';
+import 'package:seller_hub/logic/category/category_bloc.dart';
+import 'package:seller_hub/logic/category/category_state.dart';
 import 'package:seller_hub/logic/product/product_bloc.dart';
 import 'package:seller_hub/logic/product/product_event.dart';
 import 'package:seller_hub/logic/product/product_state.dart';
@@ -30,6 +33,7 @@ class _SellerFilterOption {
 class ProductCatalogView extends StatefulWidget {
   final List<Product> products;
   final List<SellerProfile> sellers;
+  final List<CategoryItem>? categories;
   final String initialSellerFilter;
   final bool isWide;
   final void Function(Product product, {bool editMode}) onOpenProductDetails;
@@ -40,6 +44,7 @@ class ProductCatalogView extends StatefulWidget {
     super.key,
     required this.products,
     required this.sellers,
+    this.categories,
     this.initialSellerFilter = 'All Sellers',
     required this.isWide,
     required this.onOpenProductDetails,
@@ -69,15 +74,112 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
   int _rowsPerPage = 20;
   final List<int> _rowsPerPageOptions = const [5, 10, 20, 50, 100];
 
-  final List<String> _categoryFilterOptions = const [
-    'All',
-    'Insecticides',
-    'Seeds',
-    'Fertilizers',
-    'Fungicides',
-    'Bio Stimulants',
-    'Herbicides',
-  ];
+  List<CategoryItem> _resolveLevel0Categories(CategoryState? catState) {
+    if (widget.categories != null && widget.categories!.isNotEmpty) {
+      final roots = widget.categories!
+          .where((c) => c.level == 0 || c.parentId == null || c.parentId!.isEmpty)
+          .toList();
+      if (roots.isNotEmpty) return roots;
+      return widget.categories!;
+    }
+    if (catState != null && catState.rootCategories.isNotEmpty) {
+      return catState.rootCategories;
+    }
+    if (catState != null && catState.allCategories.isNotEmpty) {
+      final roots = catState.allCategories
+          .where((c) => c.level == 0 || c.parentId == null || c.parentId!.isEmpty)
+          .toList();
+      if (roots.isNotEmpty) return roots;
+    }
+    return const [];
+  }
+
+  List<String> _buildCategoryFilterOptions(List<CategoryItem> level0Categories) {
+    final list = <String>['All'];
+    if (level0Categories.isNotEmpty) {
+      for (final c in level0Categories) {
+        final name = c.name.trim();
+        if (name.isNotEmpty && !list.contains(name)) {
+          list.add(name);
+        }
+      }
+    } else {
+      for (final p in widget.products) {
+        final cat = p.resolvedCategory.trim();
+        if (cat.isNotEmpty && !list.contains(cat)) {
+          list.add(cat);
+        }
+      }
+      for (final fallback in const [
+        'Insecticides',
+        'Seeds',
+        'Fertilizers',
+        'Fungicides',
+        'Bio Stimulants',
+        'Herbicides',
+      ]) {
+        if (!list.contains(fallback)) {
+          list.add(fallback);
+        }
+      }
+    }
+    return list;
+  }
+
+  bool _matchesCategory(
+    Product p,
+    String selectedFilter,
+    List<CategoryItem> level0Categories,
+    Map<String, CategoryItem> categoryById,
+  ) {
+    if (selectedFilter == 'All') return true;
+
+    final filterLower = selectedFilter.toLowerCase().trim();
+
+    // 1. Direct name match on product.category or resolvedCategory
+    if (p.category.trim().toLowerCase() == filterLower) return true;
+    if (p.resolvedCategory.trim().toLowerCase() == filterLower) return true;
+
+    // 2. Check if selected filter corresponds to a Level 0 category item
+    final root = level0Categories
+        .where((c) => c.name.trim().toLowerCase() == filterLower)
+        .firstOrNull;
+    if (root != null) {
+      // Direct ID match
+      if (p.categoryId.isNotEmpty && p.categoryId == root.id) return true;
+
+      // Check if p.categoryId is in root's hierarchy
+      if (p.categoryId.isNotEmpty) {
+        for (final child in root.children) {
+          if (child.id == p.categoryId ||
+              child.name.trim().toLowerCase() == p.category.trim().toLowerCase()) {
+            return true;
+          }
+          for (final leaf in child.children) {
+            if (leaf.id == p.categoryId ||
+                leaf.name.trim().toLowerCase() == p.category.trim().toLowerCase()) {
+              return true;
+            }
+          }
+        }
+
+        final item = categoryById[p.categoryId];
+        if (item != null) {
+          if (item.parentId == root.id) return true;
+          final parent = categoryById[item.parentId];
+          if (parent != null && parent.parentId == root.id) return true;
+        }
+      }
+
+      // Keyword / title / description match
+      final searchable = '${p.title} ${p.category} ${p.description}'.toLowerCase();
+      if (root.name.length >= 4 && searchable.contains(root.name.toLowerCase())) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   @override
   void initState() {
@@ -144,9 +246,10 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
         }
       }
     }
-    // 2. Secondary match: vendor name from product if available and meaningful
-    if (p.vendor.isNotEmpty && p.vendor != 'TEST DATA - temporary placeholder') {
-      return p.vendor;
+    // 2. Secondary match: sellerName or vendor name from product if available and meaningful
+    final sellerNameCandidate = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
+    if (sellerNameCandidate.isNotEmpty && sellerNameCandidate != 'TEST DATA - temporary placeholder') {
+      return sellerNameCandidate;
     }
     // 3. Fallback: formatted seller ID or Unassigned
     if (p.sellerId.isNotEmpty) {
@@ -154,6 +257,36 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       return 'Seller ($snippet)';
     }
     return 'Unassigned';
+  }
+
+  String _resolveSellerPhoneNumber(Product p, [List<SellerProfile>? sellersList, SellerBloc? sellerBloc]) {
+    if (p.sellerId.isEmpty) return '';
+
+    // 1. Primary match: lookup in active sellers list
+    final sellers = sellersList ?? _getActiveSellers();
+    for (final s in sellers) {
+      if (s.id == p.sellerId || s.sellerCode == p.sellerId) {
+        if (s.phoneNumber.trim().isNotEmpty) return s.phoneNumber.trim();
+      }
+    }
+
+    // 2. Secondary match: lookup in SellerBloc user accounts
+    if (sellerBloc != null) {
+      for (final u in sellerBloc.state.users) {
+        if (u.id == p.sellerId && u.phoneNumber.trim().isNotEmpty) {
+          return u.phoneNumber.trim();
+        }
+      }
+    }
+
+    // 3. Fallback: widget.sellers
+    for (final s in widget.sellers) {
+      if (s.id == p.sellerId && s.phoneNumber.trim().isNotEmpty) {
+        return s.phoneNumber.trim();
+      }
+    }
+
+    return '';
   }
 
   Color _getCategoryColor(String category) {
@@ -181,6 +314,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
     }
     return catalog.where((p) {
       if (p.sellerId.isNotEmpty && p.sellerId == sellerId) return true;
+      if (p.sellerName.isNotEmpty && p.sellerName.trim().toLowerCase() == sellerName.trim().toLowerCase()) return true;
       if (p.vendor.isNotEmpty && p.vendor.trim().toLowerCase() == sellerName.trim().toLowerCase()) return true;
       return false;
     }).length;
@@ -239,7 +373,201 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       }
     }
 
+    // User requirement: In the All Sellers dropdown, show seller count not product count
+    final totalDistinctSellers = list.length - 1;
+    list[0] = _SellerFilterOption(
+      key: 'All Sellers',
+      label: 'All Sellers',
+      productCount: totalDistinctSellers,
+    );
+
     return list;
+  }
+
+  void _confirmPermanentDelete(BuildContext context, Product product) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Permanently Delete Product?',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete "${product.title}" (${product.productCode.isNotEmpty ? product.productCode : product.sku}) from the catalog?',
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Text(
+                'Endpoint: DELETE /api/v1/admin/products/${product.id}/permanent\n\n'
+                'Warning: This action is permanent and IRREVERSIBLE. All variants, pricing, inventory mappings, and images will be permanently purged from the database.',
+                style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF991B1B)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              final targetId = product.id.isNotEmpty ? product.id : product.productCode;
+
+              // Instantly update local table and selection state (0ms)
+              setState(() {
+                widget.products.removeWhere(
+                  (p) =>
+                      (p.id.isNotEmpty && p.id == targetId) ||
+                      p.productCode == targetId ||
+                      p.sku == targetId,
+                );
+                _selectedProductCodes.remove(product.productCode);
+              });
+
+              ProductBloc? bloc;
+              try {
+                bloc = context.read<ProductBloc>();
+              } catch (_) {}
+
+              if (bloc != null) {
+                bloc.add(
+                  DeleteProductPermanently(
+                    targetId,
+                    onSuccess: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '${product.title} permanently deleted.',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                          backgroundColor: const Color(0xFF059669),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    onError: (msg) {
+                      setState(() {
+                        if (!widget.products.contains(product)) {
+                          widget.products.add(product);
+                        }
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Failed to delete: $msg',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                          backgroundColor: const Color(0xFFDC2626),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleProductAvailability(Product p) {
+    final newAvailable = !p.isAvailable;
+    final targetId = p.id.isNotEmpty ? p.id : p.productCode;
+
+    // Optimistically update local UI state immediately
+    setState(() {
+      final idx = widget.products.indexWhere(
+        (item) => (p.id.isNotEmpty && item.id == p.id) || item.productCode == p.productCode,
+      );
+      if (idx != -1) {
+        final updated = p.copyWith(isAvailable: newAvailable);
+        widget.products[idx] = updated;
+        widget.onProductUpdated?.call(updated);
+      }
+    });
+
+    ProductBloc? bloc;
+    try {
+      bloc = context.read<ProductBloc>();
+    } catch (_) {}
+
+    if (bloc != null) {
+      bloc.add(
+        ToggleProductAvailability(
+          productId: targetId,
+          isAvailable: newAvailable,
+          onSuccess: (updatedProduct) {
+            setState(() {
+              final idx = widget.products.indexWhere(
+                (item) => (item.id.isNotEmpty && item.id == updatedProduct.id) || item.productCode == updatedProduct.productCode,
+              );
+              if (idx != -1) {
+                widget.products[idx] = updatedProduct;
+              }
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${p.title} availability set to ${newAvailable ? 'Available' : 'Unavailable'}',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                duration: const Duration(seconds: 2),
+                backgroundColor: newAvailable ? const Color(0xFF059669) : const Color(0xFF64748B),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+          onError: (err) {
+            // Revert optimistic update on failure
+            setState(() {
+              final idx = widget.products.indexWhere(
+                (item) => (p.id.isNotEmpty && item.id == p.id) || item.productCode == p.productCode,
+              );
+              if (idx != -1) {
+                widget.products[idx] = p;
+                widget.onProductUpdated?.call(p);
+              }
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Failed to update availability: $err',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                backgroundColor: const Color(0xFFDC2626),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+        ),
+      );
+    }
   }
 
   @override
@@ -270,6 +598,15 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       sellerBloc = context.watch<SellerBloc>();
     } catch (_) {}
 
+    CategoryBloc? categoryBloc;
+    try {
+      categoryBloc = context.watch<CategoryBloc>();
+    } catch (_) {}
+
+    final level0Categories = _resolveLevel0Categories(categoryBloc?.state);
+    final categoryById = categoryBloc?.state.categoryById ?? const {};
+    final categoryOptions = _buildCategoryFilterOptions(level0Categories);
+
     final activeSellers = _getActiveSellers(sellerBloc);
     final sellerOptions = _buildSellerOptions(activeSellers, catalog, totalCatalogCount);
 
@@ -287,15 +624,14 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       final words = query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
 
       final searchableText = '${p.title} ${p.sku} ${p.productCode} ${p.technicalName} '
-          '${p.category} ${p.vendor} ${p.hsnCode} ${p.sellerId} ${p.id} '
+          '${p.category} ${p.sellerName} ${p.vendor} ${p.hsnCode} ${p.sellerId} ${p.id} '
           '${p.assignedCollections.join(' ')} '
           '${p.variants.map((v) => '${v.label} ${v.packSize}${v.unit}').join(' ')}'
           .toLowerCase();
 
       final matchesSearch = words.isEmpty || words.every((word) => searchableText.contains(word));
 
-      final matchesCategory = _selectedCategoryFilter == 'All' ||
-          p.category.toLowerCase() == _selectedCategoryFilter.toLowerCase();
+      final matchesCategory = _matchesCategory(p, _selectedCategoryFilter, level0Categories, categoryById);
 
       final resolvedSeller = _resolveSellerName(p, activeSellers);
       final matchesSeller = activeSellerOption.key == 'All Sellers' ||
@@ -303,6 +639,8 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
           p.sellerId == _selectedSellerFilter ||
           resolvedSeller.toLowerCase() == activeSellerOption.label.toLowerCase() ||
           resolvedSeller.toLowerCase() == _selectedSellerFilter.toLowerCase() ||
+          p.sellerName.toLowerCase() == _selectedSellerFilter.toLowerCase() ||
+          p.sellerName.toLowerCase() == activeSellerOption.label.toLowerCase() ||
           p.vendor.toLowerCase() == _selectedSellerFilter.toLowerCase() ||
           p.vendor.toLowerCase() == activeSellerOption.label.toLowerCase();
 
@@ -380,10 +718,6 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
     final paginatedProducts = isServerPaginated
         ? filtered
         : (totalItems == 0 ? <Product>[] : filtered.sublist(startIndex, endIndex));
-
-    final inStockCount = catalog.where((p) => p.stock > 50).length;
-    final lowStockCount = catalog.where((p) => p.stock > 0 && p.stock <= 50).length;
-    final sellersCount = sellerOptions.where((s) => s.key != 'All Sellers').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,31 +876,6 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
             const SizedBox(width: 8),
 
             // Refresh Button
-            if (productBloc != null) ...[
-              SizedBox(
-                height: 40,
-                width: 40,
-                child: IconButton(
-                  onPressed: isLoading
-                      ? null
-                      : () => productBloc!.add(FetchProducts(
-                            page: productState.currentPage,
-                            size: productState.pageSize,
-                            isRefresh: true,
-                          )),
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  tooltip: 'Sync Products from Server',
-                  style: IconButton.styleFrom(
-                    backgroundColor: surfaceColor,
-                    foregroundColor: const Color(0xFF059669),
-                    side: BorderSide(color: borderColor),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-
             // Add Product Button
             SizedBox(
               height: 40,
@@ -771,8 +1080,14 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: _categoryFilterOptions.map((cat) {
+                  children: categoryOptions.map((cat) {
                     final isSelected = _selectedCategoryFilter == cat;
+                    final catItem = level0Categories
+                        .where((c) => c.name.trim().toLowerCase() == cat.trim().toLowerCase())
+                        .firstOrNull;
+                    final hasEmoji = catItem != null && catItem.isEmojiIcon;
+                    final labelText = hasEmoji ? '${catItem.effectiveIcon} $cat' : cat;
+
                     return Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: FilterChip(
@@ -781,7 +1096,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        label: Text(cat),
+                        label: Text(labelText),
                         selected: isSelected,
                         selectedColor: isDark
                             ? const Color(0xFF059669).withValues(alpha: 0.22)
@@ -808,16 +1123,6 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                 ),
               ),
             ),
-            if (widget.isWide) ...[
-              const SizedBox(width: 8),
-              _buildMiniMetricBadge('Total', '${hasActiveFilters ? filtered.length : totalCatalogCount}', const Color(0xFF059669), isDark),
-              const SizedBox(width: 6),
-              _buildMiniMetricBadge('In Stock', '$inStockCount', const Color(0xFF10B981), isDark),
-              const SizedBox(width: 6),
-              _buildMiniMetricBadge('Low Stock', '$lowStockCount', const Color(0xFFEF4444), isDark),
-              const SizedBox(width: 6),
-              _buildMiniMetricBadge('Sellers', '$sellersCount', const Color(0xFF3B82F6), isDark),
-            ],
           ],
         ),
 
@@ -1130,8 +1435,8 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                         ),
                       ),
                       SizedBox(
-                        width: 88,
-                        child: _buildSortableColHeader('status', 'STATUS', isDark),
+                        width: 110,
+                        child: _buildSortableColHeader('status', 'AVAILABILITY', isDark),
                       ),
                       const SizedBox(width: 16),
                       SizedBox(
@@ -1265,6 +1570,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                     final p = paginatedProducts[index];
                     final isSelected = _selectedProductCodes.contains(p.productCode);
                     final sellerName = _resolveSellerName(p, activeSellers);
+                    final sellerPhone = _resolveSellerPhoneNumber(p, activeSellers, sellerBloc);
                     final catColor = _getCategoryColor(p.category);
 
                     return widget.isWide
@@ -1273,6 +1579,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                             product: p,
                             isSelected: isSelected,
                             sellerName: sellerName,
+                            sellerPhoneNumber: sellerPhone,
                             categoryColor: catColor,
                             isDark: isDark,
                             borderColor: borderColor,
@@ -1290,27 +1597,9 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                               _selectedSellerFilter = name;
                               _currentPage = 1;
                             }),
-                            onToggleStatus: () {
-                              setState(() {
-                                final idx = widget.products.indexWhere((item) => item.productCode == p.productCode);
-                                if (idx != -1) {
-                                  final updated = p.copyWith(isAvailable: !p.isAvailable);
-                                  widget.products[idx] = updated;
-                                  widget.onProductUpdated?.call(updated);
-                                }
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    '${p.title} marked as ${!p.isAvailable ? 'Active' : 'Hidden'}',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
-                                  ),
-                                  duration: const Duration(seconds: 2),
-                                  backgroundColor: !p.isAvailable ? const Color(0xFF059669) : const Color(0xFF64748B),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            },
+                            onToggleStatus: () => _toggleProductAvailability(p),
+                            onToggleAvailability: () => _toggleProductAvailability(p),
+                            onDelete: () => _confirmPermanentDelete(context, p),
                             onView: () => widget.onOpenProductDetails(p, editMode: false),
                             onEdit: () => widget.onOpenProductDetails(p, editMode: true),
                           )
@@ -1335,6 +1624,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                               _selectedSellerFilter = name;
                               _currentPage = 1;
                             }),
+                            onDelete: () => _confirmPermanentDelete(context, p),
                             onView: () => widget.onOpenProductDetails(p, editMode: false),
                             onEdit: () => widget.onOpenProductDetails(p, editMode: true),
                           );
@@ -1473,35 +1763,4 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
   }
 
 
-  Widget _buildMiniMetricBadge(String label, String value, Color color, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$label: ',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

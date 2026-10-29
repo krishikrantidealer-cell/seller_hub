@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/product_hover_preview_thumbnail.dart';
@@ -7,6 +8,7 @@ class ProductTableRow extends StatelessWidget {
   final Product product;
   final bool isSelected;
   final String sellerName;
+  final String? sellerPhoneNumber;
   final Color categoryColor;
   final bool isDark;
   final Color borderColor;
@@ -14,7 +16,9 @@ class ProductTableRow extends StatelessWidget {
   final ValueChanged<bool> onToggleSelect;
   final ValueChanged<String> onSelectSeller;
   final VoidCallback onToggleStatus;
-  final VoidCallback onView;
+  final VoidCallback? onToggleAvailability;
+  final VoidCallback? onView;
+  final VoidCallback? onDelete;
   final VoidCallback onEdit;
 
   const ProductTableRow({
@@ -22,6 +26,7 @@ class ProductTableRow extends StatelessWidget {
     required this.product,
     required this.isSelected,
     required this.sellerName,
+    this.sellerPhoneNumber,
     required this.categoryColor,
     required this.isDark,
     required this.borderColor,
@@ -29,7 +34,9 @@ class ProductTableRow extends StatelessWidget {
     required this.onToggleSelect,
     required this.onSelectSeller,
     required this.onToggleStatus,
-    required this.onView,
+    this.onToggleAvailability,
+    this.onView,
+    this.onDelete,
     required this.onEdit,
   });
 
@@ -200,16 +207,78 @@ class ProductTableRow extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 3),
-                      Text(
-                        product.sellerId.isNotEmpty
-                            ? 'ID: ${product.sellerId.length > 8 ? '${product.sellerId.substring(0, 8)}...' : product.sellerId}'
-                            : 'Default Merchant',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 9.5,
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      InkWell(
+                        onTap: (sellerPhoneNumber != null && sellerPhoneNumber!.trim().isNotEmpty)
+                            ? () {
+                                final phone = sellerPhoneNumber!.trim();
+                                Clipboard.setData(ClipboardData(text: phone));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 16),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Copied seller phone $phone to clipboard',
+                                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                    duration: const Duration(seconds: 2),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    backgroundColor: const Color(0xFF059669),
+                                  ),
+                                );
+                              }
+                            : null,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Tooltip(
+                          message: (sellerPhoneNumber != null && sellerPhoneNumber!.trim().isNotEmpty)
+                              ? 'Click to copy: ${sellerPhoneNumber!.trim()}'
+                              : 'No phone number available',
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (sellerPhoneNumber != null && sellerPhoneNumber!.trim().isNotEmpty) ...[
+                                  Icon(
+                                    Icons.phone_outlined,
+                                    size: 10,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                  const SizedBox(width: 3),
+                                ],
+                                Flexible(
+                                  child: SelectableText(
+                                    (sellerPhoneNumber != null && sellerPhoneNumber!.trim().isNotEmpty)
+                                        ? sellerPhoneNumber!.trim()
+                                        : (product.sellerId.isNotEmpty
+                                            ? 'ID: ${product.sellerId.length > 8 ? '${product.sellerId.substring(0, 8)}...' : product.sellerId}'
+                                            : 'Default Merchant'),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 9.5,
+                                      fontWeight: (sellerPhoneNumber != null && sellerPhoneNumber!.trim().isNotEmpty)
+                                          ? FontWeight.w600
+                                          : FontWeight.w400,
+                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                    ),
+                                    maxLines: 1,
+                                  ),
+                                ),
+                                if (sellerPhoneNumber != null && sellerPhoneNumber!.trim().isNotEmpty) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.copy_rounded,
+                                    size: 10,
+                                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -390,50 +459,57 @@ class ProductTableRow extends StatelessWidget {
                 ),
               ),
 
-              // 7. STATUS (Width 88)
+              // 7. AVAILABILITY (Width 110)
               SizedBox(
-                width: 88,
+                width: 110,
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: InkWell(
-                    onTap: onToggleStatus,
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: product.isAvailable
-                            ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                            : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
+                  child: Tooltip(
+                    message: product.isAvailable ? 'Click to mark as Unavailable' : 'Click to mark as Available',
+                    child: InkWell(
+                      onTap: onToggleAvailability ?? onToggleStatus,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
                           color: product.isAvailable
-                              ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                              : (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
+                              ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                              : (isDark ? const Color(0xFF334155).withValues(alpha: 0.3) : const Color(0xFFF1F5F9)),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: product.isAvailable
+                                ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                                : (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: product.isAvailable ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: product.isAvailable ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            product.isAvailable ? 'Active' : 'Hidden',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                              color: product.isAvailable
-                                  ? const Color(0xFF10B981)
-                                  : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                product.isAvailable ? 'Available' : 'Unavailable',
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: product.isAvailable
+                                      ? const Color(0xFF10B981)
+                                      : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -448,26 +524,26 @@ class ProductTableRow extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // View button
+                    // Delete button (replaces eye icon)
                     Tooltip(
-                      message: 'View Details',
+                      message: 'Delete Product',
                       child: InkWell(
                         borderRadius: BorderRadius.circular(6),
-                        onTap: onView,
+                        onTap: onDelete ?? onView,
                         child: Container(
                           width: 32,
                           height: 30,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: const Color(0xFF059669).withValues(alpha: 0.3),
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.28),
                             ),
                           ),
                           child: const Icon(
-                            Icons.visibility_rounded,
+                            Icons.delete_outline_rounded,
                             size: 15,
-                            color: Color(0xFF059669),
+                            color: Color(0xFFEF4444),
                           ),
                         ),
                       ),

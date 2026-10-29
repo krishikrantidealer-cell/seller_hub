@@ -11,6 +11,15 @@ class ApiEndpoints {
   /// Products
   static const String products = '/api/v1/products';
   static const String adminProducts = '/api/v1/admin/products';
+  static String adminProduct(String productId) => '/api/v1/admin/products/$productId';
+  static String adminProductPermanent(String productId) =>
+      '/api/v1/admin/products/$productId/permanent';
+  static String adminProductAvailability(String productId) =>
+      '/api/v1/admin/products/$productId/availability';
+  static String adminProductReview(String productId) =>
+      '/api/v1/admin/products/$productId/review';
+  static String adminProductImages(String productId) =>
+      '/api/v1/admin/products/$productId/images';
 
   /// Collections
   static const String collections = '/api/v1/collections';
@@ -28,4 +37,5 @@ class ApiEndpoints {
   static const String adminUsers = '/api/v1/admin/users';
   static String adminUserBlock(String userId) => '/api/v1/admin/users/$userId/block';
   static String adminUserDeletion(String userId) => '/api/v1/admin/users/$userId/deletion';
+  static String adminUserPermanentDeletion(String userId) => '/api/v1/admin/users/$userId/permanent';
 }

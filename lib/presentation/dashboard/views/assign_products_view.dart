@@ -237,7 +237,9 @@ class _AssignProductsViewState extends State<AssignProductsView> {
         // Dynamic sellers from catalog
         final sellers = <String>{'All Sellers'};
         for (final p in allProducts) {
-          final s = p.vendor.trim().isNotEmpty ? p.vendor.trim() : (p.sellerId.isNotEmpty ? p.sellerId : 'Krishi Kranti Organics');
+          final s = p.sellerName.trim().isNotEmpty
+              ? p.sellerName.trim()
+              : (p.vendor.trim().isNotEmpty ? p.vendor.trim() : (p.sellerId.isNotEmpty ? p.sellerId : 'Krishi Kranti Organics'));
           sellers.add(s);
         }
         final sortedSellers = sellers.toList()..sort();
@@ -253,7 +255,7 @@ class _AssignProductsViewState extends State<AssignProductsView> {
           if (_searchQuery.isNotEmpty) {
             final words = _searchQuery.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
             final searchable = '${p.title} ${p.sku} ${p.productCode} ${p.technicalName} '
-                '${p.category} ${p.vendor} ${p.sellerId}'.toLowerCase();
+                '${p.category} ${p.sellerName} ${p.vendor} ${p.sellerId}'.toLowerCase();
             final matches = words.every((word) => searchable.contains(word));
             if (!matches) return false;
           }
@@ -265,7 +267,9 @@ class _AssignProductsViewState extends State<AssignProductsView> {
 
           // 3. Seller Filter
           if (_selectedSellerFilter != 'All Sellers') {
-            final vendorName = p.vendor.trim().isNotEmpty ? p.vendor.trim() : (p.sellerId.isNotEmpty ? p.sellerId : 'Krishi Kranti Organics');
+            final vendorName = p.sellerName.trim().isNotEmpty
+                ? p.sellerName.trim()
+                : (p.vendor.trim().isNotEmpty ? p.vendor.trim() : (p.sellerId.isNotEmpty ? p.sellerId : 'Krishi Kranti Organics'));
             if (vendorName != _selectedSellerFilter) return false;
           }
 
@@ -1116,7 +1120,9 @@ class _AssignProductsViewState extends State<AssignProductsView> {
                                                   const Icon(Icons.storefront_rounded, size: 12, color: Color(0xFF2563EB)),
                                                   const SizedBox(width: 4),
                                                   Text(
-                                                    product.vendor.isNotEmpty ? product.vendor : 'Krishi Kranti Organics',
+                                                    product.sellerName.isNotEmpty
+                                                        ? product.sellerName
+                                                        : (product.vendor.isNotEmpty ? product.vendor : 'Krishi Kranti Organics'),
                                                     style: GoogleFonts.plusJakartaSans(
                                                       fontSize: 11,
                                                       fontWeight: FontWeight.w600,

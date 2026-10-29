@@ -1,22 +1,44 @@
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/models/admin_user.dart';
+import '../../../core/models/category.dart';
+import '../../../core/models/collection.dart';
 import '../../../core/models/product.dart';
+import '../../../logic/admin_user/seller_bloc.dart';
+import '../../../logic/category/category_bloc.dart';
+import '../../../logic/collection/collection_bloc.dart';
+import '../../../logic/product/product_bloc.dart';
+import '../../../logic/product/product_event.dart';
 import '../widgets/app_product_image.dart';
 import '../widgets/app_html_view.dart';
 import '../widgets/assign_collections_dialog.dart';
+
+class ProductImageUploadItem {
+  final String name;
+  final List<int> bytes;
+
+  const ProductImageUploadItem({required this.name, required this.bytes});
+}
 
 class ProductDetailsView extends StatefulWidget {
   final Product product;
   final VoidCallback onBack;
   final Function(Product updatedProduct)? onProductUpdated;
+  final void Function(Product newProduct, [List<ProductImageUploadItem>? pendingImages])? onProductCreated;
   final bool startInEditMode;
+  final bool isCreateMode;
 
   const ProductDetailsView({
     super.key,
     required this.product,
     required this.onBack,
     this.onProductUpdated,
+    this.onProductCreated,
     this.startInEditMode = false,
+    this.isCreateMode = false,
   });
 
   @override
@@ -27,7 +49,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late Product _currentProduct;
   late bool _isEditing;
 
-  // Form Controllers for 38-field editing
+  // Form Controllers for editing
   late TextEditingController _titleController;
   late TextEditingController _techNameController;
   late TextEditingController _productCodeController;
@@ -62,7 +84,18 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late TextEditingController _weightController;
   late TextEditingController _weightUnitController;
   late TextEditingController _dimensionsController;
-  late TextEditingController _imageUrlController;
+
+  String _selectedSellerId = '';
+  String _selectedSellerName = '';
+  String _selectedCategoryId = '';
+  String _selectedCategoryName = '';
+  String _selectedCollectionId = '';
+  String _selectedCollectionName = '';
+  String _selectedSubCollectionId = '';
+  String _selectedSubCollectionName = '';
+
+  final List<ProductImageUploadItem> _pendingImages = [];
+  int _activePreviewImageIndex = 0;
 
   late bool _editIsAvailable;
   // late bool _editIsFeatured; // isFeatured temporarily commented out
@@ -74,11 +107,84 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   void initState() {
     super.initState();
     _currentProduct = widget.product;
-    _isEditing = widget.startInEditMode;
+    _isEditing = widget.startInEditMode || widget.isCreateMode;
     _initControllers(_currentProduct);
   }
 
   void _initControllers(Product p) {
+    if (widget.isCreateMode) {
+      _workingVariants = [
+        const ProductVariant(
+          id: 'var_default_1',
+          displayOrder: 1,
+          isDefault: true,
+          label: 'Pack 1',
+          unit: 'ml',
+          packSize: 0,
+          packSizeUnit: 'ml',
+          packQuantity: 1,
+          packUnit: 'bottle',
+          shippedBy: '',
+          displayRate: 0.0,
+          printedMrp: 0.0,
+          costPrice: 0.0,
+          discountRs: 0.0,
+          gstPercentage: 5.0,
+          discountPercentage: 0.0,
+          stock: 0,
+          pricePerBaseUnit: 0.0,
+        ),
+      ];
+      _selectedVariantIndex = 0;
+
+      _titleController = TextEditingController();
+      _techNameController = TextEditingController();
+      _productCodeController = TextEditingController();
+      _hsnCodeController = TextEditingController();
+      _vendorController = TextEditingController();
+      _categoryController = TextEditingController();
+      _collectionsController = TextEditingController();
+      _subCollectionsController = TextEditingController();
+      _descriptionController = TextEditingController();
+      _techContentController = TextEditingController();
+      _featuresController = TextEditingController();
+      _benefitsController = TextEditingController();
+      _modeOfActionController = TextEditingController();
+      _suitableCropController = TextEditingController();
+      _targetPestsController = TextEditingController();
+      _targetDiseasesController = TextEditingController();
+      _dosageController = TextEditingController();
+      _appMethodController = TextEditingController();
+      _variantController = TextEditingController(text: 'Pack 1');
+      _packSizeController = TextEditingController();
+      _unitController = TextEditingController(text: 'ml');
+      _packQuantityController = TextEditingController(text: '1');
+      _displayRateController = TextEditingController();
+      _printedMrpController = TextEditingController();
+      _costPriceController = TextEditingController();
+      _gstController = TextEditingController(text: '5');
+      _shippedByController = TextEditingController();
+      _swgController = TextEditingController();
+      _stockController = TextEditingController();
+      _ratingsController = TextEditingController();
+      _refundPolicyController = TextEditingController();
+      _weightController = TextEditingController();
+      _weightUnitController = TextEditingController(text: 'g');
+      _dimensionsController = TextEditingController();
+
+      _selectedSellerId = p.sellerId;
+      _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
+      _selectedCategoryId = p.categoryId;
+      _selectedCategoryName = p.category;
+      _selectedCollectionId = '';
+      _selectedCollectionName = p.collections;
+      _selectedSubCollectionId = '';
+      _selectedSubCollectionName = p.subCollections;
+
+      _editIsAvailable = true;
+      return;
+    }
+
     _workingVariants = List.from(p.variants);
     final defIdx = _workingVariants.indexWhere((v) => v.isDefault);
     _selectedVariantIndex = defIdx != -1 ? defIdx : 0;
@@ -88,7 +194,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _techNameController = TextEditingController(text: p.technicalName);
     _productCodeController = TextEditingController(text: p.productCode);
     _hsnCodeController = TextEditingController(text: p.hsnCode);
-    _vendorController = TextEditingController(text: p.vendor);
+    _vendorController = TextEditingController(text: p.sellerName.isNotEmpty ? p.sellerName : p.vendor);
     _categoryController = TextEditingController(text: p.category);
     _collectionsController = TextEditingController(text: p.collections);
     _subCollectionsController = TextEditingController(text: p.subCollections);
@@ -118,7 +224,15 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _weightController = TextEditingController(text: p.productWeight.toStringAsFixed(2));
     _weightUnitController = TextEditingController(text: p.productWeightUnit);
     _dimensionsController = TextEditingController(text: p.dimensions);
-    _imageUrlController = TextEditingController(text: p.images.isNotEmpty ? p.images.first : '');
+
+    _selectedSellerId = p.sellerId;
+    _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
+    _selectedCategoryId = p.categoryId;
+    _selectedCategoryName = p.category;
+    _selectedCollectionId = p.assignedCollections.isNotEmpty ? p.assignedCollections.first : '';
+    _selectedCollectionName = p.collections;
+    _selectedSubCollectionId = p.assignedCollections.length > 1 ? p.assignedCollections[1] : '';
+    _selectedSubCollectionName = p.subCollections;
 
     _editIsAvailable = p.isAvailable;
     // _editIsFeatured = p.isFeatured;
@@ -311,16 +425,27 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _weightController.dispose();
     _weightUnitController.dispose();
     _dimensionsController.dispose();
-    _imageUrlController.dispose();
     super.dispose();
   }
 
   void _toggleAvailability() {
+    final newAvailability = !_currentProduct.isAvailable;
     setState(() {
-      _currentProduct = _currentProduct.copyWith(isAvailable: !_currentProduct.isAvailable);
-      _editIsAvailable = _currentProduct.isAvailable;
+      _currentProduct = _currentProduct.copyWith(isAvailable: newAvailability);
+      _editIsAvailable = newAvailability;
     });
     widget.onProductUpdated?.call(_currentProduct);
+
+    if (!widget.isCreateMode && _currentProduct.id.isNotEmpty) {
+      try {
+        context.read<ProductBloc>().add(
+              ToggleProductAvailability(
+                productId: _currentProduct.id,
+                isAvailable: newAvailability,
+              ),
+            );
+      } catch (_) {}
+    }
   }
 
   void _openAssignCollectionsDialog(BuildContext context) {
@@ -364,6 +489,34 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       return;
     }
 
+    if (widget.isCreateMode && _selectedSellerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please select a Seller (Store Owner) for this product',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (widget.isCreateMode && _selectedCategoryId.isEmpty && _categoryController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please select a Category for this product',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     if (_isEditing) {
       _syncCurrentVariantFromControllers();
     }
@@ -378,20 +531,24 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final ratings = double.tryParse(_ratingsController.text) ?? _currentProduct.ratings;
     final weight = double.tryParse(_weightController.text) ?? _currentProduct.productWeight;
 
-    final imgUrl = _imageUrlController.text.trim();
-    final updatedImages = imgUrl.isNotEmpty
-        ? [imgUrl, ..._currentProduct.images.where((img) => img != imgUrl)]
-        : _currentProduct.images;
+    final assignedCols = <String>[
+      if (_selectedCollectionId.isNotEmpty) _selectedCollectionId,
+      if (_selectedSubCollectionId.isNotEmpty) _selectedSubCollectionId,
+    ];
 
     final updatedProduct = _currentProduct.copyWith(
       title: title,
       technicalName: _techNameController.text.trim(),
       productCode: _productCodeController.text.trim(),
       hsnCode: _hsnCodeController.text.trim(),
-      vendor: _vendorController.text.trim(),
-      category: _categoryController.text.trim(),
-      collections: _collectionsController.text.trim(),
-      subCollections: _subCollectionsController.text.trim(),
+      sellerId: _selectedSellerId.isNotEmpty ? _selectedSellerId : _currentProduct.sellerId,
+      vendor: _selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text.trim(),
+      sellerName: _selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text.trim(),
+      categoryId: _selectedCategoryId.isNotEmpty ? _selectedCategoryId : _currentProduct.categoryId,
+      category: _selectedCategoryName.isNotEmpty ? _selectedCategoryName : _categoryController.text.trim(),
+      collections: _selectedCollectionName.isNotEmpty ? _selectedCollectionName : _collectionsController.text.trim(),
+      subCollections: _selectedSubCollectionName.isNotEmpty ? _selectedSubCollectionName : _subCollectionsController.text.trim(),
+      assignedCollections: assignedCols.isNotEmpty ? assignedCols : _currentProduct.assignedCollections,
       description: _descriptionController.text.trim(),
       technicalContent: _techContentController.text.trim(),
       features: _featuresController.text.trim(),
@@ -419,11 +576,29 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       productWeight: weight,
       productWeightUnit: _weightUnitController.text.trim(),
       dimensions: _dimensionsController.text.trim(),
-      images: updatedImages,
+      images: _currentProduct.images,
       isAvailable: _editIsAvailable,
       isFeatured: _currentProduct.isFeatured,
       variants: _workingVariants,
     );
+
+    if (widget.isCreateMode) {
+      widget.onProductCreated?.call(updatedProduct, _pendingImages);
+      return;
+    }
+
+    if (_pendingImages.isNotEmpty && _currentProduct.id.isNotEmpty) {
+      try {
+        context.read<ProductBloc>().add(
+              UploadProductImages(
+                productId: _currentProduct.id,
+                filesBytes: _pendingImages.map((e) => e.bytes).toList(),
+                fileNames: _pendingImages.map((e) => e.name).toList(),
+              ),
+            );
+        _pendingImages.clear();
+      } catch (_) {}
+    }
 
     setState(() {
       _currentProduct = updatedProduct;
@@ -447,6 +622,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
 
   void _cancelEdit() {
+    if (widget.isCreateMode) {
+      widget.onBack();
+      return;
+    }
     setState(() {
       _resetControllers();
       _isEditing = false;
@@ -523,7 +702,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     children: [
                       Flexible(
                         child: Text(
-                          p.title,
+                          widget.isCreateMode
+                              ? (_titleController.text.trim().isNotEmpty
+                                  ? _titleController.text.trim()
+                                  : 'Add Agricultural Product')
+                              : p.title,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -532,7 +715,25 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (_isEditing) ...[
+                      if (widget.isCreateMode) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.35)),
+                          ),
+                          child: Text(
+                            'NEW PRODUCT',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF059669),
+                            ),
+                          ),
+                        ),
+                      ] else if (_isEditing) ...[
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -577,7 +778,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     onPressed: _saveChanges,
                     icon: const Icon(Icons.check_circle_rounded, size: 16),
                     label: Text(
-                      'Save Changes',
+                      widget.isCreateMode ? 'Save & Publish Product' : 'Save Changes',
                       style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w800),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -811,49 +1012,229 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ),
             const SizedBox(height: 12),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _buildField(
-                    controller: _vendorController,
-                    label: 'Vendor / Manufacturer',
-                    hint: 'e.g. Krishi Kranti Organics',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
+                  child: _isEditing
+                      ? Builder(builder: (ctx) {
+                          SellerBloc? sellerBloc;
+                          try {
+                            sellerBloc = ctx.watch<SellerBloc>();
+                          } catch (_) {}
+                          final sellers = sellerBloc?.state.users ?? <AdminUser>[];
+                          final currentSelected = sellers.where((s) => s.id == _selectedSellerId).firstOrNull;
+                          final displayText = currentSelected != null
+                              ? '${currentSelected.displayName}${currentSelected.phoneNumber.isNotEmpty ? ' • ${currentSelected.phoneNumber}' : ''}'
+                              : (_selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text);
+
+                          return _buildSearchableSelectField<AdminUser>(
+                            label: 'Seller (Store Owner) *',
+                            displayText: displayText,
+                            placeholder: '-- Select Seller (Required) --',
+                            prefixIcon: Icons.storefront_rounded,
+                            hasValue: _selectedSellerId.isNotEmpty || _vendorController.text.isNotEmpty,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onTap: () async {
+                              final picked = await _showSearchablePicker<AdminUser>(
+                                context: context,
+                                title: 'Select Seller (Store Owner)',
+                                titleIcon: Icons.storefront_rounded,
+                                searchHint: 'Search seller by name or phone...',
+                                items: sellers,
+                                selectedItem: currentSelected,
+                                labelBuilder: (s) => s.displayName,
+                                subtitleBuilder: (s) => '${s.phoneNumber.isNotEmpty ? '${s.phoneNumber} • ' : ''}ID: ${s.id}',
+                                isDark: isDark,
+                              );
+                              if (picked != null) {
+                                setState(() {
+                                  _selectedSellerId = picked.id;
+                                  _selectedSellerName = picked.displayName;
+                                  _vendorController.text = picked.displayName;
+                                });
+                              }
+                            },
+                          );
+                        })
+                      : _buildField(
+                          controller: _vendorController,
+                          label: 'Seller Name',
+                          hint: 'e.g. Krishi Kranti Organics',
+                          isDark: isDark,
+                          borderColor: borderColor,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildField(
-                    controller: _categoryController,
-                    label: 'Category',
-                    hint: 'e.g. Agro Chemicals',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
+                  child: _isEditing
+                      ? Builder(builder: (ctx) {
+                          CategoryBloc? catBloc;
+                          try {
+                            catBloc = ctx.watch<CategoryBloc>();
+                          } catch (_) {}
+                          final flatCategories = catBloc?.state.allCategories ?? <CategoryItem>[];
+                          final currentSelected = flatCategories.where((c) => c.id == _selectedCategoryId || c.name == _selectedCategoryName).firstOrNull;
+                          final displayText = currentSelected != null
+                              ? currentSelected.name
+                              : (_selectedCategoryName.isNotEmpty ? _selectedCategoryName : _categoryController.text);
+
+                          return _buildSearchableSelectField<CategoryItem>(
+                            label: 'Category *',
+                            displayText: displayText,
+                            placeholder: '-- Select Category (Required) --',
+                            prefixIcon: Icons.category_rounded,
+                            hasValue: _selectedCategoryId.isNotEmpty || _categoryController.text.isNotEmpty,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onTap: () async {
+                              final picked = await _showSearchablePicker<CategoryItem>(
+                                context: context,
+                                title: 'Select Category',
+                                titleIcon: Icons.category_rounded,
+                                searchHint: 'Search categories by name...',
+                                items: flatCategories,
+                                selectedItem: currentSelected,
+                                labelBuilder: (c) => c.name,
+                                subtitleBuilder: (c) => 'Level ${c.level + 1} Category',
+                                isDark: isDark,
+                              );
+                              if (picked != null) {
+                                setState(() {
+                                  _selectedCategoryId = picked.id;
+                                  _selectedCategoryName = picked.name;
+                                  _categoryController.text = picked.name;
+                                });
+                              }
+                            },
+                          );
+                        })
+                      : _buildField(
+                          controller: _categoryController,
+                          label: 'Category',
+                          hint: 'e.g. Agro Chemicals',
+                          isDark: isDark,
+                          borderColor: borderColor,
+                        ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _buildField(
-                    controller: _collectionsController,
-                    label: 'Collection',
-                    hint: 'e.g. Crop Protection',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
+                  child: _isEditing
+                      ? Builder(builder: (ctx) {
+                          CollectionBloc? colBloc;
+                          try {
+                            colBloc = ctx.watch<CollectionBloc>();
+                          } catch (_) {}
+                          final collections = colBloc?.state.collections ?? <CollectionItem>[];
+                          final currentSelected = collections.where((c) => c.id == _selectedCollectionId || c.name == _selectedCollectionName).firstOrNull;
+                          final displayText = currentSelected != null
+                              ? currentSelected.name
+                              : (_selectedCollectionName.isNotEmpty ? _selectedCollectionName : _collectionsController.text);
+
+                          return _buildSearchableSelectField<CollectionItem>(
+                            label: 'Collection',
+                            displayText: displayText,
+                            placeholder: '-- Select Collection (Optional) --',
+                            prefixIcon: Icons.collections_bookmark_rounded,
+                            hasValue: _selectedCollectionId.isNotEmpty || _collectionsController.text.isNotEmpty,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onTap: () async {
+                              final picked = await _showSearchablePicker<CollectionItem>(
+                                context: context,
+                                title: 'Select Collection',
+                                titleIcon: Icons.collections_bookmark_rounded,
+                                searchHint: 'Search collections by name...',
+                                items: collections,
+                                selectedItem: currentSelected,
+                                labelBuilder: (c) => c.name,
+                                subtitleBuilder: (c) => '${c.subCollections.length} sub-collections',
+                                isDark: isDark,
+                              );
+                              if (picked != null) {
+                                setState(() {
+                                  _selectedCollectionId = picked.id;
+                                  _selectedCollectionName = picked.name;
+                                  _collectionsController.text = picked.name;
+                                  _selectedSubCollectionId = '';
+                                  _selectedSubCollectionName = '';
+                                  _subCollectionsController.text = '';
+                                });
+                              }
+                            },
+                          );
+                        })
+                      : _buildField(
+                          controller: _collectionsController,
+                          label: 'Collection',
+                          hint: 'e.g. Crop Protection',
+                          isDark: isDark,
+                          borderColor: borderColor,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildField(
-                    controller: _subCollectionsController,
-                    label: 'Sub Collection',
-                    hint: 'e.g. Insecticides',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
+                  child: _isEditing
+                      ? Builder(builder: (ctx) {
+                          CollectionBloc? colBloc;
+                          try {
+                            colBloc = ctx.watch<CollectionBloc>();
+                          } catch (_) {}
+                          final collections = colBloc?.state.collections ?? <CollectionItem>[];
+                          final parentCol = collections.where((c) => c.id == _selectedCollectionId || c.name == _selectedCollectionName).firstOrNull;
+                          final subItems = parentCol?.subCollections ?? <SubCollectionItem>[];
+                          final currentSelected = subItems.where((s) => s.id == _selectedSubCollectionId || s.name == _selectedSubCollectionName).firstOrNull;
+                          final displayText = currentSelected != null
+                              ? currentSelected.name
+                              : (_selectedSubCollectionName.isNotEmpty ? _selectedSubCollectionName : _subCollectionsController.text);
+
+                          return _buildSearchableSelectField<SubCollectionItem>(
+                            label: 'Sub Collection',
+                            displayText: displayText,
+                            placeholder: parentCol == null ? '-- Select Collection First --' : '-- Select Sub Collection (Optional) --',
+                            prefixIcon: Icons.subdirectory_arrow_right_rounded,
+                            hasValue: _selectedSubCollectionId.isNotEmpty || _subCollectionsController.text.isNotEmpty,
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onTap: () async {
+                              if (subItems.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please select a collection first')),
+                                );
+                                return;
+                              }
+                              final picked = await _showSearchablePicker<SubCollectionItem>(
+                                context: context,
+                                title: 'Select Sub Collection',
+                                titleIcon: Icons.subdirectory_arrow_right_rounded,
+                                searchHint: 'Search sub-collections...',
+                                items: subItems,
+                                selectedItem: currentSelected,
+                                labelBuilder: (s) => s.name,
+                                isDark: isDark,
+                              );
+                              if (picked != null) {
+                                setState(() {
+                                  _selectedSubCollectionId = picked.id;
+                                  _selectedSubCollectionName = picked.name;
+                                  _subCollectionsController.text = picked.name;
+                                });
+                              }
+                            },
+                          );
+                        })
+                      : _buildField(
+                          controller: _subCollectionsController,
+                          label: 'Sub Collection',
+                          hint: 'e.g. Insecticides',
+                          isDark: isDark,
+                          borderColor: borderColor,
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1117,7 +1498,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 _buildBadgePill('SKU', p.sku, isDark, borderColor),
               _buildBadgePill('Product Code', p.productCode, isDark, borderColor),
               _buildBadgePill('HSN Code', p.hsnCode, isDark, borderColor),
-              _buildBadgePill('Vendor', p.vendor, isDark, borderColor),
+              _buildBadgePill('Seller', p.sellerName.isNotEmpty ? p.sellerName : p.vendor, isDark, borderColor),
               if (p.subCollections.isNotEmpty)
                 _buildBadgePill('Sub Collection', p.subCollections, isDark, borderColor),
             ],
@@ -2227,6 +2608,37 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   // ==========================================
   // CARD 2: IMAGE & VISUAL ASSETS
   // ==========================================
+  Future<void> _pickProductImages() async {
+    try {
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+      );
+      if (files.isNotEmpty) {
+        for (final f in files) {
+          final bytes = await f.readAsBytes();
+          if (bytes.isNotEmpty) {
+            _pendingImages.add(ProductImageUploadItem(name: f.name, bytes: bytes));
+          }
+        }
+        if (_pendingImages.isNotEmpty) {
+          setState(() {
+            _activePreviewImageIndex = 0;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick images: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildImageAndMediaCard(
     Product p,
     bool isDark,
@@ -2234,9 +2646,52 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     Color borderColor,
     Color cardBgColor,
   ) {
-    final previewUrl = _isEditing && _imageUrlController.text.trim().isNotEmpty
-        ? _imageUrlController.text.trim()
-        : p.originalImageUrl;
+    Widget heroWidget;
+
+    if (_pendingImages.isNotEmpty && _activePreviewImageIndex < _pendingImages.length) {
+      heroWidget = Image.memory(
+        Uint8List.fromList(_pendingImages[_activePreviewImageIndex].bytes),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 344,
+      );
+    } else if (p.originalImageUrl.isNotEmpty) {
+      heroWidget = AppProductImage(
+        imageUrl: p.originalImageUrl,
+        fallbackUrls: p.candidateImageUrls,
+        width: double.infinity,
+        height: 344,
+        borderRadius: 10,
+        borderColor: borderColor,
+        categoryColor: const Color(0xFF64748B),
+        fit: BoxFit.cover,
+        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        padding: EdgeInsets.zero,
+      );
+    } else {
+      heroWidget = Container(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.add_photo_alternate_outlined,
+              size: 48,
+              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No product images uploaded',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -2255,18 +2710,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  AppProductImage(
-                    imageUrl: previewUrl,
-                    fallbackUrls: p.candidateImageUrls,
-                    width: double.infinity,
-                    height: 344,
-                    borderRadius: 10,
-                    borderColor: borderColor,
-                    categoryColor: const Color(0xFF64748B),
-                    fit: BoxFit.cover,
-                    backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                    padding: EdgeInsets.zero,
-                  ),
+                  heroWidget,
 
                   // Original Asset Badge (Top Left)
                   Positioned(
@@ -2281,10 +2725,16 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.image_outlined, size: 12, color: Colors.white70),
+                          Icon(
+                            _pendingImages.isNotEmpty ? Icons.fiber_new_rounded : Icons.image_outlined,
+                            size: 12,
+                            color: _pendingImages.isNotEmpty ? const Color(0xFF10B981) : Colors.white70,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            'Original Image',
+                            _pendingImages.isNotEmpty
+                                ? 'Upload Queued (${_pendingImages.length})'
+                                : 'Original Image',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w700,
@@ -2301,14 +2751,86 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ),
           if (_isEditing) ...[
             const SizedBox(height: 12),
-            _buildField(
-              controller: _imageUrlController,
-              label: 'Original Image URL',
-              hint: 'https://storage.googleapis.com/...',
-              isDark: isDark,
-              borderColor: borderColor,
-              onChanged: (_) => setState(() {}),
+            OutlinedButton.icon(
+              onPressed: _pickProductImages,
+              icon: const Icon(Icons.cloud_upload_outlined, size: 16),
+              label: Text(
+                _pendingImages.isEmpty
+                    ? 'Upload Product Images (PNG, JPG, WEBP)'
+                    : 'Add More Product Images (${_pendingImages.length} selected)',
+                style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF059669),
+                side: const BorderSide(color: Color(0xFF059669)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
+            if (_pendingImages.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 56,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _pendingImages.length,
+                  separatorBuilder: (_, index) => const SizedBox(width: 8),
+                  itemBuilder: (context, idx) {
+                    final item = _pendingImages[idx];
+                    final isSel = idx == _activePreviewImageIndex;
+                    return InkWell(
+                      onTap: () => setState(() => _activePreviewImageIndex = idx),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSel ? const Color(0xFF059669) : borderColor,
+                                width: isSel ? 2 : 1,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(7),
+                              child: Image.memory(
+                                Uint8List.fromList(item.bytes),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: -4,
+                            right: -4,
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _pendingImages.removeAt(idx);
+                                  if (_activePreviewImageIndex >= _pendingImages.length) {
+                                    _activePreviewImageIndex = (_pendingImages.length - 1).clamp(0, 999);
+                                  }
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFDC2626),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close_rounded, size: 12, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -3356,6 +3878,300 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchableSelectField<T>({
+    required String label,
+    required String displayText,
+    required String placeholder,
+    required IconData prefixIcon,
+    required VoidCallback onTap,
+    required bool hasValue,
+    required bool isDark,
+    required Color borderColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: _isEditing ? onTap : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: hasValue ? const Color(0xFF059669).withValues(alpha: 0.5) : borderColor,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  prefixIcon,
+                  size: 16,
+                  color: hasValue ? const Color(0xFF059669) : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hasValue ? displayText : placeholder,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+                      color: hasValue
+                          ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                          : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                if (_isEditing)
+                  Icon(
+                    Icons.arrow_drop_down_rounded,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<T?> _showSearchablePicker<T>({
+    required BuildContext context,
+    required String title,
+    required IconData titleIcon,
+    required String searchHint,
+    required List<T> items,
+    required T? selectedItem,
+    required String Function(T) labelBuilder,
+    String Function(T)? subtitleBuilder,
+    bool isDark = false,
+  }) async {
+    return showDialog<T>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return _SearchablePickerDialog<T>(
+          title: title,
+          titleIcon: titleIcon,
+          searchHint: searchHint,
+          items: items,
+          selectedItem: selectedItem,
+          labelBuilder: labelBuilder,
+          subtitleBuilder: subtitleBuilder,
+          isDark: isDark,
+        );
+      },
+    );
+  }
+}
+
+class _SearchablePickerDialog<T> extends StatefulWidget {
+  final String title;
+  final IconData titleIcon;
+  final String searchHint;
+  final List<T> items;
+  final T? selectedItem;
+  final String Function(T) labelBuilder;
+  final String Function(T)? subtitleBuilder;
+  final bool isDark;
+
+  const _SearchablePickerDialog({
+    required this.title,
+    required this.titleIcon,
+    required this.searchHint,
+    required this.items,
+    required this.selectedItem,
+    required this.labelBuilder,
+    this.subtitleBuilder,
+    this.isDark = false,
+  });
+
+  @override
+  State<_SearchablePickerDialog<T>> createState() => _SearchablePickerDialogState<T>();
+}
+
+class _SearchablePickerDialogState<T> extends State<_SearchablePickerDialog<T>> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final cardBgColor = isDark ? const Color(0xFF111827) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
+    final query = _searchQuery.toLowerCase();
+
+    final filtered = widget.items.where((item) {
+      if (query.isEmpty) return true;
+      final label = widget.labelBuilder(item).toLowerCase();
+      final sub = widget.subtitleBuilder != null ? widget.subtitleBuilder!(item).toLowerCase() : '';
+      return label.contains(query) || sub.contains(query);
+    }).toList();
+
+    return Dialog(
+      backgroundColor: cardBgColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: borderColor),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 600),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
+              child: Row(
+                children: [
+                  Icon(widget.titleIcon, size: 20, color: const Color(0xFF059669)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: (val) => setState(() => _searchQuery = val),
+                decoration: InputDecoration(
+                  hintText: widget.searchHint,
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  ),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                  isDense: true,
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF059669)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Divider(height: 1, color: borderColor),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No matching items found',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, index) => Divider(height: 1, color: borderColor.withValues(alpha: 0.5)),
+                      itemBuilder: (context, idx) {
+                        final item = filtered[idx];
+                        final isSelected = widget.selectedItem == item;
+                        final label = widget.labelBuilder(item);
+                        final subtitle = widget.subtitleBuilder != null ? widget.subtitleBuilder!(item) : null;
+
+                        return InkWell(
+                          onTap: () => Navigator.of(context).pop(item),
+                          child: Container(
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF059669).withValues(alpha: 0.15) : const Color(0xFF059669).withValues(alpha: 0.08))
+                                : null,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        label,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 13,
+                                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                          color: isSelected
+                                              ? const Color(0xFF059669)
+                                              : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                                        ),
+                                      ),
+                                      if (subtitle != null && subtitle.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          subtitle,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11,
+                                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected)
+                                  const Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF059669)),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -30,9 +30,46 @@ class _BulkAddProductsDialogState extends State<BulkAddProductsDialog> with Sing
   // Catalog Tab State
   String _catalogSearchQuery = '';
   final Set<String> _selectedProductCodes = {};
-  bool _duplicateAsNewSku = false;
+  bool _hideAlreadyAssigned = false;
   List<Product> _allProducts = [];
   bool _isLoadingAllProducts = false;
+
+  bool _isAlreadyAssigned(Product p) {
+    if (p.sellerId.isNotEmpty && p.sellerId == widget.seller.id) return true;
+    if (p.sellerName.isNotEmpty &&
+        p.sellerName.trim().toLowerCase() == widget.seller.tradeName.trim().toLowerCase()) {
+      return true;
+    }
+    if (p.vendor.isNotEmpty &&
+        p.vendor.trim().toLowerCase() == widget.seller.tradeName.trim().toLowerCase()) {
+      return true;
+    }
+
+    final targetTitle = p.title.trim().toLowerCase();
+    final targetCode = p.productCode.toLowerCase();
+    final targetSku = p.sku.toLowerCase();
+
+    for (final ep in _allProducts) {
+      final isSellerProduct = ep.sellerId == widget.seller.id ||
+          (ep.sellerName.isNotEmpty &&
+              ep.sellerName.trim().toLowerCase() == widget.seller.tradeName.trim().toLowerCase()) ||
+          (ep.vendor.isNotEmpty &&
+              ep.vendor.trim().toLowerCase() == widget.seller.tradeName.trim().toLowerCase());
+
+      if (isSellerProduct) {
+        if (targetTitle.isNotEmpty && ep.title.trim().toLowerCase() == targetTitle) {
+          return true;
+        }
+        if (targetCode.isNotEmpty && ep.productCode.toLowerCase() == targetCode) {
+          return true;
+        }
+        if (targetSku.isNotEmpty && ep.sku.toLowerCase() == targetSku) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
   // CSV Tab State
   final TextEditingController _csvTextController = TextEditingController();
@@ -157,12 +194,14 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
 
         result.add(Product(
           id: 'temp_${now.millisecondsSinceEpoch}_$i',
+          sku: 'EBS-ADM-SKU-${now.millisecondsSinceEpoch + i}',
           productCode: code,
           hsnCode: hsn,
           sellerId: widget.seller.id,
           title: title,
           technicalName: tech,
           vendor: widget.seller.tradeName,
+          sellerName: widget.seller.tradeName,
           description: '$title sourced and distributed by ${widget.seller.tradeName}. High purity agronomy standard.',
           images: const ['https://images.unsplash.com/photo-1592982537447-7440770cbfc9?w=600'],
           technicalContent: tech,
@@ -225,26 +264,36 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
   void _submitCatalogAssignment() {
     if (_selectedProductCodes.isEmpty) return;
 
-    final selected = _allProducts.where((p) => _selectedProductCodes.contains(p.productCode)).toList();
+    // Filter out already assigned products defensively
+    final selected = _allProducts
+        .where((p) => _selectedProductCodes.contains(p.productCode) && !_isAlreadyAssigned(p))
+        .toList();
+    if (selected.isEmpty) return;
+
     final List<Product> updatedProducts = [];
     final now = DateTime.now();
+    final sellerCode = widget.seller.sellerCode.isNotEmpty
+        ? widget.seller.sellerCode
+        : (widget.seller.id.length > 6
+            ? widget.seller.id.substring(widget.seller.id.length - 6).toUpperCase()
+            : widget.seller.id.toUpperCase());
 
     for (int i = 0; i < selected.length; i++) {
       final base = selected[i];
-      if (_duplicateAsNewSku) {
-        final newCode = '${base.productCode}-${widget.seller.tradeName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase().substring(0, 3)}';
-        updatedProducts.add(base.copyWith(
-          id: 'copy_${now.millisecondsSinceEpoch}_$i',
-          productCode: newCode,
-          sellerId: widget.seller.id,
-          vendor: widget.seller.tradeName,
-        ));
-      } else {
-        updatedProducts.add(base.copyWith(
-          sellerId: widget.seller.id,
-          vendor: widget.seller.tradeName,
-        ));
-      }
+      // Generate unique SKU and product code conforming to backend contract
+      final uniqueSku = 'EBS-ADM-SKU-${now.millisecondsSinceEpoch + i}';
+      final newProductCode = 'PRD-$sellerCode-${(1000 + i)}-${now.millisecondsSinceEpoch.toString().substring(10)}';
+
+      updatedProducts.add(base.copyWith(
+        id: 'assigned_${now.millisecondsSinceEpoch}_$i',
+        sku: uniqueSku,
+        productCode: newProductCode,
+        sellerId: widget.seller.id,
+        vendor: widget.seller.tradeName,
+        sellerName: widget.seller.tradeName,
+        status: 'INACTIVE',
+        isAvailable: false,
+      ));
     }
 
     widget.onProductsAdded(updatedProducts);
@@ -376,13 +425,19 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
   // ================= TAB 1: CATALOG MULTI-SELECT =================
   Widget _buildCatalogTab(bool isDark, Color surfaceColor, Color borderColor) {
     final filteredCatalog = _allProducts.where((p) {
+      if (_hideAlreadyAssigned && _isAlreadyAssigned(p)) return false;
       if (_catalogSearchQuery.isEmpty) return true;
       final query = _catalogSearchQuery.toLowerCase();
       return p.title.toLowerCase().contains(query) ||
           p.productCode.toLowerCase().contains(query) ||
           p.category.toLowerCase().contains(query) ||
+          p.sellerName.toLowerCase().contains(query) ||
           p.vendor.toLowerCase().contains(query);
     }).toList();
+
+    final assignableProducts = filteredCatalog.where((p) => !_isAlreadyAssigned(p)).toList();
+    final allAssignableSelected = assignableProducts.isNotEmpty &&
+        assignableProducts.every((p) => _selectedProductCodes.contains(p.productCode));
 
     return Column(
       children: [
@@ -419,57 +474,60 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // Select All / Deselect All
+                  // Select All / Deselect All (Restricted to assignable products only)
                   TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        if (_selectedProductCodes.length == filteredCatalog.length) {
-                          _selectedProductCodes.clear();
-                        } else {
-                          _selectedProductCodes.addAll(filteredCatalog.map((p) => p.productCode));
-                        }
-                      });
-                    },
+                    onPressed: assignableProducts.isEmpty
+                        ? null
+                        : () {
+                            setState(() {
+                              if (allAssignableSelected) {
+                                final codes = assignableProducts.map((p) => p.productCode).toSet();
+                                _selectedProductCodes.removeWhere((c) => codes.contains(c));
+                              } else {
+                                _selectedProductCodes.addAll(assignableProducts.map((p) => p.productCode));
+                              }
+                            });
+                          },
                     icon: Icon(
-                      _selectedProductCodes.length == filteredCatalog.length && filteredCatalog.isNotEmpty
-                          ? Icons.deselect_rounded
-                          : Icons.select_all_rounded,
+                      allAssignableSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
                       size: 16,
-                      color: const Color(0xFF059669),
+                      color: assignableProducts.isEmpty ? const Color(0xFF94A3B8) : const Color(0xFF059669),
                     ),
                     label: Text(
-                      _selectedProductCodes.length == filteredCatalog.length && filteredCatalog.isNotEmpty
+                      allAssignableSelected
                           ? 'Deselect All'
-                          : 'Select All (${filteredCatalog.length})',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF059669)),
+                          : 'Select All (${assignableProducts.length})',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: assignableProducts.isEmpty ? const Color(0xFF94A3B8) : const Color(0xFF059669),
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              // Duplicate mode toggle & catalog status
+              // Filter and assignment stats
               Row(
                 children: [
                   Checkbox(
-                    value: _duplicateAsNewSku,
+                    value: _hideAlreadyAssigned,
                     activeColor: const Color(0xFF059669),
-                    onChanged: (val) => setState(() => _duplicateAsNewSku = val ?? false),
+                    onChanged: (val) => setState(() => _hideAlreadyAssigned = val ?? false),
                   ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _duplicateAsNewSku = !_duplicateAsNewSku),
-                      child: Text(
-                        'Duplicate as new SKU entries (Keep original catalog products untouched)',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                  GestureDetector(
+                    onTap: () => setState(() => _hideAlreadyAssigned = !_hideAlreadyAssigned),
+                    child: Text(
+                      'Hide already assigned products',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const Spacer(),
                   if (_isLoadingAllProducts) ...[
                     const SizedBox(
                       width: 12,
@@ -493,7 +551,7 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        '${filteredCatalog.length} of ${_allProducts.length} products',
+                        '${assignableProducts.length} assignable • ${filteredCatalog.length - assignableProducts.length} assigned',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           color: const Color(0xFF059669),
@@ -528,45 +586,68 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
                   separatorBuilder: (context, index) => Divider(height: 1, color: borderColor),
                   itemBuilder: (context, index) {
                     final p = filteredCatalog[index];
-                    final isSelected = _selectedProductCodes.contains(p.productCode);
-                    final isAlreadyOwned = p.sellerId == widget.seller.id;
+                    final isAssigned = _isAlreadyAssigned(p);
+                    final isSelected = !isAssigned && _selectedProductCodes.contains(p.productCode);
 
                     return InkWell(
-                      onTap: () {
-                        setState(() {
-                          if (isSelected) {
-                            _selectedProductCodes.remove(p.productCode);
-                          } else {
-                            _selectedProductCodes.add(p.productCode);
-                          }
-                        });
-                      },
-                      child: Padding(
+                      onTap: isAssigned
+                          ? null
+                          : () {
+                              setState(() {
+                                if (isSelected) {
+                                  _selectedProductCodes.remove(p.productCode);
+                                } else {
+                                  _selectedProductCodes.add(p.productCode);
+                                }
+                              });
+                            },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isAssigned
+                              ? (isDark
+                                  ? const Color(0xFF059669).withValues(alpha: 0.05)
+                                  : const Color(0xFFECFDF5).withValues(alpha: 0.45))
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                         child: Row(
                           children: [
-                            Checkbox(
-                              value: isSelected,
-                              activeColor: const Color(0xFF059669),
-                              onChanged: (val) {
-                                setState(() {
-                                  if (val == true) {
-                                    _selectedProductCodes.add(p.productCode);
-                                  } else {
-                                    _selectedProductCodes.remove(p.productCode);
-                                  }
-                                });
-                              },
-                            ),
+                            if (isAssigned)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 10),
+                                child: Tooltip(
+                                  message: 'This product is already assigned to this seller and cannot be selected.',
+                                  child: Icon(Icons.check_circle_rounded, size: 20, color: Color(0xFF059669)),
+                                ),
+                              )
+                            else
+                              Checkbox(
+                                value: isSelected,
+                                activeColor: const Color(0xFF059669),
+                                onChanged: (val) {
+                                  setState(() {
+                                    if (val == true) {
+                                      _selectedProductCodes.add(p.productCode);
+                                    } else {
+                                      _selectedProductCodes.remove(p.productCode);
+                                    }
+                                  });
+                                },
+                              ),
                             Container(
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF059669).withValues(alpha: 0.1),
+                                color: (isAssigned ? const Color(0xFF059669) : const Color(0xFF2563EB)).withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Center(
-                                child: Icon(Icons.inventory_2_outlined, size: 18, color: Color(0xFF059669)),
+                              child: Center(
+                                child: Icon(
+                                  isAssigned ? Icons.verified_rounded : Icons.inventory_2_outlined,
+                                  size: 18,
+                                  color: isAssigned ? const Color(0xFF059669) : const Color(0xFF2563EB),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -582,26 +663,36 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w700,
-                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                            color: isAssigned
+                                                ? (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155))
+                                                : (isDark ? Colors.white : const Color(0xFF0F172A)),
                                           ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      if (isAlreadyOwned) ...[
-                                        const SizedBox(width: 6),
+                                      if (isAssigned) ...[
+                                        const SizedBox(width: 8),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFF059669).withValues(alpha: 0.15),
                                             borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
                                           ),
-                                          child: Text(
-                                            'Already Owned',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 9.5,
-                                              fontWeight: FontWeight.w700,
-                                              color: const Color(0xFF059669),
-                                            ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.verified_rounded, size: 11, color: Color(0xFF059669)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Already Assigned',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: const Color(0xFF059669),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ],
@@ -609,10 +700,15 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${p.productCode} • ${p.category} • Current Vendor: ${p.vendor.isNotEmpty ? p.vendor : "None"}',
+                                    isAssigned
+                                        ? '${p.productCode} • ${p.category} • Already assigned to ${widget.seller.tradeName}'
+                                        : '${p.productCode} • ${p.category} • Current Vendor: ${p.sellerName.isNotEmpty ? p.sellerName : (p.vendor.isNotEmpty ? p.vendor : "None")}',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 11,
-                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                      color: isAssigned
+                                          ? const Color(0xFF059669)
+                                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                      fontWeight: isAssigned ? FontWeight.w600 : FontWeight.w400,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -625,7 +721,9 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
-                                color: const Color(0xFF059669),
+                                color: isAssigned
+                                    ? const Color(0xFF64748B)
+                                    : const Color(0xFF059669),
                               ),
                             ),
                           ],

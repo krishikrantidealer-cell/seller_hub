@@ -83,6 +83,15 @@ class ToggleDeleteAdminUser extends AdminUserEvent {
   List<Object?> get props => [userId, deleted];
 }
 
+class PermanentlyDeleteAdminUser extends AdminUserEvent {
+  final String userId;
+
+  const PermanentlyDeleteAdminUser(this.userId);
+
+  @override
+  List<Object?> get props => [userId];
+}
+
 class UpdateLocalAdminUser extends AdminUserEvent {
   final AdminUser user;
   const UpdateLocalAdminUser(this.user);

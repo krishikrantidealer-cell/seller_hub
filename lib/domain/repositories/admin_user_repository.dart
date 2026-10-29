@@ -27,4 +27,8 @@ abstract class AdminUserRepository {
     required String userId,
     required bool deleted,
   });
+
+  /// Permanently deletes a previously deactivated user account
+  /// DELETE /api/v1/admin/users/{userId}/permanent
+  Future<String> permanentlyDeleteUser(String userId);
 }

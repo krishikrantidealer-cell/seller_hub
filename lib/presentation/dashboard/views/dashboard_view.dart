@@ -31,7 +31,6 @@ import 'package:seller_hub/presentation/dashboard/views/product_details_view.dar
 import 'package:seller_hub/presentation/dashboard/views/seller_profile_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/sellers_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/users_view.dart';
-import 'package:seller_hub/presentation/dashboard/widgets/add_product_dialog.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/dashboard_sidebar.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/dashboard_top_app_bar.dart';
 
@@ -51,6 +50,7 @@ class _DashboardViewState extends State<DashboardView> {
   // Active viewing/editing product state
   Product? _viewingProduct;
   bool _openInEditMode = false;
+  bool _isAddingProduct = false;
 
   // Multi-Tenant Sellers state
   final List<SellerProfile> _sellers = [];
@@ -233,6 +233,7 @@ class _DashboardViewState extends State<DashboardView> {
     int sellersCount,
     int customersCount,
   ) {
+    final categoryBloc = context.watch<CategoryBloc>();
     if (_selectedNavIndex == 0) {
       return OperationsOverviewView(
         products: products,
@@ -252,7 +253,7 @@ class _DashboardViewState extends State<DashboardView> {
           _selectedNavIndex = 5;
           _viewingOrder = null;
         }),
-        onOpenAddProduct: () => _openAddProductDialog(context),
+        onOpenAddProduct: _openAddProductScreen,
       );
     }
 
@@ -274,6 +275,69 @@ class _DashboardViewState extends State<DashboardView> {
             });
           },
         );
+      } else if (_selectedNavIndex == 1 && _isAddingProduct) {
+        catalogChild = ProductDetailsView(
+          product: Product(
+            id: '',
+            title: '',
+            sellerId: '',
+            sellerName: '',
+            vendor: '',
+            sku: '',
+            productCode: '',
+            hsnCode: '',
+            description: '',
+            images: [],
+          ),
+          isCreateMode: true,
+          startInEditMode: true,
+          onBack: () => setState(() => _isAddingProduct = false),
+          onProductCreated: (newProduct, [pendingImages]) {
+            context.read<ProductBloc>().add(CreateProduct(
+              newProduct,
+              onSuccess: (created) {
+                if (pendingImages != null && pendingImages.isNotEmpty) {
+                  context.read<ProductBloc>().add(UploadProductImages(
+                    productId: created.id,
+                    filesBytes: pendingImages.map((e) => e.bytes).toList(),
+                    fileNames: pendingImages.map((e) => e.name).toList(),
+                  ));
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Created "${created.title}" successfully!',
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                    ),
+                    backgroundColor: const Color(0xFF059669),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    margin: const EdgeInsets.all(20),
+                  ),
+                );
+                setState(() {
+                  _isAddingProduct = false;
+                  _viewingProduct = created;
+                  _openInEditMode = false;
+                });
+              },
+              onError: (err) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Failed to create product: $err',
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                    ),
+                    backgroundColor: const Color(0xFFEF4444),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    margin: const EdgeInsets.all(20),
+                  ),
+                );
+              },
+            ));
+          },
+        );
       } else if (_selectedNavIndex == 2) {
         catalogChild = CollectionsView(isWide: isWide);
       } else if (_selectedNavIndex == 3) {
@@ -282,6 +346,7 @@ class _DashboardViewState extends State<DashboardView> {
         catalogChild = ProductCatalogView(
           products: allProducts,
           sellers: sellers,
+          categories: categoryBloc.state.rootCategories,
           initialSellerFilter: _productCatalogSellerFilter,
           isWide: isWide,
           onOpenProductDetails: (product, {bool editMode = false}) {
@@ -290,7 +355,7 @@ class _DashboardViewState extends State<DashboardView> {
               _openInEditMode = editMode;
             });
           },
-          onOpenAddProduct: () => _openAddProductDialog(context),
+          onOpenAddProduct: _openAddProductScreen,
           onProductUpdated: (updated) {
             context.read<ProductBloc>().add(UpdateLocalProduct(updated));
           },
@@ -304,6 +369,7 @@ class _DashboardViewState extends State<DashboardView> {
             _selectedNavIndex = tabIndex + 1;
             _viewingProduct = null;
             _openInEditMode = false;
+            _isAddingProduct = false;
           });
         },
         productsCount: totalProductsCount,
@@ -421,59 +487,28 @@ class _DashboardViewState extends State<DashboardView> {
     return const SizedBox.shrink();
   }
 
+  void _openAddProductScreen() {
+    setState(() {
+      _selectedNavIndex = 1;
+      _viewingProduct = null;
+      _openInEditMode = false;
+      _isAddingProduct = true;
+    });
+  }
+
   void _onNavItemSelected(int index) {
     setState(() {
       _selectedNavIndex = index;
       _viewingProduct = null;
       _openInEditMode = false;
+      _isAddingProduct = false;
       _viewingSeller = null;
       _viewingOrder = null;
       _viewingCustomer = null;
     });
   }
 
-  void _openAddProductDialog(BuildContext context) {
-    final activeSellerId = context.read<AuthBloc>().state.sellerId ?? '6ab4ada822033f1670582bda';
-    showDialog(
-      context: context,
-      builder: (ctx) => AddProductDialog(
-        sellerId: activeSellerId,
-        onProductAdded: (newProduct) {
-          context.read<ProductBloc>().add(CreateProduct(
-            newProduct,
-            onSuccess: (created) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Created "${created.title}" on backend for Seller $activeSellerId.',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-                  ),
-                  backgroundColor: const Color(0xFF059669),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  margin: const EdgeInsets.all(20),
-                ),
-              );
-            },
-            onError: (err) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Failed to create product: $err',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-                  ),
-                  backgroundColor: const Color(0xFFEF4444),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  margin: const EdgeInsets.all(20),
-                ),
-              );
-            },
-          ));
-        },
-      ),
-    );
-  }
+
 
   void _handleLogout(BuildContext context) {
     context.read<AuthBloc>().add(LogoutRequested());

@@ -18,7 +18,7 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -169,7 +169,6 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
                 unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
                 tabs: const [
                   Tab(text: 'General & Specs'),
-                  Tab(text: 'Agronomy & Usage'),
                   Tab(text: 'Pricing & GST'),
                   Tab(text: 'Inventory & Shipping'),
                 ],
@@ -184,13 +183,10 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
                   // Tab 1: General & Specs
                   _buildGeneralTab(context, isDark, borderColor),
 
-                  // Tab 2: Agronomy & Usage
-                  _buildAgronomyTab(context, isDark, borderColor),
-
-                  // Tab 3: Pricing & GST
+                  // Tab 2: Pricing & GST
                   _buildPricingTab(context, isDark, borderColor),
 
-                  // Tab 4: Inventory & Shipping
+                  // Tab 3: Inventory & Shipping
                   _buildLogisticsTab(context, isDark, borderColor),
                 ],
               ),
@@ -255,12 +251,18 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
         children: [
           _buildInfoRow('Product Code', p.productCode, 'HSN Code', p.hsnCode, isDark),
           _buildInfoRow('Technical Name', p.technicalName, 'Vendor / Brand', p.sellerName.isNotEmpty ? p.sellerName : p.vendor, isDark),
-          _buildInfoRow('Category', p.category, 'Collections', p.collections, isDark),
-          _buildInfoRow('Sub Collections', p.subCollections, 'Variant', p.variant, isDark),
+          if (p.technicalContent.isNotEmpty)
+            _buildInfoRow('Technical Content', p.technicalContent, 'Category', p.category, isDark)
+          else
+            _buildInfoRow('Category', p.category, 'Collections', p.collections, isDark),
+          if (p.technicalContent.isNotEmpty)
+            _buildInfoRow('Collections', p.collections, 'Sub Collections', p.subCollections, isDark)
+          else
+            _buildInfoRow('Sub Collections', p.subCollections, 'Variant', p.variant, isDark),
           _buildInfoRow('Pack Size', '${p.packSize} ${p.unit}', 'Refund Policy', p.refundPolicy, isDark),
           const SizedBox(height: 16),
           Text(
-            'Product Description',
+            'Product Description & Commercial Narrative',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12.5,
               fontWeight: FontWeight.w800,
@@ -275,58 +277,6 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
             collapsible: true,
             maxLines: 4,
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Features',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
-              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            p.features,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              height: 1.5,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Benefits',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
-              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            p.benefits,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              height: 1.5,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAgronomyTab(BuildContext context, bool isDark, Color borderColor) {
-    final p = widget.product;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildInfoRow('Technical Content', p.technicalContent, 'Mode of Action', p.modeOfAction, isDark),
-          _buildInfoRow('Suitable Crops', p.suitableCrop, 'Dosage', p.dosage, isDark),
-          _buildInfoRow('Application Method', p.applicationMethod, 'Target Pests', p.targetPests, isDark),
-          _buildInfoRow('Target Diseases', p.targetDiseases, 'Category Group', p.category, isDark),
         ],
       ),
     );
@@ -379,7 +329,7 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
             highlightFirst: true,
           ),
           _buildInfoRow(
-            'Shipped By Partner', p.shippedBy,
+            'Shipped By Partner', p.shippedBy.isNotEmpty ? p.shippedBy : 'essentialbiocropscience',
             'Standard Wire Gauge / SWG', p.swg,
             isDark,
           ),

@@ -8,6 +8,7 @@ import '../../../logic/collection/collection_state.dart';
 import '../widgets/app_product_image.dart';
 import '../widgets/create_collection_dialog.dart';
 import '../widgets/edit_collection_dialog.dart';
+import '../widgets/add_sub_collection_dialog.dart';
 import 'assign_products_view.dart';
 import '../../../logic/product/product_bloc.dart';
 import '../../../logic/product/product_state.dart';
@@ -27,6 +28,8 @@ class CollectionsView extends StatefulWidget {
 class _CollectionsViewState extends State<CollectionsView> {
   final TextEditingController _searchController = TextEditingController();
   final Set<String> _expandedCollectionIds = {};
+  final Set<String> _selectedCollectionIds = {};
+  final Map<String, Set<String>> _selectedSubCollectionIds = {};
   String _searchQuery = '';
 
   @override
@@ -43,6 +46,278 @@ class _CollectionsViewState extends State<CollectionsView> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _toggleCollectionSelection(String id) {
+    setState(() {
+      if (_selectedCollectionIds.contains(id)) {
+        _selectedCollectionIds.remove(id);
+      } else {
+        _selectedCollectionIds.add(id);
+      }
+    });
+  }
+
+  void _selectAllCollections(List<CollectionItem> items) {
+    final allIds = items.map((c) => c.id).toSet();
+    setState(() {
+      if (_selectedCollectionIds.containsAll(allIds) && allIds.isNotEmpty) {
+        _selectedCollectionIds.removeAll(allIds);
+      } else {
+        _selectedCollectionIds.addAll(allIds);
+      }
+    });
+  }
+
+  void _clearCollectionSelection() {
+    setState(() {
+      _selectedCollectionIds.clear();
+    });
+  }
+
+  void _toggleSubCollectionSelection(String collectionId, String subCollectionId) {
+    setState(() {
+      final set = _selectedSubCollectionIds.putIfAbsent(collectionId, () => <String>{});
+      if (set.contains(subCollectionId)) {
+        set.remove(subCollectionId);
+      } else {
+        set.add(subCollectionId);
+      }
+    });
+  }
+
+  void _selectAllSubCollections(String collectionId, List<SubCollectionItem> subs) {
+    final subIds = subs.map((s) => s.id).toSet();
+    setState(() {
+      final set = _selectedSubCollectionIds.putIfAbsent(collectionId, () => <String>{});
+      if (set.containsAll(subIds) && subIds.isNotEmpty) {
+        set.removeAll(subIds);
+      } else {
+        set.addAll(subIds);
+      }
+    });
+  }
+
+  void _clearSubCollectionSelection(String collectionId) {
+    setState(() {
+      _selectedSubCollectionIds[collectionId]?.clear();
+    });
+  }
+
+  void _confirmBulkDeleteCollections(BuildContext context) {
+    if (_selectedCollectionIds.isEmpty) return;
+    final count = _selectedCollectionIds.length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_sweep_rounded, color: Color(0xFFDC2626), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Delete $count Collections',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete $count selected collections?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'All selected collections and their nested sub-collections will be permanently removed from the database. Any catalog products assigned to these collections will be unassigned. This operation cannot be undone.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                'DELETE /api/v1/admin/collections ($count items)',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11,
+                  color: const Color(0xFFDC2626),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              final toDelete = _selectedCollectionIds.toList();
+              Navigator.of(dialogCtx).pop();
+              _clearCollectionSelection();
+              context.read<CollectionBloc>().add(BulkDeleteCollections(toDelete));
+            },
+            child: Text(
+              'Delete $count Permanently',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmBulkDeleteSubCollections(BuildContext context, CollectionItem collection) {
+    final selectedSubs = _selectedSubCollectionIds[collection.id];
+    if (selectedSubs == null || selectedSubs.isEmpty) return;
+    final count = selectedSubs.length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_sweep_rounded, color: Color(0xFFEF4444), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Delete $count Sub-Collections',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete $count selected sub-collections from "${collection.name}"?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'These sub-collections will be permanently removed, and any assigned products will have these sub-collection tags detached.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                'DELETE /api/v1/admin/collections/${collection.id}/subcollections ($count items)',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11,
+                  color: const Color(0xFFEF4444),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              final toDelete = selectedSubs.toList();
+              Navigator.of(dialogCtx).pop();
+              _clearSubCollectionSelection(collection.id);
+              context.read<CollectionBloc>().add(BulkDeleteSubCollections(
+                    collectionId: collection.id,
+                    subCollectionIds: toDelete,
+                  ));
+            },
+            child: Text(
+              'Delete $count',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _toggleExpanded(String id) {
@@ -69,6 +344,13 @@ class _CollectionsViewState extends State<CollectionsView> {
     );
   }
 
+  void _openAddSubCollectionDialog(BuildContext context, CollectionItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AddSubCollectionDialog(collection: item),
+    );
+  }
+
   void _openAssignProductsDialog(BuildContext context, CollectionItem item) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -77,7 +359,109 @@ class _CollectionsViewState extends State<CollectionsView> {
     );
   }
 
-  void _confirmDeactivateCollection(BuildContext context, CollectionItem item) {
+  void _confirmDeleteCollection(BuildContext context, CollectionItem item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Delete Collection',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete "${item.name}"?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This collection and all its sub-collections will be permanently deleted from the database. All assigned products will have this collection detached. This action cannot be undone.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                'DELETE /api/v1/admin/collections/${item.id}',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11,
+                  color: const Color(0xFFDC2626),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<CollectionBloc>().add(DeleteCollectionPermanently(item.id));
+            },
+            child: Text(
+              'Delete',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteSubCollection(BuildContext context, CollectionItem collection, SubCollectionItem sub) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
 
@@ -94,11 +478,11 @@ class _CollectionsViewState extends State<CollectionsView> {
                 color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 22),
+              child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 22),
             ),
             const SizedBox(width: 12),
             Text(
-              'Deactivate Collection',
+              'Delete Sub-Collection',
               style: GoogleFonts.plusJakartaSans(
                 fontWeight: FontWeight.w800,
                 fontSize: 18,
@@ -112,7 +496,7 @@ class _CollectionsViewState extends State<CollectionsView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Are you sure you want to deactivate "${item.name}"?',
+              'Are you sure you want to delete sub-collection "${sub.name}" from "${collection.name}"?',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -121,7 +505,7 @@ class _CollectionsViewState extends State<CollectionsView> {
             ),
             const SizedBox(height: 8),
             Text(
-              'This collection will be marked inactive and hidden from storefront buyers. Products assigned to it will retain their assignment metadata.',
+              'This sub-collection will be removed, and all products tagged with it will have their sub-collection assignment removed.',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12.5,
                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -136,7 +520,7 @@ class _CollectionsViewState extends State<CollectionsView> {
                 border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.2)),
               ),
               child: Text(
-                'DELETE /api/v1/admin/collections/${item.id}',
+                'DELETE /api/v1/admin/collections/${collection.id}/subcollections/${sub.id}',
                 style: GoogleFonts.jetBrainsMono(
                   fontSize: 11,
                   color: const Color(0xFFEF4444),
@@ -165,10 +549,13 @@ class _CollectionsViewState extends State<CollectionsView> {
             ),
             onPressed: () {
               Navigator.of(dialogCtx).pop();
-              context.read<CollectionBloc>().add(DeactivateCollection(item.id));
+              context.read<CollectionBloc>().add(DeleteSubCollection(
+                collectionId: collection.id,
+                subCollectionId: sub.id,
+              ));
             },
             child: Text(
-              'Deactivate',
+              'Delete',
               style: GoogleFonts.plusJakartaSans(
                 fontWeight: FontWeight.w800,
               ),
@@ -275,7 +662,7 @@ class _CollectionsViewState extends State<CollectionsView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 1. Sleek Compact Header
-                    _buildHeader(context, state, isDark, borderColor),
+                    _buildHeader(context, state, isDark, borderColor, filteredItems),
 
                     const SizedBox(height: 14),
 
@@ -286,6 +673,11 @@ class _CollectionsViewState extends State<CollectionsView> {
 
                     // 3. Compact Search Bar
                     _buildSearchBar(isDark, surfaceColor, borderColor),
+
+                    if (_selectedCollectionIds.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _buildCollectionBulkActionBar(context, isDark, borderColor),
+                    ],
 
                     const SizedBox(height: 14),
 
@@ -319,7 +711,69 @@ class _CollectionsViewState extends State<CollectionsView> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, CollectionState state, bool isDark, Color borderColor) {
+  Widget _buildCollectionBulkActionBar(BuildContext context, bool isDark, Color borderColor) {
+    final count = _selectedCollectionIds.length;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDC2626).withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDC2626).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_box_rounded, color: Color(0xFFDC2626), size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '$count ${count == 1 ? 'collection' : 'collections'} selected',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _clearCollectionSelection,
+            child: Text(
+              'Clear Selection',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: () => _confirmBulkDeleteCollections(context),
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: Text('Delete Selected ($count)'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              textStyle: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, CollectionState state, bool isDark, Color borderColor, List<CollectionItem> filteredItems) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -387,6 +841,27 @@ class _CollectionsViewState extends State<CollectionsView> {
           spacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            OutlinedButton.icon(
+              onPressed: () => _selectAllCollections(filteredItems),
+              icon: Icon(
+                _selectedCollectionIds.isNotEmpty ? Icons.deselect_rounded : Icons.select_all_rounded,
+                size: 16,
+              ),
+              label: Text(
+                _selectedCollectionIds.isNotEmpty ? 'Deselect All' : 'Select All',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF059669),
+                side: BorderSide(color: borderColor),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                minimumSize: const Size(0, 36),
+              ),
+            ),
             OutlinedButton.icon(
               onPressed: () {
                 context.read<CollectionBloc>().add(const FetchCollections(isRefresh: true));
@@ -671,6 +1146,19 @@ class _CollectionsViewState extends State<CollectionsView> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  // Collection Selection Checkbox
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: Checkbox(
+                      value: _selectedCollectionIds.contains(item.id),
+                      activeColor: const Color(0xFFDC2626),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      onChanged: (_) => _toggleCollectionSelection(item.id),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
                   // Collection Theme Icon
                   Container(
                     width: 38,
@@ -831,14 +1319,13 @@ class _CollectionsViewState extends State<CollectionsView> {
                         onPressed: () => _openEditCollectionDialog(context, item),
                       ),
 
-                      // Deactivate button
-                      if (item.isActive)
-                        IconButton(
-                          icon: const Icon(Icons.power_settings_new_rounded, size: 18),
-                          tooltip: 'Deactivate Collection',
-                          color: const Color(0xFFEF4444),
-                          onPressed: () => _confirmDeactivateCollection(context, item),
-                        ),
+                      // Delete Collection button (Permanent delete)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                        tooltip: 'Delete Collection',
+                        color: const Color(0xFFDC2626),
+                        onPressed: () => _confirmDeleteCollection(context, item),
+                      ),
 
                       // Expand Chevron
                       Icon(
@@ -863,24 +1350,123 @@ class _CollectionsViewState extends State<CollectionsView> {
                 children: [
                   // Sub-Collections Header
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.account_tree_outlined, size: 15, color: Color(0xFF7C3AED)),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Mapped Sub-Collections & Category Taxonomy',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                        ),
+                      Row(
+                        children: [
+                          const Icon(Icons.account_tree_outlined, size: 15, color: Color(0xFF7C3AED)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Mapped Sub-Collections & Category Taxonomy',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          if (hasSubs)
+                            TextButton(
+                              onPressed: () => _selectAllSubCollections(item.id, item.subCollections),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF7C3AED),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: const Size(0, 30),
+                              ),
+                              child: Text(
+                                ((_selectedSubCollectionIds[item.id]?.length ?? 0) == item.subCollections.length)
+                                    ? 'Deselect All'
+                                    : 'Select All',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          TextButton.icon(
+                            onPressed: () => _openAddSubCollectionDialog(context, item),
+                            icon: const Icon(Icons.add_rounded, size: 15),
+                            label: Text(
+                              'Add Sub-Collection',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF7C3AED),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              minimumSize: const Size(0, 30),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
 
+                  // Sub-collection bulk action strip
+                  if (hasSubs && (_selectedSubCollectionIds[item.id]?.isNotEmpty ?? false)) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.15 : 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_box_rounded, color: Color(0xFFEF4444), size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_selectedSubCollectionIds[item.id]!.length} sub-collections selected',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () => _clearSubCollectionSelection(item.id),
+                            child: Text(
+                              'Clear',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          FilledButton.icon(
+                            onPressed: () => _confirmBulkDeleteSubCollections(context, item),
+                            icon: const Icon(Icons.delete_sweep_rounded, size: 14),
+                            label: Text('Delete (${_selectedSubCollectionIds[item.id]!.length})'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFEF4444),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              minimumSize: const Size(0, 28),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              textStyle: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   if (!hasSubs)
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Text(
                         'No sub-collections mapped. Products are assigned directly to this collection.',
                         style: GoogleFonts.plusJakartaSans(
@@ -895,7 +1481,7 @@ class _CollectionsViewState extends State<CollectionsView> {
                       spacing: 8,
                       runSpacing: 8,
                       children: item.subCollections.map((sub) {
-                        return _buildSubCollectionPill(sub, prodState, isDark, surfaceColor, borderColor);
+                        return _buildSubCollectionPill(item, sub, prodState, isDark, surfaceColor, borderColor);
                       }).toList(),
                     ),
 
@@ -1021,6 +1607,7 @@ class _CollectionsViewState extends State<CollectionsView> {
   }
 
   Widget _buildSubCollectionPill(
+    CollectionItem parentItem,
     SubCollectionItem sub,
     ProductState prodState,
     bool isDark,
@@ -1031,18 +1618,35 @@ class _CollectionsViewState extends State<CollectionsView> {
         p.assignedCollections.contains(sub.id)
     ).length;
     final displaySubCount = liveSubCount > 0 ? liveSubCount : sub.productCount;
+    final isSubSelected = _selectedSubCollectionIds[parentItem.id]?.contains(sub.id) ?? false;
 
     return Container(
-      constraints: const BoxConstraints(minWidth: 160, maxWidth: 240),
+      constraints: const BoxConstraints(minWidth: 160, maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
+        border: Border.all(
+          color: isSubSelected ? const Color(0xFFEF4444) : borderColor,
+          width: isSubSelected ? 1.5 : 1.0,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Sub-collection Selection Checkbox
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: Checkbox(
+              value: isSubSelected,
+              activeColor: const Color(0xFFEF4444),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              onChanged: (_) => _toggleSubCollectionSelection(parentItem.id, sub.id),
+            ),
+          ),
+          const SizedBox(width: 6),
+
           // Sub-collection Image or Default Icon
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
@@ -1093,6 +1697,17 @@ class _CollectionsViewState extends State<CollectionsView> {
                 ),
               ],
             ),
+          ),
+          // Delete subcollection button
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 14),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+            splashRadius: 14,
+            tooltip: 'Delete Sub-Collection',
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            hoverColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
+            onPressed: () => _confirmDeleteSubCollection(context, parentItem, sub),
           ),
         ],
       ),

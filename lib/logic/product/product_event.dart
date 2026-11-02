@@ -117,19 +117,53 @@ class CreateProduct extends ProductEvent {
   List<Object?> get props => [product];
 }
 
-class DeleteProductPermanently extends ProductEvent {
-  final String productId;
-  final void Function()? onSuccess;
+class UpdateProduct extends ProductEvent {
+  final Product product;
+  final void Function(Product updatedProduct)? onSuccess;
   final void Function(String errorMessage)? onError;
 
-  const DeleteProductPermanently(
-    this.productId, {
+  const UpdateProduct(
+    this.product, {
     this.onSuccess,
     this.onError,
   });
 
   @override
-  List<Object?> get props => [productId];
+  List<Object?> get props => [product];
+}
+
+class DeleteProductPermanently extends ProductEvent {
+  final String productId;
+  final String? productCode;
+  final String? sku;
+  final void Function()? onSuccess;
+  final void Function(String errorMessage)? onError;
+
+  const DeleteProductPermanently(
+    this.productId, {
+    this.productCode,
+    this.sku,
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [productId, productCode, sku];
+}
+
+class DeleteMultipleProductsPermanently extends ProductEvent {
+  final List<String> productIds;
+  final void Function(int count)? onSuccess;
+  final void Function(String errorMessage)? onError;
+
+  const DeleteMultipleProductsPermanently(
+    this.productIds, {
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [productIds];
 }
 
 class ToggleProductAvailability extends ProductEvent {

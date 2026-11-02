@@ -6,6 +6,7 @@ abstract class CollectionLocalDataSource {
   Future<CollectionsData?> getCachedCollections();
   Future<void> cacheCollections(CollectionsData collectionsData);
   Future<void> updateCachedCollection(CollectionItem collection);
+  Future<void> removeCachedCollection(String id);
   Future<void> clearCache();
 }
 
@@ -50,6 +51,22 @@ class CollectionLocalDataSourceImpl implements CollectionLocalDataSource {
       } else {
         items.insert(0, collection);
       }
+
+      await cacheCollections(CollectionsData(
+        count: items.length,
+        items: items,
+      ));
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> removeCachedCollection(String id) async {
+    try {
+      final current = await getCachedCollections();
+      if (current == null) return;
+
+      final items = List<CollectionItem>.from(current.items);
+      items.removeWhere((c) => c.id == id);
 
       await cacheCollections(CollectionsData(
         count: items.length,

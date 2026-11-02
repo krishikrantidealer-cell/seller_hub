@@ -199,6 +199,62 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
 
         const SizedBox(height: 18),
 
+        // If soft-deleted / in trash, show a prominent restoration banner
+        if (_currentSeller.isDeleted) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF881337).withValues(alpha: 0.25) : const Color(0xFFFFF1F2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isDark ? const Color(0xFFBE123C).withValues(alpha: 0.5) : const Color(0xFFFECDD3),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.delete_outline_rounded, size: 20, color: Color(0xFFE11D48)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'This seller account is soft-deleted and placed in Trash',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? const Color(0xFFFDA4AF) : const Color(0xFF9F1239),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Storefront and catalog products are deactivated. Historical orders, transactions, and settlement ledgers remain preserved. You can restore this seller anytime.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          color: isDark ? const Color(0xFFFECDD3) : const Color(0xFFBE123C),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () => _confirmToggleDeleteSeller(context),
+                  icon: const Icon(Icons.restore_from_trash_rounded, size: 16),
+                  label: const Text('Restore Seller'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+        ],
+
         // Seller Header Banner Card
         _buildSellerHeaderCard(context, isDark, surfaceColor, borderColor, isWide),
 

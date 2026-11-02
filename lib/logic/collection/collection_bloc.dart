@@ -25,6 +25,12 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
     on<ResetUpdateCollectionState>(_onResetUpdateCollectionState);
     on<DeactivateCollection>(_onDeactivateCollection);
     on<ResetDeactivateCollectionState>(_onResetDeactivateCollectionState);
+    on<ActivateCollection>(_onActivateCollection);
+    on<DeleteCollectionPermanently>(_onDeleteCollectionPermanently);
+    on<BulkDeleteCollections>(_onBulkDeleteCollections);
+    on<DeleteSubCollection>(_onDeleteSubCollection);
+    on<BulkDeleteSubCollections>(_onBulkDeleteSubCollections);
+    on<AddSubCollection>(_onAddSubCollection);
 
     // Subscribe to real-time collection updates from WebSocket pipeline
     _wsSubscription = _webSocketService.collectionUpdates.listen((_) {
@@ -167,6 +173,203 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
         isDeactivating: false,
         deactivateError: 'Failed to deactivate collection: $e',
       ));
+    }
+  }
+
+  Future<void> _onActivateCollection(
+    ActivateCollection event,
+    Emitter<CollectionState> emit,
+  ) async {
+    try {
+      final activatedItem = await collectionRepository.activateCollection(
+        event.collectionId,
+      );
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      final index = currentItems.indexWhere((c) => c.id == activatedItem.id);
+      if (index != -1) {
+        currentItems[index] = activatedItem;
+      } else {
+        final fallbackIdx = currentItems.indexWhere((c) => c.id == event.collectionId);
+        if (fallbackIdx != -1) {
+          currentItems[fallbackIdx] = currentItems[fallbackIdx].copyWith(isActive: true);
+        }
+      }
+
+      final updatedData = CollectionsData(
+        count: currentItems.length,
+        items: currentItems,
+      );
+
+      emit(state.copyWith(
+        status: CollectionStatus.loaded,
+        data: updatedData,
+      ));
+    } catch (_) {
+      // Background retry on error
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    }
+  }
+
+  Future<void> _onDeleteCollectionPermanently(
+    DeleteCollectionPermanently event,
+    Emitter<CollectionState> emit,
+  ) async {
+    try {
+      await collectionRepository.deleteCollectionPermanently(
+        event.collectionId,
+      );
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      currentItems.removeWhere((c) => c.id == event.collectionId);
+
+      final updatedData = CollectionsData(
+        count: currentItems.length,
+        items: currentItems,
+      );
+
+      emit(state.copyWith(
+        status: CollectionStatus.loaded,
+        data: updatedData,
+      ));
+    } catch (_) {
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    }
+  }
+
+  Future<void> _onBulkDeleteCollections(
+    BulkDeleteCollections event,
+    Emitter<CollectionState> emit,
+  ) async {
+    try {
+      final deletedIds = await collectionRepository.deleteCollectionsPermanently(
+        event.collectionIds,
+      );
+      final idSet = deletedIds.toSet();
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      currentItems.removeWhere((c) => idSet.contains(c.id));
+
+      final updatedData = CollectionsData(
+        count: currentItems.length,
+        items: currentItems,
+      );
+
+      emit(state.copyWith(
+        status: CollectionStatus.loaded,
+        data: updatedData,
+      ));
+    } catch (_) {
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    }
+  }
+
+  Future<void> _onDeleteSubCollection(
+    DeleteSubCollection event,
+    Emitter<CollectionState> emit,
+  ) async {
+    try {
+      final deletedIds = await collectionRepository.deleteSubCollection(
+        collectionId: event.collectionId,
+        subCollectionId: event.subCollectionId,
+      );
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      final index = currentItems.indexWhere((c) => c.id == event.collectionId);
+      if (index != -1) {
+        final col = currentItems[index];
+        final updatedSubs = col.subCollections
+            .where((s) => !deletedIds.contains(s.id))
+            .toList();
+        currentItems[index] = col.copyWith(
+          subCollections: updatedSubs,
+          subCollectionCount: updatedSubs.length,
+        );
+
+        final updatedData = CollectionsData(
+          count: currentItems.length,
+          items: currentItems,
+        );
+
+        emit(state.copyWith(
+          status: CollectionStatus.loaded,
+          data: updatedData,
+        ));
+      }
+    } catch (_) {
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    }
+  }
+
+  Future<void> _onBulkDeleteSubCollections(
+    BulkDeleteSubCollections event,
+    Emitter<CollectionState> emit,
+  ) async {
+    try {
+      final deletedIds = await collectionRepository.deleteSubCollectionsBulk(
+        collectionId: event.collectionId,
+        subCollectionIds: event.subCollectionIds,
+      );
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      final index = currentItems.indexWhere((c) => c.id == event.collectionId);
+      if (index != -1) {
+        final col = currentItems[index];
+        final updatedSubs = col.subCollections
+            .where((s) => !deletedIds.contains(s.id))
+            .toList();
+        currentItems[index] = col.copyWith(
+          subCollections: updatedSubs,
+          subCollectionCount: updatedSubs.length,
+        );
+
+        final updatedData = CollectionsData(
+          count: currentItems.length,
+          items: currentItems,
+        );
+
+        emit(state.copyWith(
+          status: CollectionStatus.loaded,
+          data: updatedData,
+        ));
+      }
+    } catch (_) {
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    }
+  }
+
+  Future<void> _onAddSubCollection(
+    AddSubCollection event,
+    Emitter<CollectionState> emit,
+  ) async {
+    try {
+      final updatedCollection = await collectionRepository.addSubCollection(
+        collectionId: event.collectionId,
+        name: event.name,
+        slug: event.slug,
+        image: event.image,
+        isActive: event.isActive,
+      );
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      final index = currentItems.indexWhere((c) => c.id == event.collectionId);
+      if (index != -1) {
+        currentItems[index] = updatedCollection;
+      } else {
+        currentItems.insert(0, updatedCollection);
+      }
+
+      final updatedData = CollectionsData(
+        count: currentItems.length,
+        items: currentItems,
+      );
+
+      emit(state.copyWith(
+        status: CollectionStatus.loaded,
+        data: updatedData,
+      ));
+    } catch (_) {
+      add(const FetchCollections(isRefresh: true, isBackground: true));
     }
   }
 

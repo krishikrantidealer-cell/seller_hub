@@ -19,6 +19,24 @@ abstract class CollectionRemoteDataSource {
     required CollectionItem collection,
   });
   Future<CollectionItem> deactivateCollection(String id);
+  Future<CollectionItem> activateCollection(String id);
+  Future<void> deleteCollectionPermanently(String id);
+  Future<List<String>> deleteCollectionsPermanently(List<String> ids);
+  Future<CollectionItem> addSubCollection({
+    required String collectionId,
+    required String name,
+    required String slug,
+    String? image,
+    bool isActive = true,
+  });
+  Future<List<String>> deleteSubCollection({
+    required String collectionId,
+    required String subCollectionId,
+  });
+  Future<List<String>> deleteSubCollectionsBulk({
+    required String collectionId,
+    required List<String> subCollectionIds,
+  });
 }
 
 class CollectionRemoteDataSourceImpl implements CollectionRemoteDataSource {
@@ -134,5 +152,120 @@ class CollectionRemoteDataSourceImpl implements CollectionRemoteDataSource {
       }
       rethrow;
     }
+  }
+
+  @override
+  Future<CollectionItem> activateCollection(String id) async {
+    final path = '${ApiEndpoints.adminCollections}/$id/activate';
+    try {
+      final response = await apiClient.post(
+        path,
+        body: {},
+        requiresAuth: true,
+      );
+      final rawData = response['data'] ?? response;
+      if (rawData is Map<String, dynamic>) {
+        return CollectionItem.fromJson(rawData);
+      }
+      throw const ApiException(
+        message: 'Unexpected activate collection response format from server.',
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 404 || e.statusCode == 405) {
+        final response = await apiClient.patch(
+          '${ApiEndpoints.adminCollections}/$id',
+          body: {'isActive': true},
+          requiresAuth: true,
+        );
+        final rawData = response['data'] ?? response;
+        if (rawData is Map<String, dynamic>) {
+          return CollectionItem.fromJson(rawData);
+        }
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> deleteCollectionPermanently(String id) async {
+    final path = '${ApiEndpoints.adminCollections}/$id?permanent=true';
+    await apiClient.delete(
+      path,
+      requiresAuth: true,
+    );
+  }
+
+  @override
+  Future<List<String>> deleteCollectionsPermanently(List<String> ids) async {
+    final response = await apiClient.delete(
+      ApiEndpoints.adminCollections,
+      body: {'collectionIds': ids},
+      requiresAuth: true,
+    );
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic> && rawData['items'] is List) {
+      return (rawData['items'] as List).map((e) => e.toString()).toList();
+    }
+    return ids;
+  }
+
+  @override
+  Future<CollectionItem> addSubCollection({
+    required String collectionId,
+    required String name,
+    required String slug,
+    String? image,
+    bool isActive = true,
+  }) async {
+    final body = <String, dynamic>{
+      'name': name,
+      'slug': slug,
+      'isActive': isActive,
+    };
+    if (image != null && image.isNotEmpty) {
+      body['image'] = image;
+    }
+    final response = await apiClient.post(
+      '${ApiEndpoints.adminCollections}/$collectionId/subcollections',
+      body: body,
+      requiresAuth: true,
+    );
+    final rawData = response['data'];
+    return CollectionItem.fromJson(rawData as Map<String, dynamic>);
+  }
+
+  @override
+  Future<List<String>> deleteSubCollection({
+    required String collectionId,
+    required String subCollectionId,
+  }) async {
+    final path = '${ApiEndpoints.adminCollections}/$collectionId/subcollections/$subCollectionId';
+    final response = await apiClient.delete(
+      path,
+      requiresAuth: true,
+    );
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic> && rawData['items'] is List) {
+      return (rawData['items'] as List).map((e) => e.toString()).toList();
+    }
+    return [subCollectionId];
+  }
+
+  @override
+  Future<List<String>> deleteSubCollectionsBulk({
+    required String collectionId,
+    required List<String> subCollectionIds,
+  }) async {
+    final path = '${ApiEndpoints.adminCollections}/$collectionId/subcollections';
+    final response = await apiClient.delete(
+      path,
+      body: {'subCollectionIds': subCollectionIds},
+      requiresAuth: true,
+    );
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic> && rawData['items'] is List) {
+      return (rawData['items'] as List).map((e) => e.toString()).toList();
+    }
+    return subCollectionIds;
   }
 }

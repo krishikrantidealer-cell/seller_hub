@@ -449,6 +449,58 @@ void main() {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path.contains('/subcollections') && request.method == 'POST') {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final pathSegments = request.url.pathSegments;
+      final collectionId = pathSegments[pathSegments.indexOf('subcollections') - 1];
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Subcollection added",
+          "data": {
+            "id": collectionId,
+            "name": "Shop By Crop",
+            "slug": "shop-by-crop",
+            "description": "Shop accordingly to crop",
+            "isActive": true,
+            "priority": 0,
+            "subCollections": [
+              {
+                "id": "6ad9b313fa32055b18fcb290",
+                "name": "Rice",
+                "slug": "rice",
+                "isActive": true,
+                "image": "https://example.com/rice.webp",
+                "productCount": 1
+              },
+              {
+                "id": "6ad9b313fa32055b18fcb291",
+                "name": "Maize",
+                "slug": "maize",
+                "isActive": true,
+                "image": "https://example.com/maize.webp",
+                "productCount": 0
+              },
+              {
+                "id": "6ad9b313fa32055b18fcb299",
+                "name": body["name"] ?? "New Sub",
+                "slug": body["slug"] ?? "new-sub",
+                "isActive": body["isActive"] ?? true,
+                "image": body["image"],
+                "productCount": 0
+              }
+            ],
+            "subCollectionCount": 3,
+            "createdAt": "2026-10-22T06:54:11.346Z",
+            "updatedAt": DateTime.now().toUtc().toIso8601String(),
+            "productCount": 1,
+            "bannerTitle": "Shop By Crop"
+          }
+        }),
+        201,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     if (request.url.path.startsWith('/api/v1/admin/collections/') && request.method == 'PUT') {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       final id = request.url.pathSegments.last;
@@ -471,46 +523,61 @@ void main() {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
-    if (request.url.path.startsWith('/api/v1/admin/collections/') && request.method == 'DELETE') {
-      final id = request.url.pathSegments.last;
+    if (request.url.path.contains('/subcollections/') && request.method == 'DELETE') {
+      final subId = request.url.pathSegments.last;
       return http.Response(
         jsonEncode({
           "success": true,
-          "message": "Collection deactivated",
+          "message": "Sub-collection deleted successfully",
           "data": {
-            "id": id,
-            "name": "Shop By Crops",
-            "slug": "shop-by-crops",
-            "description": "Shop accordingly to crop",
-            "isActive": false,
-            "priority": 0,
-            "subCollections": [
-              {
-                "id": "6ad9b313fa32055b18fcb290",
-                "name": "Rice",
-                "slug": "rice",
-                "isActive": true,
-                "image": "https://example.com/rice.webp",
-                "productCount": 1
-              },
-              {
-                "id": "6ad9b313fa32055b18fcb291",
-                "name": "Maize",
-                "slug": "maize",
-                "isActive": true,
-                "image": "https://example.com/maize.webp",
-                "productCount": 0
-              }
-            ],
-            "subCollectionCount": 2,
-            "createdAt": "2026-10-22T06:54:11.346Z",
-            "updatedAt": "2026-10-24T06:05:47.898263721Z",
-            "productCount": 1,
-            "bannerTitle": "Shop By Crop"
-          },
-          "timestamp": "2026-10-24T06:05:49.00084301"
+            "items": [subId]
+          }
         }),
         200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.startsWith('/api/v1/admin/collections/') && request.method == 'DELETE') {
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Collection permanently deleted",
+          "data": null,
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.startsWith('/api/v1/admin/categories/') && request.method == 'DELETE') {
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Category permanently deleted",
+          "data": null,
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path == '/api/v1/admin/categories' && request.method == 'POST') {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Category created",
+          "data": {
+            "id": "cat_${DateTime.now().millisecondsSinceEpoch}",
+            "name": body['name'],
+            "slug": body['slug'],
+            "parentId": body['parentId'],
+            "level": body['parentId'] != null ? 1 : 0,
+            "sortOrder": body['sortOrder'] ?? 0,
+            "isActive": body['isActive'] ?? true,
+            "createdAt": DateTime.now().toIso8601String(),
+            "updatedAt": DateTime.now().toIso8601String(),
+          },
+        }),
+        201,
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
@@ -855,9 +922,9 @@ void main() {
     await tester.tap(find.text('Beauveria Bassiana - Bio Pesticide'));
     await tester.pumpAndSettle();
 
-    // Verify Product Details View is displayed with agronomy and pricing
+    // Verify Product Details View is displayed with narrative and pricing
     expect(find.text('Pricing & Commercial Matrix'), findsOneWidget);
-    expect(find.text('Agronomic Specifications & Field Efficacy'), findsOneWidget);
+    expect(find.text('Product Narrative & Commercial Documentation'), findsOneWidget);
 
     // Tap breadcrumb back to return to catalog
     await tester.tap(find.text('Products Catalog'));
@@ -1022,7 +1089,7 @@ void main() {
 
     // Verify sortable column headers are displayed
     expect(find.text('PRODUCT & COMPOSITION'), findsOneWidget);
-    expect(find.text('SKU / HSN'), findsOneWidget);
+    expect(find.text('PRODUCT CODE / HSN'), findsOneWidget);
     expect(find.text('SELLER / VENDOR'), findsOneWidget);
     expect(find.text('CATEGORY & PACK'), findsOneWidget);
     expect(find.text('PRICE / MRP'), findsOneWidget);
@@ -1463,12 +1530,12 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    // Verify dialog is dismissed and assigned collections section displays the assigned badge
+    // Verify dialog is dismissed and assigned collections section displays the assigned collection name badge
     expect(find.text('Assign Storefront Collections'), findsNothing);
-    expect(find.text('#6ad9b313fa32055b18fcb292'), findsOneWidget);
+    expect(find.text('Shop By Crop'), findsOneWidget);
   });
 
-  testWidgets('Deactivating a collection via CollectionsView integrates with DELETE /api/v1/admin/collections/{collectionId}', (WidgetTester tester) async {
+  testWidgets('Permanently deleting a collection via CollectionsView integrates with DELETE /api/v1/admin/collections/{collectionId}', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
@@ -1497,26 +1564,26 @@ void main() {
     expect(find.text('Shop By Crop'), findsOneWidget);
     expect(find.text('Active'), findsWidgets);
 
-    // Find and tap the Deactivate icon button for "Shop By Crop"
-    final deactivateIconFinder = find.byIcon(Icons.power_settings_new_rounded).first;
-    await tester.ensureVisible(deactivateIconFinder);
-    await tester.tap(deactivateIconFinder);
+    // Find and tap the Delete Collection icon button for "Shop By Crop"
+    final deleteIconFinder = find.byTooltip('Delete Collection').first;
+    await tester.ensureVisible(deleteIconFinder);
+    await tester.tap(deleteIconFinder);
     await tester.pumpAndSettle();
 
     // Verify confirmation dialog is displayed
-    expect(find.text('Deactivate Collection'), findsOneWidget);
-    expect(find.textContaining('Are you sure you want to deactivate'), findsOneWidget);
+    expect(find.text('Delete Collection'), findsOneWidget);
+    expect(find.textContaining('Are you sure you want to permanently delete'), findsOneWidget);
     expect(find.text('DELETE /api/v1/admin/collections/6ad9b313fa32055b18fcb292'), findsOneWidget);
 
-    // Tap "Deactivate" button in dialog
-    final confirmDeactivateBtn = find.widgetWithText(ElevatedButton, 'Deactivate');
-    expect(confirmDeactivateBtn, findsOneWidget);
-    await tester.tap(confirmDeactivateBtn);
+    // Tap "Delete" button in dialog
+    final confirmDeleteBtn = find.widgetWithText(ElevatedButton, 'Delete');
+    expect(confirmDeleteBtn, findsOneWidget);
+    await tester.tap(confirmDeleteBtn);
     await tester.pumpAndSettle();
 
-    // Verify confirmation dialog is dismissed and success snackbar or inactive state is displayed
-    expect(find.text('Deactivate Collection'), findsNothing);
-    expect(find.textContaining('deactivated successfully'), findsOneWidget);
+    // Verify confirmation dialog is dismissed and collection is permanently deleted
+    expect(find.text('Delete Collection'), findsNothing);
+    expect(find.text('Shop By Crop'), findsNothing);
   });
 
   testWidgets('Assigning products to a collection from CollectionsView opens AssignProductsToCollectionDialog and dispatches product assignment', (WidgetTester tester) async {
@@ -1606,9 +1673,14 @@ void main() {
     expect(find.textContaining('All Products'), findsOneWidget);
     expect(find.text('All Stock'), findsOneWidget);
 
-    // 3. Verify Selection Actions
+    // 3. Verify Selection Actions (Single Dynamic Toggle Button)
     expect(find.textContaining('Select All Filtered'), findsOneWidget);
-    expect(find.text('Deselect All'), findsOneWidget);
+    await tester.tap(find.textContaining('Select All Filtered'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Deselect All'), findsOneWidget);
+    await tester.tap(find.textContaining('Deselect All'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Select All Filtered'), findsOneWidget);
 
     // 4. Test Search Bar
     final searchInput = find.byType(TextField).first;
@@ -1663,6 +1735,56 @@ void main() {
     // 4. Verify Categories Tree loaded
     expect(find.text('Crop Protection'), findsOneWidget);
     expect(find.text('Seeds'), findsOneWidget);
+  });
+
+  testWidgets('Creating a category via CreateCategoryDialog integrates with POST /api/v1/admin/categories', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Sign in to Dashboard
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Navigate to Catalog -> Categories tab
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Categories'));
+    await tester.pumpAndSettle();
+
+    // Verify Add Category button exists and tap it
+    expect(find.text('Add Category'), findsOneWidget);
+    await tester.tap(find.text('Add Category'));
+    await tester.pumpAndSettle();
+
+    // Verify CreateCategoryDialog opened
+    expect(find.text('Create New Category'), findsOneWidget);
+    expect(find.text('Category Name *'), findsOneWidget);
+    expect(find.text('URL Slug *'), findsOneWidget);
+    expect(find.text('Taxonomy Parent & Depth'), findsOneWidget);
+
+    // Enter category name
+    await tester.enterText(find.widgetWithText(TextFormField, 'e.g. Bio Pesticides, Micronutrients, Vegetable Seeds'), 'Organic Fertilizers');
+    await tester.pumpAndSettle();
+
+    // Submit category creation
+    await tester.tap(find.text('Create Category'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Verify dialog closed
+    expect(find.text('Create New Category'), findsNothing);
   });
 
   testWidgets('Combined Catalog tab allows seamless switching between Products, Collections, and Categories via top segmented control and sidebar', (WidgetTester tester) async {
@@ -1852,6 +1974,103 @@ void main() {
 
     // Verify Sellers is displayed again
     expect(find.text('Multi-Tenant Sellers Directory'), findsOneWidget);
+  });
+
+  testWidgets('CategoriesView supports multi-selection, select all, and bulk delete confirmation', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Login
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Navigate to Catalog -> Categories
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Categories'));
+    await tester.pumpAndSettle();
+
+    // Verify Select All button exists
+    expect(find.text('Select All'), findsOneWidget);
+    await tester.tap(find.text('Select All'));
+    await tester.pumpAndSettle();
+
+    // Verify Bulk Action Bar appears
+    expect(find.textContaining('selected'), findsWidgets);
+    expect(find.text('Clear Selection'), findsOneWidget);
+    expect(find.textContaining('Delete Selected'), findsOneWidget);
+
+    // Tap Delete Selected
+    await tester.tap(find.textContaining('Delete Selected'));
+    await tester.pumpAndSettle();
+
+    // Verify permanent delete modal shows
+    expect(find.textContaining('DELETE /api/v1/admin/categories/permanent'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+
+    // Cancel out of dialog
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Clear selection
+    await tester.tap(find.text('Clear Selection'));
+    await tester.pumpAndSettle();
+    expect(find.text('Clear Selection'), findsNothing);
+  });
+
+  testWidgets('CollectionsView supports multi-selection, select all, and bulk delete for collections and sub-collections', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(const SellerHubApp());
+    await tester.pumpAndSettle();
+
+    // Login
+    await tester.enterText(find.byType(TextField).at(0), 'seller@agribegri.com');
+    await tester.enterText(find.byType(TextField).at(1), 'password123');
+    await tester.tap(find.text('Sign In to Dashboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    // Navigate to Catalog -> Collections
+    await tester.tap(find.text('Catalog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Collections'));
+    await tester.pumpAndSettle();
+
+    // Verify Select All button exists for collections
+    expect(find.text('Select All'), findsWidgets);
+    await tester.tap(find.text('Select All').first);
+    await tester.pumpAndSettle();
+
+    // Verify Bulk Action Bar appears for collections
+    expect(find.textContaining('collections selected'), findsOneWidget);
+    expect(find.text('Clear Selection'), findsOneWidget);
+    expect(find.textContaining('Delete Selected'), findsOneWidget);
+
+    // Tap Delete Selected
+    await tester.tap(find.textContaining('Delete Selected'));
+    await tester.pumpAndSettle();
+
+    // Verify modal confirmation
+    expect(find.textContaining('DELETE /api/v1/admin/collections'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Clear collection selection
+    await tester.tap(find.text('Clear Selection'));
+    await tester.pumpAndSettle();
+    expect(find.text('Clear Selection'), findsNothing);
   });
 }
 

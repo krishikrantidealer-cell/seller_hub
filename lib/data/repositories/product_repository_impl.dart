@@ -98,9 +98,27 @@ class ProductRepositoryImpl implements ProductRepository {
   }
 
   @override
+  Future<Product> updateProduct(Product product) async {
+    final updated = await remoteDataSource.updateProduct(
+      product.id,
+      product.toAdminUpdatePayload(),
+    );
+    await localDataSource?.updateCachedProduct(updated);
+    return updated;
+  }
+
+  @override
   Future<void> deleteProductPermanently(String productId) async {
     await remoteDataSource.deleteProductPermanently(productId);
     await localDataSource?.removeCachedProduct(productId);
+  }
+
+  @override
+  Future<void> deleteMultipleProductsPermanently(List<String> productIds) async {
+    await remoteDataSource.deleteMultipleProductsPermanently(productIds);
+    for (final id in productIds) {
+      await localDataSource?.removeCachedProduct(id);
+    }
   }
 
   @override

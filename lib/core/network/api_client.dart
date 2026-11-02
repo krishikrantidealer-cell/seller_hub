@@ -24,6 +24,15 @@ class ApiClient {
         _timeout = timeout ?? const Duration(seconds: 60);
 
   Uri _buildUri(String path, [Map<String, dynamic>? queryParameters]) {
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      final uri = Uri.parse(path);
+      if (queryParameters == null || queryParameters.isEmpty) return uri;
+      final mergedParams = Map<String, String>.from(uri.queryParameters);
+      queryParameters.forEach((key, value) {
+        if (value != null) mergedParams[key] = value.toString();
+      });
+      return uri.replace(queryParameters: mergedParams);
+    }
     final cleanPath = path.startsWith('/') ? path : '/$path';
     final fullUrl = '$_baseUrl$cleanPath';
     return Uri.parse(fullUrl).replace(
@@ -43,6 +52,10 @@ class ApiClient {
       final token = await _tokenStorage.getAccessToken();
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
+      } else {
+        throw const UnauthorizedException(
+          message: 'Full authentication is required to access this resource. Please sign in.',
+        );
       }
     }
 
@@ -108,6 +121,10 @@ class ApiClient {
         final token = await _tokenStorage.getAccessToken();
         if (token != null && token.isNotEmpty) {
           request.headers['Authorization'] = 'Bearer $token';
+        } else {
+          throw const UnauthorizedException(
+            message: 'Full authentication is required to access this resource. Please sign in.',
+          );
         }
       }
       request.headers['Accept'] = 'application/json';
@@ -174,6 +191,10 @@ class ApiClient {
         final token = await _tokenStorage.getAccessToken();
         if (token != null && token.isNotEmpty) {
           request.headers['Authorization'] = 'Bearer $token';
+        } else {
+          throw const UnauthorizedException(
+            message: 'Full authentication is required to access this resource. Please sign in.',
+          );
         }
       }
       request.headers['Accept'] = 'application/json';

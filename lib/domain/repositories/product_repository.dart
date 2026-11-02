@@ -32,8 +32,14 @@ abstract class ProductRepository {
   /// Create / assign a product to a seller via POST /api/v1/admin/products
   Future<Product> createProduct(Product product);
 
-  /// Permanently delete a product listing via DELETE /api/v1/admin/products/{productId}/permanent
+  /// Update an existing product listing via PATCH /api/v1/admin/products/{productId}
+  Future<Product> updateProduct(Product product);
+
+  /// Permanently delete a product listing via unified DELETE /api/v1/admin/products/permanent
   Future<void> deleteProductPermanently(String productId);
+
+  /// Permanently delete multiple product listings via unified DELETE /api/v1/admin/products/permanent
+  Future<void> deleteMultipleProductsPermanently(List<String> productIds);
 
   /// Toggle product availability (in stock / out of stock) via PATCH /api/v1/admin/products/{productId}/availability
   Future<Product> updateProductAvailability({

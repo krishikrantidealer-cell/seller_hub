@@ -2,7 +2,7 @@ class ApiEndpoints {
   /// Base URL for the backend API, configurable via --dart-define=API_BASE_URL=https://...
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://ebs-biocrop-backend.onrender.com',
+    defaultValue: 'http://localhost:8080',
   );
 
   /// Authentication
@@ -11,6 +11,7 @@ class ApiEndpoints {
   /// Products
   static const String products = '/api/v1/products';
   static const String adminProducts = '/api/v1/admin/products';
+  static const String adminProductsPermanent = '/api/v1/admin/products/permanent';
   static String adminProduct(String productId) => '/api/v1/admin/products/$productId';
   static String adminProductPermanent(String productId) =>
       '/api/v1/admin/products/$productId/permanent';

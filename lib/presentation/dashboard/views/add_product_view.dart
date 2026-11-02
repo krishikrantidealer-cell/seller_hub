@@ -1,7 +1,9 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/admin_user.dart';
+import '../../../core/models/category.dart';
 import '../../../core/models/product.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/admin_user_state.dart';
@@ -12,6 +14,7 @@ import '../../../logic/category/category_state.dart';
 import '../../../logic/collection/collection_bloc.dart';
 import '../../../logic/collection/collection_event.dart';
 import '../../../logic/collection/collection_state.dart';
+import '../widgets/app_html_editor.dart';
 
 class AddProductView extends StatefulWidget {
   final VoidCallback onBack;
@@ -38,8 +41,19 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   String? _selectedSellerId;
   String? _selectedCategory;
   String? _selectedCategoryId;
+  String? _selectedRootCategoryId;
+  String? _selectedRootCategoryName;
+  String? _selectedSubCategoryId;
+  String? _selectedSubCategoryName;
+  String? _selectedChildCategoryId;
+  String? _selectedChildCategoryName;
   String? _selectedCollectionName;
   String? _selectedSubCollectionName;
+
+  // AgriBegri Supporting Documents & Video Link
+  String? _pdfDocumentName;
+  int? _pdfDocumentSizeBytes;
+  final _youtubeVideoController = TextEditingController();
 
   // General Specifications
   final _titleController = TextEditingController();
@@ -82,7 +96,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   final _variantPrintedMrpController = TextEditingController();
   final _variantCostPriceController = TextEditingController();
   final _variantStockController = TextEditingController();
-  final _variantShippedByController = TextEditingController();
+  final _variantShippedByController = TextEditingController(text: 'essentialbiocropscience');
   String _selectedVariantUnit = 'ml';
   String _selectedPackUnit = 'bottle';
   double _selectedVariantGst = 5.0;
@@ -90,7 +104,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging && _selectedTabIndex != _tabController.index) {
         setState(() {
@@ -113,7 +127,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
         packSizeUnit: 'ml',
         packQuantity: 1,
         packUnit: 'bottle',
-        shippedBy: '',
+        shippedBy: 'essentialbiocropscience',
         displayRate: 0.0,
         printedMrp: 0.0,
         costPrice: 0.0,
@@ -167,6 +181,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     _dimensionsWidthController.dispose();
     _dimensionsHeightController.dispose();
     _refundPolicyController.dispose();
+    _youtubeVideoController.dispose();
     _variantLabelController.dispose();
     _variantPackSizeController.dispose();
     _variantPackQuantityController.dispose();
@@ -186,7 +201,9 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     _variantPrintedMrpController.text = v.printedMrp > 0 ? v.printedMrp.toStringAsFixed(0) : '';
     _variantCostPriceController.text = v.costPrice > 0 ? v.costPrice.toStringAsFixed(0) : '';
     _variantStockController.text = v.stock > 0 ? v.stock.toString() : '';
-    _variantShippedByController.text = v.shippedBy;
+    _variantShippedByController.text = (v.shippedBy == 'essentialbiocropscience')
+        ? v.shippedBy
+        : 'essentialbiocropscience';
     _selectedVariantUnit = v.unit.isNotEmpty ? v.unit : 'ml';
     _selectedPackUnit = v.packUnit.isNotEmpty ? v.packUnit : 'bottle';
     _selectedVariantGst = v.gstPercentage > 0 ? v.gstPercentage : 5.0;
@@ -216,7 +233,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       packUnit: _selectedPackUnit,
       shippedBy: _variantShippedByController.text.trim().isNotEmpty
           ? _variantShippedByController.text.trim()
-          : 'EBS Direct',
+          : 'essentialbiocropscience',
       displayRate: disp,
       printedMrp: mrp,
       costPrice: cp,
@@ -250,7 +267,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
         packSizeUnit: 'ml',
         packQuantity: 1,
         packUnit: 'bottle',
-        shippedBy: '',
+        shippedBy: 'essentialbiocropscience',
         displayRate: 0.0,
         printedMrp: 0.0,
         costPrice: 0.0,
@@ -540,7 +557,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
               children: [
                 Icon(Icons.info_outline_rounded, size: 15),
                 SizedBox(width: 6),
-                Text('1. Basic Info & Taxonomy'),
+                Text('1. Basic Info & Narrative'),
               ],
             ),
           ),
@@ -562,21 +579,9 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.agriculture_rounded, size: 15),
-                SizedBox(width: 6),
-                Text('3. Agronomy & Crop Specs'),
-              ],
-            ),
-          ),
-          const Tab(
-            height: 38,
-            iconMargin: EdgeInsets.zero,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
                 Icon(Icons.local_shipping_outlined, size: 15),
                 SizedBox(width: 6),
-                Text('4. Shipping & Logistics'),
+                Text('3. Shipping & Logistics'),
               ],
             ),
           ),
@@ -592,8 +597,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       case 1:
         return _buildTab2Variants(isDark, borderColor, cardBgColor);
       case 2:
-        return _buildTab3Agronomy(isDark, borderColor, cardBgColor);
-      case 3:
         return _buildTab4Shipping(isDark, borderColor, cardBgColor);
       default:
         return _buildTab1BasicInfo(isDark, borderColor, cardBgColor);
@@ -739,7 +742,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
             ),
             const SizedBox(width: 8),
           ],
-          if (_selectedTabIndex < 3) ...[
+          if (_selectedTabIndex < 2) ...[
             OutlinedButton.icon(
               onPressed: () {
                 setState(() {
@@ -810,208 +813,245 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Row 1: Seller (Store Owner) * and Category * side-by-side
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Seller Dropdown
-                    Expanded(
-                      child: BlocBuilder<SellerBloc, AdminUserState>(
-                        builder: (context, sellerState) {
-                          final sellers = sellerState.users;
-                          final isLoading = sellerState.status == AdminUserStatus.loading;
-                          final selectedSeller = sellers.where((s) => s.id == _selectedSellerId).firstOrNull;
-                          final displayText = selectedSeller != null
-                              ? '${selectedSeller.displayName}${selectedSeller.phoneNumber.isNotEmpty ? ' • ${selectedSeller.phoneNumber}' : ''}'
-                              : '';
+                // Product Manufacturer / Seller (Store Owner) *
+                BlocBuilder<SellerBloc, AdminUserState>(
+                  builder: (context, sellerState) {
+                    final sellers = sellerState.users;
+                    final isLoading = sellerState.status == AdminUserStatus.loading;
+                    final selectedSeller = sellers.where((s) => s.id == _selectedSellerId).firstOrNull;
+                    final displayText = selectedSeller != null
+                        ? '${selectedSeller.displayName}${selectedSeller.phoneNumber.isNotEmpty ? ' • ${selectedSeller.phoneNumber}' : ''}'
+                        : '';
 
-                          return _buildSearchableSelectField<AdminUser>(
-                            label: 'Seller (Store Owner) *',
-                            prefixIcon: Icons.store_rounded,
-                            displayText: displayText,
-                            placeholder: isLoading
-                                ? 'Loading sellers from server...'
-                                : '-- Select Seller (Required) --',
-                            hasValue: _selectedSellerId != null,
-                            helperText: _selectedSellerId == null
-                                ? 'No seller selected initially. Please pick a seller to associate with this product.'
-                                : null,
-                            trailingBadge: selectedSeller != null
-                                ? Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF059669).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      selectedSeller.id.length > 8
-                                          ? selectedSeller.id.substring(selectedSeller.id.length - 8)
-                                          : selectedSeller.id,
-                                      style: GoogleFonts.robotoMono(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF059669),
-                                      ),
-                                    ),
-                                  )
-                                : null,
-                            isDark: isDark,
-                            borderColor: borderColor,
-                            onTap: () async {
-                              final picked = await _showSearchablePicker<AdminUser>(
-                                context: context,
-                                title: 'Select Seller',
-                                titleIcon: Icons.store_rounded,
-                                searchHint: 'Search sellers by name, shop, or phone...',
-                                items: sellers,
-                                selectedItem: selectedSeller,
-                                labelBuilder: (s) => s.displayName,
-                                subtitleBuilder: (s) => '${s.phoneNumber.isNotEmpty ? s.phoneNumber : "No Phone"} • ID: ${s.id}',
-                                leadingBuilder: (s) => const Icon(Icons.storefront_rounded, size: 16, color: Color(0xFF059669)),
-                                trailingBadgeBuilder: (s) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF059669).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    s.id.length > 8 ? s.id.substring(s.id.length - 8) : s.id,
-                                    style: GoogleFonts.robotoMono(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF059669),
-                                    ),
-                                  ),
+                    return _buildSearchableSelectField<AdminUser>(
+                      label: 'Seller (Store Owner) *',
+                      prefixIcon: Icons.store_rounded,
+                      displayText: displayText,
+                      placeholder: isLoading
+                          ? 'Loading sellers from server...'
+                          : '-- Select Seller (Required) --',
+                      hasValue: _selectedSellerId != null,
+                      helperText: _selectedSellerId == null
+                          ? 'No seller selected initially. Please pick a seller to associate with this product.'
+                          : null,
+                      trailingBadge: selectedSeller != null
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF059669).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                selectedSeller.id.length > 8
+                                    ? selectedSeller.id.substring(selectedSeller.id.length - 8)
+                                    : selectedSeller.id,
+                                style: GoogleFonts.robotoMono(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF059669),
                                 ),
-                                isDark: isDark,
-                              );
-                              if (picked != null) {
-                                setState(() {
-                                  _selectedSellerId = picked.id;
-                                });
-                              }
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-
-                    // Category Dropdown - PROMINENT RIGHT AT THE TOP!
-                    Expanded(
-                      child: BlocBuilder<CategoryBloc, CategoryState>(
-                        builder: (context, catState) {
-                          final categories = catState.allCategories;
-                          final categoryNames = categories.isNotEmpty
-                              ? categories.map((c) => c.name).toSet().toList()
-                              : const [
-                                  'Bio Organic Nutrients',
-                                  'Insecticides',
-                                  'Herbicides',
-                                  'Fungicides',
-                                  'Seeds',
-                                  'Fertilizers',
-                                  'PGR & Bio-Nutrients',
-                                ];
-
-                          final displayText = _selectedCategory ?? '';
-
-                          return _buildSearchableSelectField<String>(
-                            label: 'Category *',
-                            prefixIcon: Icons.category_rounded,
-                            displayText: displayText,
-                            placeholder: '-- Select Category (Required) --',
-                            hasValue: _selectedCategory != null,
-                            helperText: _selectedCategory == null
-                                ? 'No category selected initially. Please pick a category for this product.'
-                                : null,
-                            trailingBadge: _selectedCategoryId != null
-                                ? Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF059669).withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      _selectedCategoryId!.length > 8
-                                          ? 'ID: ${_selectedCategoryId!.substring(0, 8)}...'
-                                          : 'ID: $_selectedCategoryId',
-                                      style: GoogleFonts.robotoMono(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF059669),
-                                      ),
-                                    ),
-                                  )
-                                : null,
-                            isDark: isDark,
-                            borderColor: borderColor,
-                            onTap: () async {
-                              final picked = await _showSearchablePicker<String>(
-                                context: context,
-                                title: 'Select Category',
-                                titleIcon: Icons.category_rounded,
-                                searchHint: 'Search categories by name, level, or keyword...',
-                                items: categoryNames,
-                                selectedItem: _selectedCategory,
-                                labelBuilder: (cat) => cat,
-                                subtitleBuilder: (cat) {
-                                  final catItem = categories.where((c) => c.name == cat).firstOrNull;
-                                  if (catItem != null) {
-                                    return catItem.isRoot ? 'Level 0 • Root Category' : 'Level ${catItem.level} • Sub-Category';
-                                  }
-                                  return 'Agricultural Category';
-                                },
-                                leadingBuilder: (cat) {
-                                  final catItem = categories.where((c) => c.name == cat).firstOrNull;
-                                  return Icon(
-                                    catItem?.isRoot == true ? Icons.folder_rounded : Icons.subdirectory_arrow_right_rounded,
-                                    size: 16,
-                                    color: catItem?.isRoot == true
-                                        ? const Color(0xFF059669)
-                                        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                                  );
-                                },
-                                trailingBadgeBuilder: (cat) {
-                                  final catItem = categories.where((c) => c.name == cat).firstOrNull;
-                                  if (catItem == null) return null;
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: (catItem.isRoot ? const Color(0xFF059669) : const Color(0xFF3B82F6)).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      catItem.isRoot ? 'Root (L0)' : 'L${catItem.level}',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: catItem.isRoot ? const Color(0xFF059669) : const Color(0xFF3B82F6),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                isDark: isDark,
-                              );
-                              if (picked != null) {
-                                setState(() {
-                                  _selectedCategory = picked;
-                                  final match = categories.where((c) => c.name == picked).firstOrNull;
-                                  if (match != null) {
-                                    _selectedCategoryId = match.id;
-                                  }
-                                });
-                              }
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                              ),
+                            )
+                          : null,
+                      isDark: isDark,
+                      borderColor: borderColor,
+                      onTap: () async {
+                        final picked = await _showSearchablePicker<AdminUser>(
+                          context: context,
+                          title: 'Select Seller',
+                          titleIcon: Icons.store_rounded,
+                          searchHint: 'Search sellers by name, shop, or phone...',
+                          items: sellers,
+                          selectedItem: selectedSeller,
+                          labelBuilder: (s) => s.displayName,
+                          subtitleBuilder: (s) => '${s.phoneNumber.isNotEmpty ? s.phoneNumber : "No Phone"} • ID: ${s.id}',
+                          leadingBuilder: (s) => const Icon(Icons.storefront_rounded, size: 16, color: Color(0xFF059669)),
+                          trailingBadgeBuilder: (s) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF059669).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              s.id.length > 8 ? s.id.substring(s.id.length - 8) : s.id,
+                              style: GoogleFonts.robotoMono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF059669),
+                              ),
+                            ),
+                          ),
+                          isDark: isDark,
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _selectedSellerId = picked.id;
+                          });
+                        }
+                      },
+                    );
+                  },
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
 
-                // Row 2: Collection (Dropdown) * and Sub Collection (Dropdown) *
+                // 3-Tier Cascading Category Classification (Category -> Sub-Category -> Child Sub-Category)
+                BlocBuilder<CategoryBloc, CategoryState>(
+                  builder: (context, catState) {
+                    final categories = catState.allCategories;
+                    final rootCategories = categories.where((c) => c.level == 0).toList();
+                    final subCategories = _selectedRootCategoryId != null
+                        ? categories.where((c) => c.parentId == _selectedRootCategoryId && c.level == 1).toList()
+                        : <CategoryItem>[];
+                    final childSubCategories = _selectedSubCategoryId != null
+                        ? categories.where((c) => c.parentId == _selectedSubCategoryId && c.level == 2).toList()
+                        : <CategoryItem>[];
+
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isWide = constraints.maxWidth > 700;
+                        final rootField = _buildCategoryLevelSelector(
+                          label: "Category *",
+                          tooltipText: "Product's Primary Category (Level 0 Root)",
+                          icon: Icons.category_rounded,
+                          displayText: _selectedRootCategoryName ?? '',
+                          placeholder: '-- Select Category (Required) --',
+                          hasValue: _selectedRootCategoryId != null,
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          onTap: () async {
+                            final picked = await _showSearchablePicker<CategoryItem>(
+                              context: context,
+                              title: "Select Category",
+                              titleIcon: Icons.category_rounded,
+                              searchHint: 'Search root categories...',
+                              items: rootCategories,
+                              selectedItem: rootCategories.where((c) => c.id == _selectedRootCategoryId).firstOrNull,
+                              labelBuilder: (c) => c.name,
+                              subtitleBuilder: (c) => 'Root Category (Level 0)',
+                              leadingBuilder: (_) => const Icon(Icons.folder_rounded, size: 16, color: Color(0xFF059669)),
+                              isDark: isDark,
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                _selectedRootCategoryId = picked.id;
+                                _selectedRootCategoryName = picked.name;
+                                // Reset child tiers
+                                _selectedSubCategoryId = null;
+                                _selectedSubCategoryName = null;
+                                _selectedChildCategoryId = null;
+                                _selectedChildCategoryName = null;
+                                // Effective assignment
+                                _selectedCategoryId = picked.id;
+                                _selectedCategory = picked.name;
+                              });
+                            }
+                          },
+                        );
+
+                        final subField = _buildCategoryLevelSelector(
+                          label: "Product's Sub category (If Any) *",
+                          tooltipText: "Select specific sub-category under selected root (Level 1)",
+                          icon: Icons.subdirectory_arrow_right_rounded,
+                          displayText: _selectedSubCategoryName ?? '',
+                          placeholder: _selectedRootCategoryId == null
+                              ? '-- Select Category First --'
+                              : (subCategories.isEmpty ? '-- No Sub Category --' : '-- Select Sub Category --'),
+                          hasValue: _selectedSubCategoryId != null,
+                          isEnabled: _selectedRootCategoryId != null && subCategories.isNotEmpty,
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          onTap: () async {
+                            final picked = await _showSearchablePicker<CategoryItem>(
+                              context: context,
+                              title: "Select Sub Category (Level 1)",
+                              titleIcon: Icons.subdirectory_arrow_right_rounded,
+                              searchHint: 'Search sub categories...',
+                              items: subCategories,
+                              selectedItem: subCategories.where((c) => c.id == _selectedSubCategoryId).firstOrNull,
+                              labelBuilder: (c) => c.name,
+                              subtitleBuilder: (c) => 'Sub Category under ${_selectedRootCategoryName ?? ""}',
+                              leadingBuilder: (_) => const Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: Color(0xFF3B82F6)),
+                              isDark: isDark,
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                _selectedSubCategoryId = picked.id;
+                                _selectedSubCategoryName = picked.name;
+                                _selectedChildCategoryId = null;
+                                _selectedChildCategoryName = null;
+                                _selectedCategoryId = picked.id;
+                                _selectedCategory = '$_selectedRootCategoryName > ${picked.name}';
+                              });
+                            }
+                          },
+                        );
+
+                        final childSubField = _buildCategoryLevelSelector(
+                          label: "Product's Sub Sub Category (If Any)",
+                          tooltipText: "Select granular child sub-category (Level 2)",
+                          icon: Icons.alt_route_rounded,
+                          displayText: _selectedChildCategoryName ?? '',
+                          placeholder: _selectedSubCategoryId == null
+                              ? '-- Select Sub Category First --'
+                              : (childSubCategories.isEmpty ? '-- No Child Sub Category --' : '-- Select Child Sub Category --'),
+                          hasValue: _selectedChildCategoryId != null,
+                          isEnabled: _selectedSubCategoryId != null && childSubCategories.isNotEmpty,
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          onTap: () async {
+                            final picked = await _showSearchablePicker<CategoryItem>(
+                              context: context,
+                              title: "Select Child Sub Category (Level 2)",
+                              titleIcon: Icons.alt_route_rounded,
+                              searchHint: 'Search child sub categories...',
+                              items: childSubCategories,
+                              selectedItem: childSubCategories.where((c) => c.id == _selectedChildCategoryId).firstOrNull,
+                              labelBuilder: (c) => c.name,
+                              subtitleBuilder: (c) => 'Child Category under ${_selectedSubCategoryName ?? ""}',
+                              leadingBuilder: (_) => const Icon(Icons.alt_route_rounded, size: 16, color: Color(0xFF8B5CF6)),
+                              isDark: isDark,
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                _selectedChildCategoryId = picked.id;
+                                _selectedChildCategoryName = picked.name;
+                                _selectedCategoryId = picked.id;
+                                _selectedCategory = '$_selectedRootCategoryName > $_selectedSubCategoryName > ${picked.name}';
+                              });
+                            }
+                          },
+                        );
+
+                        if (isWide) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: rootField),
+                              const SizedBox(width: 12),
+                              Expanded(child: subField),
+                              const SizedBox(width: 12),
+                              Expanded(child: childSubField),
+                            ],
+                          );
+                        } else {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              rootField,
+                              const SizedBox(height: 10),
+                              subField,
+                              const SizedBox(height: 10),
+                              childSubField,
+                            ],
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // Row: Collection (Dropdown) * and Sub Collection (Dropdown) *
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1175,7 +1215,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                   children: [
                     Expanded(
                       child: _buildFormField(
-                        'Product Code / SKU',
+                        'Product Code',
                         _productCodeController,
                         'e.g. EBS-ADM-SKU-001',
                         isDark,
@@ -1195,13 +1235,22 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                 ),
                 const SizedBox(height: 10),
                 _buildFormField(
-                  'Product Description *',
-                  _descriptionController,
-                  'High grade bio solution for organic farming...',
+                  'Technical Content / Chemical Composition',
+                  _technicalContentController,
+                  'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
                   isDark,
-                  maxLines: 2,
-                  isRequired: true,
                 ),
+                const SizedBox(height: 14),
+                AppHtmlEditor(
+                  controller: _descriptionController,
+                  label: "Product Detail Description",
+                  subtitle: "More detail description will attract more clients. Please write about How much need per acre, Dosage, Product Content, Product Benefits, Application etc.",
+                  hintText: "Enter rich product content with agronomic recommendations, per-acre dosage, benefits, and application guidelines...",
+                  isRequired: true,
+                  minHeight: 280,
+                ),
+                const SizedBox(height: 16),
+                _buildAgriBegriAuxiliaryFields(isDark, borderColor),
               ],
             ),
           ),
@@ -1437,11 +1486,21 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                       ),
                       const SizedBox(width: 14),
                       Expanded(
-                        child: _buildFormField(
-                          'Shipped By Partner',
-                          _variantShippedByController,
-                          'e.g. EBS Direct',
-                          isDark,
+                        child: _buildDropdownField(
+                          label: 'Fulfilled / Shipped By',
+                          value: _variantShippedByController.text.trim().isNotEmpty
+                              ? _variantShippedByController.text.trim()
+                              : 'essentialbiocropscience',
+                          items: const ['essentialbiocropscience'],
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _variantShippedByController.text = val;
+                              });
+                            }
+                          },
                         ),
                       ),
                     ],
@@ -1723,128 +1782,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     );
   }
 
-  // --- TAB 3: AGRONOMY & CROP SPECS ---
-  Widget _buildTab3Agronomy(bool isDark, Color borderColor, Color cardBgColor) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildCard(
-            title: 'Agronomic Characteristics',
-            subtitle: 'Chemical/biological composition, action mechanism, and application',
-            icon: Icons.biotech_rounded,
-            isDark: isDark,
-            borderColor: borderColor,
-            cardBgColor: cardBgColor,
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildFormField(
-                        'Technical Content',
-                        _technicalContentController,
-                        'e.g. Beauveria bassiana 5x10^8 CFU/ml',
-                        isDark,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildFormField(
-                        'Mode of Action',
-                        _modeOfActionController,
-                        'e.g. Entomopathogenic contact action',
-                        isDark,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildFormField(
-                        'Suitable Crops',
-                        _suitableCropController,
-                        'e.g. Cotton, Paddy, Chilli, Tomato, Vegetables',
-                        isDark,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildFormField(
-                        'Recommended Dosage',
-                        _dosageController,
-                        'e.g. 2.5 ml / Litre water',
-                        isDark,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildFormField(
-                        'Target Pests',
-                        _targetPestsController,
-                        'e.g. Whiteflies, aphids, thrips, mealybugs',
-                        isDark,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildFormField(
-                        'Target Diseases',
-                        _targetDiseasesController,
-                        'e.g. Sheath Blight, Blast',
-                        isDark,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _buildFormField(
-                  'Application Method',
-                  _applicationMethodController,
-                  'e.g. Foliar spray for plants and garden',
-                  isDark,
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildFormField(
-                        'Key Features',
-                        _featuresController,
-                        'e.g. Fast rainfastness, broad coverage...',
-                        isDark,
-                        maxLines: 2,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildFormField(
-                        'Farmer Benefits',
-                        _benefitsController,
-                        'e.g. Enhances crop stand and yield by 15%...',
-                        isDark,
-                        maxLines: 2,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   // --- TAB 4: SHIPPING & LOGISTICS ---
   Widget _buildTab4Shipping(bool isDark, Color borderColor, Color cardBgColor) {
@@ -2136,19 +2074,41 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
           ),
         ),
         const SizedBox(height: 4),
-        Container(
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: borderColor),
+        InputDecorator(
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8.5),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+            ),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: effectiveValue,
               isExpanded: true,
+              isDense: true,
               dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              icon: Icon(
+                Icons.arrow_drop_down_rounded,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
               items: effectiveItems.map((item) {
                 return DropdownMenuItem<String>(
                   value: item,
@@ -2272,6 +2232,262 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
               ),
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryLevelSelector({
+    required String label,
+    required String tooltipText,
+    required IconData icon,
+    required String displayText,
+    required String placeholder,
+    required bool hasValue,
+    required bool isDark,
+    required Color borderColor,
+    required VoidCallback onTap,
+    bool isEnabled = true,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Tooltip(
+              message: tooltipText,
+              child: Icon(
+                Icons.help_outline_rounded,
+                size: 14,
+                color: isEnabled
+                    ? const Color(0xFF059669)
+                    : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: isEnabled ? onTap : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: isEnabled
+                  ? (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC))
+                  : (isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF1F5F9)),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: hasValue
+                    ? const Color(0xFF059669).withValues(alpha: 0.6)
+                    : borderColor,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
+                  color: isEnabled
+                      ? (hasValue ? const Color(0xFF059669) : const Color(0xFF64748B))
+                      : (isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hasValue ? displayText : placeholder,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+                      color: hasValue
+                          ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                          : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.arrow_drop_down_rounded,
+                  size: 20,
+                  color: isEnabled
+                      ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))
+                      : (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAgriBegriAuxiliaryFields(bool isDark, Color borderColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // PDF Document Field
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Please provide necessary documents in pdf for clients\' information which is not included in description :',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    try {
+                      final result = await FilePicker.pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: ['pdf'],
+                      );
+                      if (result.isNotEmpty) {
+                        final file = result.first;
+                        final bytes = await file.readAsBytes();
+                        setState(() {
+                          _pdfDocumentName = file.name;
+                          _pdfDocumentSizeBytes = bytes.length;
+                        });
+                      }
+                    } catch (e) {
+                      debugPrint('PDF pick error: $e');
+                    }
+                  },
+                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Color(0xFFEF4444)),
+                  label: Text(
+                    'Choose File',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                    side: BorderSide(color: borderColor),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (_pdfDocumentName != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.description_rounded, size: 14, color: Color(0xFFEF4444)),
+                        const SizedBox(width: 6),
+                        Text(
+                          _pdfDocumentName!,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFEF4444),
+                          ),
+                        ),
+                        if (_pdfDocumentSizeBytes != null) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '(${(_pdfDocumentSizeBytes! / 1024).toStringAsFixed(1)} KB)',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () => setState(() {
+                            _pdfDocumentName = null;
+                            _pdfDocumentSizeBytes = null;
+                          }),
+                          child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFEF4444)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else
+                  Text(
+                    'No file chosen',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // YouTube Video Link Field
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Please provide YouTube video link related to this product which leads client to buy this product :',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _youtubeVideoController,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+              decoration: InputDecoration(
+                hintText: 'e.g. https://www.youtube.com/watch?v=...',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                ),
+                prefixIcon: const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFEF4444), size: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+                ),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

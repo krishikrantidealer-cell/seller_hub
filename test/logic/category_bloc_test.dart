@@ -147,6 +147,16 @@ class MockCategoryRemoteDataSource implements CategoryRemoteDataSource {
       isActive: true,
     );
   }
+
+  @override
+  Future<List<String>> deleteCategory(String id) async {
+    return [id];
+  }
+
+  @override
+  Future<List<String>> deleteCategoriesPermanently(List<String> ids) async {
+    return ids;
+  }
 }
 
 void main() {
@@ -329,6 +339,19 @@ void main() {
       final updated = categoryBloc.state.categoryById['cat_root_1'];
       expect(updated, isNotNull);
       expect(updated!.categoryImageUrl, isNull);
+    });
+
+    test('DeleteCategory removes category from state and tree lookups', () async {
+      categoryBloc.add(const FetchCategories());
+      await pumpEventQueue();
+
+      expect(categoryBloc.state.categoryById.containsKey('cat_root_2'), isTrue);
+
+      categoryBloc.add(const DeleteCategory('cat_root_2'));
+      await pumpEventQueue();
+
+      expect(categoryBloc.state.categoryById.containsKey('cat_root_2'), isFalse);
+      expect(categoryBloc.state.rootCategories.any((c) => c.id == 'cat_root_2'), isFalse);
     });
   });
 }

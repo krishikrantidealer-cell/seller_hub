@@ -16,6 +16,10 @@ class ProductDimensions extends Equatable {
 
   factory ProductDimensions.fromJson(dynamic json) {
     if (json == null) return const ProductDimensions();
+    if (json is List) {
+      if (json.isEmpty) return const ProductDimensions();
+      return ProductDimensions.fromJson(json.first);
+    }
     if (json is Map) {
       final map = Map<String, dynamic>.from(json);
       return ProductDimensions(
@@ -176,6 +180,7 @@ class ProductImage extends Equatable {
 /// Variant model encapsulating commercial, pricing, packaging & inventory specs
 class ProductVariant extends Equatable {
   final String id;
+  final String sku;
   final int displayOrder;
   final bool isDefault;
   final String label;
@@ -200,6 +205,7 @@ class ProductVariant extends Equatable {
 
   const ProductVariant({
     this.id = '',
+    this.sku = '',
     this.displayOrder = 1,
     this.isDefault = true,
     this.label = '',
@@ -208,7 +214,7 @@ class ProductVariant extends Equatable {
     this.packSizeUnit = 'ml',
     this.packQuantity = 1,
     this.packUnit = 'bottle',
-    this.shippedBy = 'Seller',
+    this.shippedBy = 'essentialbiocropscience',
     this.swg = 0.0,
     this.totalBaseQuantity = 1,
     this.totalBaseUnit = 'ml',
@@ -242,6 +248,7 @@ class ProductVariant extends Equatable {
 
     return ProductVariant(
       id: _parseString(json['_id'] ?? json['id']),
+      sku: _parseString(json['sku'] ?? json['SKU']),
       displayOrder: _parseInt(json['displayOrder'], 1),
       isDefault: json['isDefault'] == true,
       label: _parseString(json['label'] ?? json['Varient'] ?? json['variant']),
@@ -250,7 +257,7 @@ class ProductVariant extends Equatable {
       packSizeUnit: _parseString(json['packSizeUnit'] ?? json['unit'] ?? 'ml'),
       packQuantity: _parseInt(json['packQuantity'], 1),
       packUnit: _parseString(json['packUnit'] ?? 'bottle'),
-      shippedBy: _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'Seller Standard'),
+      shippedBy: _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'essentialbiocropscience'),
       swg: _parseDouble(json['swg'] ?? json['SWG']),
       totalBaseQuantity: totalBaseQty,
       totalBaseUnit: _parseString(json['totalBaseUnit'] ?? 'ml'),
@@ -269,6 +276,7 @@ class ProductVariant extends Equatable {
   Map<String, dynamic> toJson() => {
     '_id': id,
     'id': id,
+    'sku': sku,
     'displayOrder': displayOrder,
     'isDefault': isDefault,
     'label': label,
@@ -292,25 +300,43 @@ class ProductVariant extends Equatable {
     'pricePerBaseUnit': pricePerBaseUnit,
   };
 
-  Map<String, dynamic> toAdminPayload() => {
-    'label': label.isNotEmpty ? label : '500 ml Bottle',
-    'unit': unit.isNotEmpty ? unit : 'ml',
-    'packSize': packSize > 0 ? packSize : 500,
-    'packSizeUnit': packSizeUnit.isNotEmpty ? packSizeUnit : (unit.isNotEmpty ? unit : 'ml'),
-    'packQuantity': packQuantity > 0 ? packQuantity : 1,
-    'packUnit': packUnit.isNotEmpty ? packUnit : 'bottle',
-    'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'EBS Direct',
-    'displayRate': displayRate > 0 ? displayRate : 450.0,
-    'printedMrp': printedMrp > 0 ? printedMrp : 500.0,
-    'costPrice': costPrice > 0 ? costPrice : 250.0,
-    'discountRs': discountRs > 0 ? discountRs : 50.0,
-    'gstPercentage': gstPercentage > 0 ? gstPercentage : 5.0,
-    'discountPercentage': discountPercentage > 0 ? discountPercentage : 10.0,
-    'stock': stock > 0 ? stock : 100,
-  };
+  Map<String, dynamic> toAdminPayload() {
+    final effectiveDisplayRate = displayRate >= 0 ? displayRate : 0.0;
+    final effectiveMrp = (printedMrp >= effectiveDisplayRate && printedMrp > 0)
+        ? printedMrp
+        : (effectiveDisplayRate > 0 ? effectiveDisplayRate : 0.0);
+
+    return {
+      if (id.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(id)) 'id': id,
+      if (sku.isNotEmpty) 'sku': sku,
+      'label': label.isNotEmpty ? label : '500 ml Bottle',
+      'unit': unit.isNotEmpty ? unit : 'ml',
+      'packSize': packSize > 0 ? packSize : 500,
+      'packSizeUnit': packSizeUnit.isNotEmpty ? packSizeUnit : (unit.isNotEmpty ? unit : 'ml'),
+      'packQuantity': packQuantity > 0 ? packQuantity : 1,
+      'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'essentialbiocropscience',
+      'displayRate': effectiveDisplayRate,
+      'printedMrp': effectiveMrp,
+      'costPrice': costPrice >= 0 ? costPrice : 0.0,
+      'discountRs': (effectiveMrp > effectiveDisplayRate) ? (effectiveMrp - effectiveDisplayRate) : 0.0,
+      'gstPercentage': gstPercentage >= 0 ? gstPercentage : 5.0,
+      'discountPercentage': effectiveMrp > 0 ? ((effectiveMrp - effectiveDisplayRate) / effectiveMrp * 100) : 0.0,
+      'stock': stock >= 0 ? stock : 0,
+      if (swg > 0) 'swg': swg,
+      'dimensions': [
+        {
+          'length': dimensions.length > 0 ? dimensions.length : 20.0,
+          'width': dimensions.width > 0 ? dimensions.width : 10.0,
+          'height': dimensions.height > 0 ? dimensions.height : 10.0,
+          'unit': dimensions.unit.isNotEmpty ? dimensions.unit : 'cm',
+        },
+      ],
+    };
+  }
 
   ProductVariant copyWith({
     String? id,
+    String? sku,
     int? displayOrder,
     bool? isDefault,
     String? label,
@@ -335,6 +361,7 @@ class ProductVariant extends Equatable {
   }) {
     return ProductVariant(
       id: id ?? this.id,
+      sku: sku ?? this.sku,
       displayOrder: displayOrder ?? this.displayOrder,
       isDefault: isDefault ?? this.isDefault,
       label: label ?? this.label,
@@ -362,6 +389,7 @@ class ProductVariant extends Equatable {
   @override
   List<Object?> get props => [
     id,
+    sku,
     displayOrder,
     isDefault,
     label,
@@ -493,7 +521,7 @@ class Product extends Equatable {
     String unit = '',
     double gst = 18.0,
     double discountPercentage = 0.0,
-    String shippedBy = 'Seller',
+    String shippedBy = 'essentialbiocropscience',
     String swg = '',
     int stock = 0,
     String dimensions = '',
@@ -844,7 +872,7 @@ class Product extends Equatable {
     var flatUnit = _parseString(json['unit'] ?? json['Unit']);
     var flatGst = _parseDouble(json['gst'] ?? json['GST'] ?? 5.0, 5.0);
     var flatDiscountPct = _parseDouble(json['discountPercentage'] ?? json['Discount Percentage']);
-    var flatShippedBy = _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'Seller');
+    var flatShippedBy = _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'essentialbiocropscience');
     var flatSwg = _parseString(json['swg'] ?? json['SWG']);
     var flatStock = _parseInt(json['stock'] ?? json['Stock']);
     final flatDims = _parseString(json['dimensions'] ?? json['Dimmensions']);
@@ -978,27 +1006,14 @@ class Product extends Equatable {
   /// Exports in exact structure expected by POST /api/v1/admin/products
   Map<String, dynamic> toAdminCreatePayload() => {
     'sellerId': sellerId,
-    'sku': sku.isNotEmpty ? sku : 'EBS-ADM-SKU-${DateTime.now().millisecondsSinceEpoch}',
     'hsnCode': hsnCode.isNotEmpty ? hsnCode : '3808',
     'title': title,
     if (technicalName.isNotEmpty) 'technicalName': technicalName,
     'description': description.isNotEmpty ? description : title,
     'categoryId': categoryId.isNotEmpty ? categoryId : '6ab4f6f619ec643fd9bf3621',
+    if (refundPolicy.isNotEmpty) 'refundPolicy': refundPolicy,
     'productWeight': productWeight > 0 ? productWeight : 500.0,
     'productWeightUnit': productWeightUnit.isNotEmpty ? productWeightUnit : 'g',
-    'dimensions': (productDimensions.length > 0 || productDimensions.width > 0 || productDimensions.height > 0)
-        ? {
-            'length': productDimensions.length > 0 ? productDimensions.length : 20.0,
-            'width': productDimensions.width > 0 ? productDimensions.width : 10.0,
-            'height': productDimensions.height > 0 ? productDimensions.height : 10.0,
-            'unit': productDimensions.unit.isNotEmpty ? productDimensions.unit : 'cm',
-          }
-        : const {
-            'length': 20.0,
-            'width': 10.0,
-            'height': 10.0,
-            'unit': 'cm',
-          },
     'variants': variants.isNotEmpty
         ? variants.map((v) => v.toAdminPayload()).toList()
         : [
@@ -1008,8 +1023,7 @@ class Product extends Equatable {
               'packSize': int.tryParse(packSize) ?? 500,
               'packSizeUnit': unit.isNotEmpty ? unit : 'ml',
               'packQuantity': 1,
-              'packUnit': 'bottle',
-              'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'EBS Direct',
+              'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'essentialbiocropscience',
               'displayRate': displayRate > 0 ? displayRate : 450.0,
               'printedMrp': printedMrp > 0 ? printedMrp : 500.0,
               'costPrice': costPrice > 0 ? costPrice : 250.0,
@@ -1017,9 +1031,42 @@ class Product extends Equatable {
               'gstPercentage': gst > 0 ? gst : 5.0,
               'discountPercentage': discountPercentage > 0 ? discountPercentage : 10.0,
               'stock': stock > 0 ? stock : 100,
+              'dimensions': [
+                {
+                  'length': productDimensions.length > 0 ? productDimensions.length : 20.0,
+                  'width': productDimensions.width > 0 ? productDimensions.width : 10.0,
+                  'height': productDimensions.height > 0 ? productDimensions.height : 10.0,
+                  'unit': productDimensions.unit.isNotEmpty ? productDimensions.unit : 'cm',
+                },
+              ],
             }
           ],
   };
+
+  /// Exports in structure expected by PATCH /api/v1/admin/products/{productId}
+  Map<String, dynamic> toAdminUpdatePayload() {
+    final payload = <String, dynamic>{};
+
+    if (sellerId.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(sellerId)) {
+      payload['sellerId'] = sellerId;
+    }
+    if (hsnCode.isNotEmpty) payload['hsnCode'] = hsnCode;
+    if (title.isNotEmpty) payload['title'] = title;
+    if (technicalName.isNotEmpty) payload['technicalName'] = technicalName;
+    if (description.isNotEmpty) payload['description'] = description;
+    if (categoryId.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(categoryId)) {
+      payload['categoryId'] = categoryId;
+    }
+    if (refundPolicy.isNotEmpty) payload['refundPolicy'] = refundPolicy;
+    if (productWeight > 0) payload['productWeight'] = productWeight;
+    if (productWeightUnit.isNotEmpty) payload['productWeightUnit'] = productWeightUnit;
+
+    if (variants.isNotEmpty) {
+      payload['variants'] = variants.map((v) => v.toAdminPayload()).toList();
+    }
+
+    return payload;
+  }
 
   /// Exports in standard 38-field flat JSON with canonical keys for loss-free caching and table exports
   Map<String, dynamic> toJson() => {
@@ -1195,12 +1242,27 @@ class Product extends Equatable {
       images: images ?? this.images,
       productImages: productImages ?? this.productImages,
       technicalContent: technicalContent ?? this.technicalContent,
-      featuresList: featuresList ?? (features != null ? [features] : this.featuresList),
-      benefitsList: benefitsList ?? (benefits != null ? [benefits] : this.benefitsList),
+      featuresList: featuresList ??
+          (features != null
+              ? features.split(RegExp(r'[,•;\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+              : this.featuresList),
+      benefitsList: benefitsList ??
+          (benefits != null
+              ? benefits.split(RegExp(r'[,•;\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+              : this.benefitsList),
       modeOfAction: modeOfAction ?? this.modeOfAction,
-      suitableCropsList: suitableCropsList ?? (suitableCrop != null ? [suitableCrop] : this.suitableCropsList),
-      targetPestsList: targetPestsList ?? (targetPests != null ? [targetPests] : this.targetPestsList),
-      targetDiseasesList: targetDiseasesList ?? (targetDiseases != null ? [targetDiseases] : this.targetDiseasesList),
+      suitableCropsList: suitableCropsList ??
+          (suitableCrop != null
+              ? suitableCrop.split(RegExp(r'[,•;\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+              : this.suitableCropsList),
+      targetPestsList: targetPestsList ??
+          (targetPests != null
+              ? targetPests.split(RegExp(r'[,•;\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+              : this.targetPestsList),
+      targetDiseasesList: targetDiseasesList ??
+          (targetDiseases != null
+              ? targetDiseases.split(RegExp(r'[,•;\n]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList()
+              : this.targetDiseasesList),
       dosage: dosage ?? this.dosage,
       applicationMethod: applicationMethod ?? this.applicationMethod,
       category: category ?? this.category,

@@ -23,4 +23,22 @@ abstract class CollectionRepository {
     required CollectionItem collection,
   });
   Future<CollectionItem> deactivateCollection(String id);
+  Future<CollectionItem> activateCollection(String id);
+  Future<void> deleteCollectionPermanently(String id);
+  Future<List<String>> deleteCollectionsPermanently(List<String> ids);
+  Future<CollectionItem> addSubCollection({
+    required String collectionId,
+    required String name,
+    required String slug,
+    String? image,
+    bool isActive = true,
+  });
+  Future<List<String>> deleteSubCollection({
+    required String collectionId,
+    required String subCollectionId,
+  });
+  Future<List<String>> deleteSubCollectionsBulk({
+    required String collectionId,
+    required List<String> subCollectionIds,
+  });
 }

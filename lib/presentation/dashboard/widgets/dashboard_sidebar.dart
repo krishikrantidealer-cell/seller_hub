@@ -14,6 +14,8 @@ class DashboardSidebar extends StatelessWidget {
   final int customersCount;
   final int ordersCount;
   final bool isDrawer;
+  final bool isMinimized;
+  final VoidCallback? onToggleMinimize;
   final VoidCallback onLogout;
 
   const DashboardSidebar({
@@ -27,6 +29,8 @@ class DashboardSidebar extends StatelessWidget {
     this.customersCount = 0,
     this.ordersCount = 0,
     this.isDrawer = false,
+    this.isMinimized = false,
+    this.onToggleMinimize,
     required this.onLogout,
   });
 
@@ -41,83 +45,127 @@ class DashboardSidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Sidebar Brand Header (Compact)
+          // Sidebar Brand Header (Compact & Minimizable)
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF10B981), Color(0xFF059669)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.25),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.agriculture_rounded, color: Colors.white, size: 18),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      BlocBuilder<AuthBloc, AuthState>(
-                        builder: (context, _) {
-                          return Text(
-                            'SELLER HUB',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+            padding: EdgeInsets.fromLTRB(isMinimized ? 12 : 14, 14, isMinimized ? 12 : 14, 12),
+            child: isMinimized
+                ? Center(
+                    child: InkWell(
+                      onTap: onToggleMinimize,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Tooltip(
+                        message: 'Expand sidebar',
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF10B981), Color(0xFF059669)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          );
-                        },
-                      ),
-                      Text(
-                        'ADMIN CONSOLE',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: const Color(0xFF059669),
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.agriculture_rounded, color: Colors.white, size: 20),
+                          ),
                         ),
                       ),
+                    ),
+                  )
+                : Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF10B981), Color(0xFF059669)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.agriculture_rounded, color: Colors.white, size: 18),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            BlocBuilder<AuthBloc, AuthState>(
+                              builder: (context, _) {
+                                return Text(
+                                  'SELLER HUB',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              },
+                            ),
+                            Text(
+                              'ADMIN CONSOLE',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                color: const Color(0xFF059669),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (onToggleMinimize != null && !isDrawer)
+                        IconButton(
+                          tooltip: 'Collapse sidebar',
+                          icon: Icon(
+                            Icons.menu_open_rounded,
+                            size: 18,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                          onPressed: onToggleMinimize,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                        ),
+                      if (isDrawer)
+                        IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                        ),
                     ],
                   ),
-                ),
-                if (isDrawer)
-                  IconButton(
-                    icon: Icon(
-                      Icons.close_rounded,
-                      size: 18,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                    onPressed: () => Navigator.of(context).pop(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                  ),
-              ],
-            ),
           ),
 
           Divider(color: borderColor, height: 1),
 
-          // Scrollable Compact Nav Section
+          // Scrollable Nav Section
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -125,18 +173,21 @@ class DashboardSidebar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Navigation Group Label
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-                    child: Text(
-                      'OPERATIONS',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.9,
-                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  if (!isMinimized)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                      child: Text(
+                        'OPERATIONS',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.9,
+                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        ),
                       ),
-                    ),
-                  ),
+                    )
+                  else
+                    const SizedBox(height: 4),
 
                   // Sidebar Nav Item: Dashboard
                   _buildSidebarNavItem(
@@ -183,10 +234,46 @@ class DashboardSidebar extends StatelessWidget {
 
           Divider(color: borderColor, height: 1),
 
-          // Bottom User & Seller Account Profile (Compact)
+          // Bottom User & Seller Account Profile
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, authState) {
               final sellerId = authState.sellerId ?? 'SELLER-AGRI-8821';
+
+              if (isMinimized) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Tooltip(
+                        message: '$sellerId (Admin Operator)',
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFF059669), width: 1.5),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.verified_user_rounded, color: Color(0xFF059669), size: 16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      IconButton(
+                        tooltip: 'Sign Out',
+                        icon: Icon(
+                          Icons.logout_rounded,
+                          size: 16,
+                          color: isDark ? const Color(0xFFEF4444) : const Color(0xFFDC2626),
+                        ),
+                        onPressed: () => _confirmLogout(context, isDark),
+                      ),
+                    ],
+                  ),
+                );
+              }
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -462,76 +549,130 @@ class DashboardSidebar extends StatelessWidget {
   }) {
     final selected = isSelected ?? (selectedIndex == index);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () {
-            onNavItemSelected(index);
-            if (isDrawer) {
-              Navigator.of(context).pop();
-            }
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
-            decoration: BoxDecoration(
+    final itemContent = LayoutBuilder(
+      builder: (context, constraints) {
+        final showCollapsed = isMinimized || constraints.maxWidth < 100;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: EdgeInsets.symmetric(
+            horizontal: showCollapsed ? 0 : 10,
+            vertical: 7,
+          ),
+          alignment: showCollapsed ? Alignment.center : Alignment.centerLeft,
+          decoration: BoxDecoration(
+            color: selected
+                ? (isDark
+                    ? const Color(0xFF059669).withValues(alpha: 0.18)
+                    : const Color(0xFF059669).withValues(alpha: 0.10))
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
               color: selected
-                  ? (isDark
-                      ? const Color(0xFF059669).withValues(alpha: 0.18)
-                      : const Color(0xFF059669).withValues(alpha: 0.10))
+                  ? const Color(0xFF059669).withValues(alpha: 0.35)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: selected
-                    ? const Color(0xFF059669).withValues(alpha: 0.35)
-                    : Colors.transparent,
-              ),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 17,
-                  color: selected
-                      ? const Color(0xFF059669)
-                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                      color: selected
-                          ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                          : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
-                    ),
-                  ),
-                ),
-                if (badgeText != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                    decoration: BoxDecoration(
+          ),
+          child: showCollapsed
+              ? Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 20,
                       color: selected
                           ? const Color(0xFF059669)
-                          : (isDark ? const Color(0xFF059669).withValues(alpha: 0.15) : const Color(0xFF059669).withValues(alpha: 0.12)),
-                      borderRadius: BorderRadius.circular(8),
+                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                     ),
-                    child: Text(
-                      badgeText,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: selected ? Colors.white : const Color(0xFF059669),
+                    if (badgeText != null)
+                      Positioned(
+                        top: -2,
+                        right: -5,
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF059669),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
                       ),
-                    ),
+                  ],
+                )
+              : ClipRect(
+                  child: Row(
+                    children: [
+                      Icon(
+                        icon,
+                        size: 17,
+                        color: selected
+                            ? const Color(0xFF059669)
+                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                            color: selected
+                                ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                                : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155)),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (badgeText != null) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? const Color(0xFF059669)
+                                : (isDark ? const Color(0xFF059669).withValues(alpha: 0.15) : const Color(0xFF059669).withValues(alpha: 0.12)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            badgeText,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: selected ? Colors.white : const Color(0xFF059669),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-              ],
-            ),
+                ),
+        );
+      },
+    );
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMinimized ? 8 : 8,
+        vertical: 2,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: Tooltip(
+          message: isMinimized
+              ? '$title${badgeText != null ? ' ($badgeText)' : ''}'
+              : '',
+          waitDuration: const Duration(milliseconds: 300),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () {
+              onNavItemSelected(index);
+              if (isDrawer) {
+                Navigator.of(context).pop();
+              }
+            },
+            child: itemContent,
           ),
         ),
       ),

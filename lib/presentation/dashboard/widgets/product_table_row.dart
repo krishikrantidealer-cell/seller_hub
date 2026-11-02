@@ -66,9 +66,9 @@ class ProductTableRow extends StatelessWidget {
               ),
               const SizedBox(width: 8),
 
-              // 1. PRODUCT & COMPOSITION (Flex 5)
+              // 1. PRODUCT & COMPOSITION (Flex 6)
               Expanded(
-                flex: 5,
+                flex: 6,
                 child: Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: Row(
@@ -121,7 +121,7 @@ class ProductTableRow extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.only(right: 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -160,9 +160,11 @@ class ProductTableRow extends StatelessWidget {
                 ),
               ),
 
-              // 3. SELLER / VENDOR (Flex 3)
+              const SizedBox(width: 14),
+
+              // 3. SELLER / VENDOR (Flex 2)
               Expanded(
-                flex: 3,
+                flex: 2,
                 child: Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: Column(

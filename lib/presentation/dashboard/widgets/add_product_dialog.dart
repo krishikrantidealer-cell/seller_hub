@@ -66,7 +66,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   final _variantPrintedMrpController = TextEditingController();
   final _variantCostPriceController = TextEditingController();
   final _variantStockController = TextEditingController();
-  final _variantShippedByController = TextEditingController();
+  final _variantShippedByController = TextEditingController(text: 'essentialbiocropscience');
   String _selectedVariantUnit = 'ml';
   String _selectedPackUnit = 'bottle';
   double _selectedVariantGst = 5.0;
@@ -102,7 +102,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
         packSizeUnit: 'ml',
         packQuantity: 1,
         packUnit: 'bottle',
-        shippedBy: 'EBS Direct',
+        shippedBy: 'essentialbiocropscience',
         displayRate: 450.0,
         printedMrp: 500.0,
         costPrice: 250.0,
@@ -176,7 +176,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
     _variantPrintedMrpController.text = v.printedMrp.toStringAsFixed(0);
     _variantCostPriceController.text = v.costPrice.toStringAsFixed(0);
     _variantStockController.text = v.stock.toString();
-    _variantShippedByController.text = v.shippedBy.isNotEmpty ? v.shippedBy : 'EBS Direct';
+    _variantShippedByController.text = (v.shippedBy == 'essentialbiocropscience') ? v.shippedBy : 'essentialbiocropscience';
     _selectedVariantUnit = v.unit.isNotEmpty ? v.unit : 'ml';
     _selectedPackUnit = v.packUnit.isNotEmpty ? v.packUnit : 'bottle';
     _selectedVariantGst = v.gstPercentage > 0 ? v.gstPercentage : 5.0;
@@ -206,7 +206,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
       packUnit: _selectedPackUnit,
       shippedBy: _variantShippedByController.text.trim().isNotEmpty
           ? _variantShippedByController.text.trim()
-          : 'EBS Direct',
+          : 'essentialbiocropscience',
       displayRate: disp,
       printedMrp: mrp,
       costPrice: cp,
@@ -688,7 +688,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           Row(
             children: [
               Expanded(
-                child: _buildFormField('Product Code (SKU)', _productCodeController, 'e.g. PRD-AGRI-005', isDark),
+                child: _buildFormField('Product Code', _productCodeController, 'e.g. PRD-AGRI-005', isDark),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -928,7 +928,16 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: _buildFormField('Shipped By', _variantShippedByController, 'e.g. EBS Direct', isDark),
+                  child: _buildDropdown(
+                    label: 'Shipped By',
+                    value: _variantShippedByController.text.trim().isNotEmpty
+                        ? _variantShippedByController.text.trim()
+                        : 'essentialbiocropscience',
+                    items: const ['essentialbiocropscience'],
+                    onChanged: (val) => setState(() => _variantShippedByController.text = val!),
+                    isDark: isDark,
+                    borderColor: borderColor,
+                  ),
                 ),
               ],
             ),

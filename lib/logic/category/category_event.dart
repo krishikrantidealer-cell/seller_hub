@@ -112,6 +112,26 @@ class UpdateCategory extends CategoryEvent {
   List<Object?> get props => [id, name, slug, parentId, sortOrder, iconUrl, isActive];
 }
 
+/// Permanently deletes a category and its descendants
+class DeleteCategory extends CategoryEvent {
+  final String id;
+
+  const DeleteCategory(this.id);
+
+  @override
+  List<Object?> get props => [id];
+}
+
+/// Permanently deletes multiple categories in bulk
+class BulkDeleteCategories extends CategoryEvent {
+  final List<String> ids;
+
+  const BulkDeleteCategories(this.ids);
+
+  @override
+  List<Object?> get props => [ids];
+}
+
 /// Deactivates a category
 class DeactivateCategory extends CategoryEvent {
   final String id;

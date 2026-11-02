@@ -205,7 +205,7 @@ void main() {
         bloc.stream,
         emitsThrough(
           predicate<AdminUserState>((s) =>
-              s.actionSuccessMessage == 'User deleted successfully' &&
+              s.actionSuccessMessage == 'User deactivated successfully' &&
               s.users.first.isDeleted == true),
         ),
       );
@@ -275,7 +275,7 @@ void main() {
         bloc.stream,
         emitsThrough(
           predicate<AdminUserState>((state) =>
-              state.actionSuccessMessage == 'User deleted successfully' &&
+              state.actionSuccessMessage == 'User deactivated successfully' &&
               state.users.first.isDeleted == true &&
               bloc.sellerProfiles.first.isDeleted == true &&
               bloc.sellerProfiles.first.status == 'DEACTIVATED'),

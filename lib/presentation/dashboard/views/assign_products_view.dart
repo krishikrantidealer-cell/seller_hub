@@ -892,30 +892,42 @@ class _AssignProductsViewState extends State<AssignProductsView> {
                           ),
                         ),
                         const Spacer(),
-                        TextButton.icon(
-                          onPressed: () => _selectAll(filteredProducts),
-                          icon: const Icon(Icons.done_all_rounded, size: 15, color: Color(0xFF2563EB)),
-                          label: Text(
-                            'Select All Filtered (${filteredProducts.length})',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF2563EB),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton.icon(
-                          onPressed: () => _deselectAll(filteredProducts),
-                          icon: const Icon(Icons.remove_done_rounded, size: 15, color: Color(0xFFEF4444)),
-                          label: Text(
-                            'Deselect All',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFFEF4444),
-                            ),
-                          ),
+                        Builder(
+                          builder: (context) {
+                            final allFilteredSelected = filteredProducts.isNotEmpty &&
+                                filteredProducts.every((p) => _selectedProductIds.contains(p.id));
+
+                            return TextButton.icon(
+                              onPressed: filteredProducts.isEmpty
+                                  ? null
+                                  : () {
+                                      if (allFilteredSelected) {
+                                        _deselectAll(filteredProducts);
+                                      } else {
+                                        _selectAll(filteredProducts);
+                                      }
+                                    },
+                              icon: Icon(
+                                allFilteredSelected ? Icons.remove_done_rounded : Icons.done_all_rounded,
+                                size: 15,
+                                color: filteredProducts.isEmpty
+                                    ? textSecondary
+                                    : (allFilteredSelected ? const Color(0xFFEF4444) : const Color(0xFF2563EB)),
+                              ),
+                              label: Text(
+                                allFilteredSelected
+                                    ? 'Deselect All (${filteredProducts.length})'
+                                    : 'Select All Filtered (${filteredProducts.length})',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: filteredProducts.isEmpty
+                                      ? textSecondary
+                                      : (allFilteredSelected ? const Color(0xFFEF4444) : const Color(0xFF2563EB)),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),

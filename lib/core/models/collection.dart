@@ -28,14 +28,19 @@ class SubCollectionItem extends Equatable {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'slug': slug,
-    'isActive': isActive,
-    'image': image,
-    'productCount': productCount,
-  };
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'name': name,
+      'slug': slug,
+      'isActive': isActive,
+      'image': image,
+      'productCount': productCount,
+    };
+    if (id.isNotEmpty && !id.startsWith('sub-') && RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {
+      map['id'] = id;
+    }
+    return map;
+  }
 
   SubCollectionItem copyWith({
     String? id,

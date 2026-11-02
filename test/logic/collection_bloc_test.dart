@@ -28,6 +28,11 @@ class MockCollectionRemoteDataSource implements CollectionRemoteDataSource {
           description: 'Crops collection',
           isActive: true,
           priority: 0,
+          subCollections: [
+            SubCollectionItem(id: 'sub_1', name: 'Rice', slug: 'rice'),
+            SubCollectionItem(id: 'sub_2', name: 'Wheat', slug: 'wheat'),
+          ],
+          subCollectionCount: 2,
         ),
       ],
     );
@@ -69,6 +74,65 @@ class MockCollectionRemoteDataSource implements CollectionRemoteDataSource {
       slug: 'deactivated',
       isActive: false,
     );
+  }
+
+  @override
+  Future<CollectionItem> activateCollection(String id) async {
+    return CollectionItem(
+      id: id,
+      name: 'Activated',
+      slug: 'activated',
+      isActive: true,
+    );
+  }
+
+  @override
+  Future<void> deleteCollectionPermanently(String id) async {}
+
+  @override
+  Future<List<String>> deleteCollectionsPermanently(List<String> ids) async {
+    return ids;
+  }
+
+  @override
+  Future<CollectionItem> addSubCollection({
+    required String collectionId,
+    required String name,
+    required String slug,
+    String? image,
+    bool isActive = true,
+  }) async {
+    return CollectionItem(
+      id: collectionId,
+      name: 'Test Collection',
+      slug: 'test-collection',
+      subCollections: [
+        SubCollectionItem(
+          id: 'sub_new',
+          name: name,
+          slug: slug,
+          image: image,
+          isActive: isActive,
+        ),
+      ],
+      subCollectionCount: 1,
+    );
+  }
+
+  @override
+  Future<List<String>> deleteSubCollection({
+    required String collectionId,
+    required String subCollectionId,
+  }) async {
+    return [subCollectionId];
+  }
+
+  @override
+  Future<List<String>> deleteSubCollectionsBulk({
+    required String collectionId,
+    required List<String> subCollectionIds,
+  }) async {
+    return subCollectionIds;
   }
 }
 
@@ -170,6 +234,75 @@ void main() {
       final cached = await repository.getCachedCollections();
       expect(cached, isNotNull);
       expect(cached!.items.first.name, equals('Remote Shop By Crop'));
+    });
+
+    test('ActivateCollection sets collection isActive to true', () async {
+      collectionBloc.add(const FetchCollections());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      collectionBloc.add(const ActivateCollection('col_1'));
+      await expectLater(
+        collectionBloc.stream,
+        emitsThrough(
+          predicate<CollectionState>((s) =>
+              s.collections.any((c) => c.id == 'col_1' && c.isActive == true)),
+        ),
+      );
+    });
+
+    test('DeleteCollectionPermanently removes collection from state', () async {
+      collectionBloc.add(const FetchCollections());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      collectionBloc.add(const DeleteCollectionPermanently('col_1'));
+      await expectLater(
+        collectionBloc.stream,
+        emitsThrough(
+          predicate<CollectionState>((s) =>
+              !s.collections.any((c) => c.id == 'col_1')),
+        ),
+      );
+    });
+
+    test('DeleteSubCollection removes targeted subcollection from collection', () async {
+      collectionBloc.add(const FetchCollections());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      collectionBloc.add(const DeleteSubCollection(
+        collectionId: 'col_1',
+        subCollectionId: 'sub_1',
+      ));
+
+      await expectLater(
+        collectionBloc.stream,
+        emitsThrough(
+          predicate<CollectionState>((s) {
+            final col = s.collections.firstWhere((c) => c.id == 'col_1');
+            return col.subCollections.length == 1 && col.subCollections.first.id == 'sub_2';
+          }),
+        ),
+      );
+    });
+
+    test('AddSubCollection updates targeted collection with new subcollection', () async {
+      collectionBloc.add(const FetchCollections());
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      collectionBloc.add(const AddSubCollection(
+        collectionId: 'col_1',
+        name: 'New Sub Crop',
+        slug: 'new-sub-crop',
+      ));
+
+      await expectLater(
+        collectionBloc.stream,
+        emitsThrough(
+          predicate<CollectionState>((s) {
+            final col = s.collections.firstWhere((c) => c.id == 'col_1');
+            return col.subCollections.any((sub) => sub.name == 'New Sub Crop');
+          }),
+        ),
+      );
     });
   });
 }

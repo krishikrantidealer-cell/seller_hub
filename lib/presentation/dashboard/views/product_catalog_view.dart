@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/core/models/seller.dart';
+import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/pagination_footer.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/product_mobile_card.dart';
 import 'package:seller_hub/presentation/dashboard/widgets/product_table_row.dart';
@@ -68,6 +70,19 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
   final Set<String> _selectedProductCodes = {};
   String _sortColumn = 'default';
   bool _sortAscending = true;
+
+  // Memoized Filter & Sort Cache for High Performance
+  List<Product>? _memoizedCatalogRef;
+  String _memoizedSearchQuery = '';
+  String _memoizedCategoryFilter = '';
+  String _memoizedSellerFilter = '';
+  String _memoizedStockFilter = '';
+  String _memoizedAvailabilityFilter = '';
+  String _memoizedSortColumn = '';
+  bool _memoizedSortAscending = true;
+  int _memoizedCategoryCount = 0;
+  int _memoizedSellerCount = 0;
+  List<Product> _memoizedFilteredProducts = [];
 
   // Pagination State
   int _currentPage = 1;
@@ -199,7 +214,9 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       if (mounted) {
         try {
           final pBloc = context.read<ProductBloc>();
-          if (pBloc.state.allCatalogProducts.isEmpty) {
+          if (pBloc.state.allCatalogProducts.isEmpty &&
+              pBloc.state.status != ProductStatus.loading &&
+              !pBloc.state.isBackgroundSyncing) {
             pBloc.add(const FetchAllCatalogProducts());
           }
           final sellerBloc = context.read<SellerBloc>();
@@ -432,14 +449,16 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
               Navigator.of(dialogCtx).pop();
               final targetId = product.id.isNotEmpty ? product.id : product.productCode;
 
-              // Instantly update local table and selection state (0ms)
+              // Instantly update selection state (0ms)
               setState(() {
-                widget.products.removeWhere(
-                  (p) =>
-                      (p.id.isNotEmpty && p.id == targetId) ||
-                      p.productCode == targetId ||
-                      p.sku == targetId,
-                );
+                try {
+                  widget.products.removeWhere(
+                    (p) =>
+                        (p.id.isNotEmpty && p.id == targetId) ||
+                        p.productCode == targetId ||
+                        p.sku == targetId,
+                  );
+                } catch (_) {}
                 _selectedProductCodes.remove(product.productCode);
               });
 
@@ -452,6 +471,8 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                 bloc.add(
                   DeleteProductPermanently(
                     targetId,
+                    productCode: product.productCode,
+                    sku: product.sku,
                     onSuccess: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -470,14 +491,26 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                           widget.products.add(product);
                         }
                       });
+                      final isAuth = msg.toLowerCase().contains('authentication') ||
+                          msg.toLowerCase().contains('unauthorized') ||
+                          msg.toLowerCase().contains('forbidden');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            'Failed to delete: $msg',
+                            isAuth
+                                ? 'Authentication required: Please sign in as an Admin to delete products.'
+                                : 'Failed to delete: $msg',
                             style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                           backgroundColor: const Color(0xFFDC2626),
                           behavior: SnackBarBehavior.floating,
+                          action: isAuth
+                              ? SnackBarAction(
+                                  label: 'Sign In',
+                                  textColor: Colors.amberAccent,
+                                  onPressed: () => context.go(RouteNames.login),
+                                )
+                              : null,
                         ),
                       );
                     },
@@ -490,6 +523,184 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
               foregroundColor: Colors.white,
             ),
             child: const Text('Delete Permanently'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmBulkPermanentDelete(BuildContext context) {
+    final selectedCount = _selectedProductCodes.length;
+    if (selectedCount == 0) return;
+
+    final selectedProducts = widget.products
+        .where((p) => _selectedProductCodes.contains(p.productCode) || _selectedProductCodes.contains(p.id))
+        .toList();
+
+    final totalSelectedSkus = selectedProducts.fold<int>(
+      0,
+      (sum, p) => sum + (p.variants.isNotEmpty ? p.variants.length : 1),
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Delete $selectedCount Products?',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete $selectedCount selected products ($totalSelectedSkus SKUs) from the catalog?',
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 120),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ...selectedProducts.take(8).map((p) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            '• ${p.title} (${p.productCode.isNotEmpty ? p.productCode : p.sku})',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )),
+                    if (selectedProducts.length > 8)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '+ ${selectedProducts.length - 8} more products...',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 10.5, fontStyle: FontStyle.italic, color: Colors.grey),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Text(
+                'Warning: This action is permanent and IRREVERSIBLE. All variants, pricing, inventory mappings, and images for these $selectedCount products will be permanently purged from the database.',
+                style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF991B1B)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+
+              final targets = selectedProducts.map((p) => p.id.isNotEmpty ? p.id : p.productCode).toList();
+              final backupList = List<Product>.from(selectedProducts);
+
+              // Instantly update selection and table state (0ms)
+              setState(() {
+                try {
+                  widget.products.removeWhere((p) =>
+                      _selectedProductCodes.contains(p.productCode) ||
+                      _selectedProductCodes.contains(p.id) ||
+                      targets.contains(p.id) ||
+                      targets.contains(p.productCode));
+                } catch (_) {}
+                _selectedProductCodes.clear();
+              });
+
+              ProductBloc? bloc;
+              try {
+                bloc = context.read<ProductBloc>();
+              } catch (_) {}
+
+              if (bloc != null) {
+                bloc.add(
+                  DeleteMultipleProductsPermanently(
+                    targets,
+                    onSuccess: (count) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '$count products permanently deleted.',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                          backgroundColor: const Color(0xFF059669),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    onError: (msg) {
+                      setState(() {
+                        for (final p in backupList) {
+                          if (!widget.products.contains(p)) {
+                            widget.products.add(p);
+                          }
+                        }
+                      });
+                      final isAuth = msg.toLowerCase().contains('authentication') ||
+                          msg.toLowerCase().contains('unauthorized') ||
+                          msg.toLowerCase().contains('forbidden');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            isAuth
+                                ? 'Authentication required: Please sign in as an Admin to delete products.'
+                                : 'Failed to delete: $msg',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                          backgroundColor: const Color(0xFFDC2626),
+                          behavior: SnackBarBehavior.floating,
+                          action: isAuth
+                              ? SnackBarAction(
+                                  label: 'Sign In',
+                                  textColor: Colors.amberAccent,
+                                  onPressed: () => context.go(RouteNames.login),
+                                )
+                              : null,
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Delete All $selectedCount Products'),
           ),
         ],
       ),
@@ -554,14 +765,26 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                 widget.onProductUpdated?.call(p);
               }
             });
+            final isAuthError = err.toLowerCase().contains('authentication') ||
+                err.toLowerCase().contains('unauthorized') ||
+                err.toLowerCase().contains('forbidden');
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Failed to update availability: $err',
+                  isAuthError
+                      ? 'Authentication required: Please sign in as an Admin to update product availability.'
+                      : 'Failed to update availability: $err',
                   style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
                 backgroundColor: const Color(0xFFDC2626),
                 behavior: SnackBarBehavior.floating,
+                action: isAuthError
+                    ? SnackBarAction(
+                        label: 'Sign In',
+                        textColor: Colors.amberAccent,
+                        onPressed: () => context.go(RouteNames.login),
+                      )
+                    : null,
               ),
             );
           },
@@ -618,75 +841,129 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
       orElse: () => sellerOptions.first,
     );
 
-    // Filter products by search, category, seller, stock, and availability
-    final filtered = catalog.where((p) {
-      final query = _searchQuery.toLowerCase();
-      final words = query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    // High Performance Memoized Filter & Sort
+    final categoryCount = level0Categories.length;
+    final sellerCount = activeSellers.length;
 
-      final searchableText = '${p.title} ${p.sku} ${p.productCode} ${p.technicalName} '
-          '${p.category} ${p.sellerName} ${p.vendor} ${p.hsnCode} ${p.sellerId} ${p.id} '
-          '${p.assignedCollections.join(' ')} '
-          '${p.variants.map((v) => '${v.label} ${v.packSize}${v.unit}').join(' ')}'
-          .toLowerCase();
+    final isCacheValid = identical(catalog, _memoizedCatalogRef) &&
+        _searchQuery == _memoizedSearchQuery &&
+        _selectedCategoryFilter == _memoizedCategoryFilter &&
+        _selectedSellerFilter == _memoizedSellerFilter &&
+        _selectedStockFilter == _memoizedStockFilter &&
+        _selectedAvailabilityFilter == _memoizedAvailabilityFilter &&
+        _sortColumn == _memoizedSortColumn &&
+        _sortAscending == _memoizedSortAscending &&
+        categoryCount == _memoizedCategoryCount &&
+        sellerCount == _memoizedSellerCount;
 
-      final matchesSearch = words.isEmpty || words.every((word) => searchableText.contains(word));
+    List<Product> filtered;
+    if (isCacheValid) {
+      filtered = _memoizedFilteredProducts;
+    } else {
+      final query = _searchQuery.toLowerCase().trim();
+      final searchWords = query.isEmpty
+          ? const <String>[]
+          : query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
 
-      final matchesCategory = _matchesCategory(p, _selectedCategoryFilter, level0Categories, categoryById);
+      final isAllSellers = activeSellerOption.key == 'All Sellers';
+      final matchSellerId = activeSellerOption.sellerId;
+      final matchSellerLabel = activeSellerOption.label.toLowerCase();
+      final filterSellerLower = _selectedSellerFilter.toLowerCase();
 
-      final resolvedSeller = _resolveSellerName(p, activeSellers);
-      final matchesSeller = activeSellerOption.key == 'All Sellers' ||
-          (activeSellerOption.sellerId != null && p.sellerId == activeSellerOption.sellerId) ||
-          p.sellerId == _selectedSellerFilter ||
-          resolvedSeller.toLowerCase() == activeSellerOption.label.toLowerCase() ||
-          resolvedSeller.toLowerCase() == _selectedSellerFilter.toLowerCase() ||
-          p.sellerName.toLowerCase() == _selectedSellerFilter.toLowerCase() ||
-          p.sellerName.toLowerCase() == activeSellerOption.label.toLowerCase() ||
-          p.vendor.toLowerCase() == _selectedSellerFilter.toLowerCase() ||
-          p.vendor.toLowerCase() == activeSellerOption.label.toLowerCase();
+      filtered = catalog.where((p) {
+        // 1. Availability filter (fastest check)
+        if (_selectedAvailabilityFilter == 'Available' && !p.isAvailable) return false;
+        if (_selectedAvailabilityFilter == 'Hidden' && p.isAvailable) return false;
 
-      final matchesStock = _selectedStockFilter == 'All Stock' ||
-          (_selectedStockFilter == 'In Stock' && p.stock > 50) ||
-          (_selectedStockFilter == 'Low Stock' && p.stock > 0 && p.stock <= 50) ||
-          (_selectedStockFilter == 'Out of Stock' && p.stock == 0);
+        // 2. Stock filter (fast numeric check)
+        if (_selectedStockFilter == 'In Stock' && p.stock <= 50) return false;
+        if (_selectedStockFilter == 'Low Stock' && (p.stock <= 0 || p.stock > 50)) return false;
+        if (_selectedStockFilter == 'Out of Stock' && p.stock != 0) return false;
 
-      final matchesAvailability = _selectedAvailabilityFilter == 'All Status' ||
-          (_selectedAvailabilityFilter == 'Available' && p.isAvailable) ||
-          (_selectedAvailabilityFilter == 'Hidden' && !p.isAvailable);
-
-      return matchesSearch && matchesCategory && matchesSeller && matchesStock && matchesAvailability;
-    }).toList();
-
-    // Apply active column sorting
-    if (_sortColumn != 'default') {
-      filtered.sort((a, b) {
-        int cmp = 0;
-        switch (_sortColumn) {
-          case 'title':
-            cmp = a.title.toLowerCase().compareTo(b.title.toLowerCase());
-            break;
-          case 'sku':
-            cmp = a.productCode.toLowerCase().compareTo(b.productCode.toLowerCase());
-            break;
-          case 'seller':
-            cmp = _resolveSellerName(a, activeSellers).toLowerCase().compareTo(_resolveSellerName(b, activeSellers).toLowerCase());
-            break;
-          case 'category':
-            cmp = a.category.toLowerCase().compareTo(b.category.toLowerCase());
-            break;
-          case 'price':
-            cmp = a.displayRate.compareTo(b.displayRate);
-            break;
-          case 'stock':
-            cmp = a.stock.compareTo(b.stock);
-            break;
-          case 'status':
-            cmp = (a.isAvailable ? 1 : 0).compareTo(b.isAvailable ? 1 : 0);
-            break;
-          default:
-            cmp = 0;
+        // 3. Seller filter
+        if (!isAllSellers) {
+          final sellerMatches = (matchSellerId != null && p.sellerId == matchSellerId) ||
+              p.sellerId == _selectedSellerFilter ||
+              p.sellerName.toLowerCase() == matchSellerLabel ||
+              p.sellerName.toLowerCase() == filterSellerLower ||
+              p.vendor.toLowerCase() == matchSellerLabel ||
+              p.vendor.toLowerCase() == filterSellerLower ||
+              _resolveSellerName(p, activeSellers).toLowerCase() == matchSellerLabel;
+          if (!sellerMatches) return false;
         }
-        return _sortAscending ? cmp : -cmp;
-      });
+
+        // 4. Category filter
+        if (!_matchesCategory(p, _selectedCategoryFilter, level0Categories, categoryById)) return false;
+
+        // 5. Search query words match
+        if (searchWords.isNotEmpty) {
+          for (final word in searchWords) {
+            if (p.title.toLowerCase().contains(word) ||
+                p.sku.toLowerCase().contains(word) ||
+                p.productCode.toLowerCase().contains(word) ||
+                p.technicalName.toLowerCase().contains(word) ||
+                p.category.toLowerCase().contains(word) ||
+                p.sellerName.toLowerCase().contains(word) ||
+                p.vendor.toLowerCase().contains(word)) {
+              continue;
+            }
+            final foundInDeep = p.assignedCollections.any((c) => c.toLowerCase().contains(word)) ||
+                p.variants.any((v) =>
+                    v.sku.toLowerCase().contains(word) ||
+                    v.label.toLowerCase().contains(word) ||
+                    '${v.packSize}${v.unit}'.toLowerCase().contains(word));
+            if (!foundInDeep) return false;
+          }
+        }
+
+        return true;
+      }).toList();
+
+      // Apply active column sorting
+      if (_sortColumn != 'default') {
+        filtered.sort((a, b) {
+          int cmp = 0;
+          switch (_sortColumn) {
+            case 'title':
+              cmp = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+              break;
+            case 'sku':
+              cmp = a.productCode.toLowerCase().compareTo(b.productCode.toLowerCase());
+              break;
+            case 'seller':
+              cmp = _resolveSellerName(a, activeSellers).toLowerCase().compareTo(_resolveSellerName(b, activeSellers).toLowerCase());
+              break;
+            case 'category':
+              cmp = a.category.toLowerCase().compareTo(b.category.toLowerCase());
+              break;
+            case 'price':
+              cmp = a.displayRate.compareTo(b.displayRate);
+              break;
+            case 'stock':
+              cmp = a.stock.compareTo(b.stock);
+              break;
+            case 'status':
+              cmp = (a.isAvailable ? 1 : 0).compareTo(b.isAvailable ? 1 : 0);
+              break;
+            default:
+              cmp = 0;
+          }
+          return _sortAscending ? cmp : -cmp;
+        });
+      }
+
+      // Update memoization cache
+      _memoizedCatalogRef = catalog;
+      _memoizedSearchQuery = _searchQuery;
+      _memoizedCategoryFilter = _selectedCategoryFilter;
+      _memoizedSellerFilter = _selectedSellerFilter;
+      _memoizedStockFilter = _selectedStockFilter;
+      _memoizedAvailabilityFilter = _selectedAvailabilityFilter;
+      _memoizedSortColumn = _sortColumn;
+      _memoizedSortAscending = _sortAscending;
+      _memoizedCategoryCount = categoryCount;
+      _memoizedSellerCount = sellerCount;
+      _memoizedFilteredProducts = filtered;
     }
 
     final hasActiveFilters = activeSellerOption.key != 'All Sellers' ||
@@ -728,7 +1005,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
             // Search Input Field
             Expanded(
               child: SizedBox(
-                height: 40,
+                height: 36,
                 child: TextField(
                   controller: _searchController,
                   style: GoogleFonts.plusJakartaSans(
@@ -785,7 +1062,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
 
             // Seller Filter Dropdown
             Container(
-              height: 40,
+              height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
                 color: surfaceColor,
@@ -876,23 +1153,65 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
             const SizedBox(width: 8),
 
             // Refresh Button
+            Tooltip(
+              message: 'Refresh Catalog & Images',
+              child: InkWell(
+                onTap: () {
+                  final bloc = context.read<ProductBloc>();
+                  bloc.add(FetchProducts(
+                    page: productState.currentPage,
+                    size: productState.pageSize,
+                    isRefresh: true,
+                  ));
+                  bloc.add(const FetchAllCatalogProducts());
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Refreshing catalog from backend...',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      duration: const Duration(seconds: 1),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  height: 36,
+                  width: 36,
+                  decoration: BoxDecoration(
+                    color: surfaceColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Icon(
+                    Icons.refresh_rounded,
+                    size: 16,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
             // Add Product Button
             SizedBox(
-              height: 40,
+              height: 36,
               child: ElevatedButton.icon(
                 onPressed: widget.onOpenAddProduct,
-                icon: const Icon(Icons.add_rounded, size: 16),
+                icon: const Icon(Icons.add_rounded, size: 15),
                 label: Text(
                   'Add Product',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  elevation: 0,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
@@ -1159,20 +1478,28 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF059669).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '${filtered.length} SKUs',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF059669),
-                              ),
-                            ),
+                          Builder(
+                            builder: (context) {
+                              final totalSkus = filtered.fold<int>(
+                                0,
+                                (sum, p) => sum + (p.variants.isNotEmpty ? p.variants.length : 1),
+                              );
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${filtered.length} Products • $totalSkus SKUs',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF059669),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           if (_sortColumn != 'default') ...[
                             const SizedBox(width: 8),
@@ -1332,6 +1659,24 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                         ),
                       ),
                       const SizedBox(width: 6),
+                      TextButton.icon(
+                        onPressed: () => _confirmBulkPermanentDelete(context),
+                        icon: const Icon(Icons.delete_forever_rounded, size: 14, color: Color(0xFFDC2626)),
+                        label: Text(
+                          'Delete (${_selectedProductCodes.length})',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       TextButton(
                         onPressed: () => setState(() => _selectedProductCodes.clear()),
                         style: TextButton.styleFrom(
@@ -1393,7 +1738,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        flex: 5,
+                        flex: 6,
                         child: Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: _buildSortableColHeader('title', 'PRODUCT & COMPOSITION', isDark),
@@ -1402,12 +1747,13 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                       Expanded(
                         flex: 2,
                         child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: _buildSortableColHeader('sku', 'SKU / HSN', isDark),
+                          padding: const EdgeInsets.only(right: 12),
+                          child: _buildSortableColHeader('sku', 'PRODUCT CODE / HSN', isDark),
                         ),
                       ),
+                      const SizedBox(width: 14),
                       Expanded(
-                        flex: 3,
+                        flex: 2,
                         child: Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: _buildSortableColHeader('seller', 'SELLER / VENDOR', isDark),

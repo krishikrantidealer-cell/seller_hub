@@ -34,6 +34,12 @@ abstract class CategoryRemoteDataSource {
   /// Deactivates a category via admin API
   Future<CategoryItem> deactivateCategory(String id);
 
+  /// Permanently deletes a category and its descendants via admin API
+  Future<List<String>> deleteCategory(String id);
+
+  /// Permanently deletes multiple categories via admin API
+  Future<List<String>> deleteCategoriesPermanently(List<String> ids);
+
   /// Uploads a category image via admin API
   Future<CategoryItem> uploadCategoryImage({
     required String categoryId,
@@ -200,6 +206,33 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
       return CategoryItem.fromJson(rawData);
     }
     throw const ApiException(message: 'Failed to deactivate category.');
+  }
+
+  @override
+  Future<List<String>> deleteCategory(String id) async {
+    final response = await apiClient.delete(
+      '${ApiEndpoints.adminCategories}/$id',
+      requiresAuth: true,
+    );
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic> && rawData['items'] is List) {
+      return (rawData['items'] as List).map((e) => e.toString()).toList();
+    }
+    return [id];
+  }
+
+  @override
+  Future<List<String>> deleteCategoriesPermanently(List<String> ids) async {
+    final response = await apiClient.delete(
+      '${ApiEndpoints.adminCategories}/permanent',
+      body: {'categoryIds': ids},
+      requiresAuth: true,
+    );
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic> && rawData['items'] is List) {
+      return (rawData['items'] as List).map((e) => e.toString()).toList();
+    }
+    return ids;
   }
 
   @override

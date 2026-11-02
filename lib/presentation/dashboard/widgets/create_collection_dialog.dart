@@ -30,11 +30,18 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
   bool _isActive = true;
   bool _manualSlugEdited = false;
 
+  final List<SubCollectionItem> _subCollections = [];
+  bool _isAddingSub = false;
+  final _newSubNameController = TextEditingController();
+  final _newSubSlugController = TextEditingController();
+  final _newSubImageController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     context.read<CollectionBloc>().add(const ResetCreateCollectionState());
     _nameController.addListener(_onNameChanged);
+    _newSubNameController.addListener(_onSubNameChanged);
   }
 
   void _onNameChanged() {
@@ -48,15 +55,67 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
     }
   }
 
+  void _onSubNameChanged() {
+    final generated = _newSubNameController.text
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    _newSubSlugController.text = generated;
+  }
+
   @override
   void dispose() {
     _nameController.removeListener(_onNameChanged);
+    _newSubNameController.removeListener(_onSubNameChanged);
     _nameController.dispose();
     _slugController.dispose();
     _descriptionController.dispose();
     _priorityController.dispose();
     _bannerTitleController.dispose();
+    _newSubNameController.dispose();
+    _newSubSlugController.dispose();
+    _newSubImageController.dispose();
     super.dispose();
+  }
+
+  void _handleAddSubCollection() {
+    final name = _newSubNameController.text.trim();
+    final slug = _newSubSlugController.text.trim();
+    final image = _newSubImageController.text.trim();
+
+    if (name.isEmpty || slug.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter sub-collection name and slug.'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
+
+    final newSub = SubCollectionItem(
+      id: '',
+      name: name,
+      slug: slug,
+      isActive: true,
+      image: image.isNotEmpty ? image : null,
+      productCount: 0,
+    );
+
+    setState(() {
+      _subCollections.add(newSub);
+      _isAddingSub = false;
+      _newSubNameController.clear();
+      _newSubSlugController.clear();
+      _newSubImageController.clear();
+    });
+  }
+
+  void _handleRemoveSubCollection(int index) {
+    setState(() {
+      _subCollections.removeAt(index);
+    });
   }
 
   void _handleSubmit() {
@@ -75,7 +134,7 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
             isActive: _isActive,
             priority: priorityVal,
             bannerTitle: bannerVal.isNotEmpty ? bannerVal : null,
-            subCollections: const [],
+            subCollections: _subCollections.map((s) => s.toJson()).toList(),
           ),
         );
   }
@@ -403,6 +462,224 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
                           ],
                         ),
                       ),
+
+                      const SizedBox(height: 18),
+
+                      // Sub-Collections Section Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.account_tree_outlined, size: 16, color: Color(0xFF7C3AED)),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    'Sub-Collections (${_subCollections.length})',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!_isAddingSub)
+                            TextButton.icon(
+                              onPressed: isCreating ? null : () => setState(() => _isAddingSub = true),
+                              icon: const Icon(Icons.add_rounded, size: 16),
+                              label: Text(
+                                'Add Sub-Collection',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              style: TextButton.styleFrom(foregroundColor: const Color(0xFF7C3AED)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Inline Add Sub-Collection Form
+                      if (_isAddingSub) ...[
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cardBgColor,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'New Sub-Collection Node',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF7C3AED),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _newSubNameController,
+                                      style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                                      decoration: _inputDecoration(
+                                        hintText: 'Name (e.g. Rice, Maize)',
+                                        isDark: isDark,
+                                        surfaceColor: surfaceColor,
+                                        borderColor: borderColor,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _newSubSlugController,
+                                      style: GoogleFonts.jetBrainsMono(fontSize: 12.5),
+                                      decoration: _inputDecoration(
+                                        hintText: 'Slug (e.g. rice)',
+                                        isDark: isDark,
+                                        surfaceColor: surfaceColor,
+                                        borderColor: borderColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _newSubImageController,
+                                style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                                decoration: _inputDecoration(
+                                  hintText: 'Image URL (Optional)',
+                                  isDark: isDark,
+                                  surfaceColor: surfaceColor,
+                                  borderColor: borderColor,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  TextButton(
+                                    onPressed: () => setState(() => _isAddingSub = false),
+                                    child: Text(
+                                      'Cancel',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    onPressed: _handleAddSubCollection,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF7C3AED),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                    ),
+                                    child: Text(
+                                      'Add Node',
+                                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // Sub-Collections List
+                      if (_subCollections.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'No sub-collections attached yet. You can add them now or later.',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: borderColor),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _subCollections.length,
+                            separatorBuilder: (_, index) => Divider(height: 1, color: borderColor),
+                            itemBuilder: (context, idx) {
+                              final sub = _subCollections[idx];
+                              return ListTile(
+                                dense: true,
+                                visualDensity: VisualDensity.compact,
+                                leading: Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Center(
+                                    child: Icon(Icons.grain_rounded, size: 16, color: Color(0xFF7C3AED)),
+                                  ),
+                                ),
+                                title: Row(
+                                  children: [
+                                    Text(
+                                      sub.name,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        '/${sub.slug}',
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 10.5,
+                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 16),
+                                  tooltip: 'Remove',
+                                  color: const Color(0xFFEF4444),
+                                  onPressed: isCreating ? null : () => _handleRemoveSubCollection(idx),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
 
                       const SizedBox(height: 24),
 

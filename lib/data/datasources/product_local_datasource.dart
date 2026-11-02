@@ -127,7 +127,7 @@ class ProductLocalDataSourceImpl implements ProductLocalDataSource {
         final pageData = ProductPageData.fromJson(decoded);
         final list = List<Product>.from(pageData.content);
         final initialLength = list.length;
-        list.removeWhere((p) => p.id == productId || p.productCode == productId);
+        list.removeWhere((p) => p.id == productId || p.productCode == productId || p.sku == productId);
         if (list.length != initialLength) {
           final updatedData = ProductPageData(
             content: list,
@@ -148,7 +148,7 @@ class ProductLocalDataSourceImpl implements ProductLocalDataSource {
             .map((e) => Product.fromJson(e as Map<String, dynamic>))
             .toList();
         final initialLength = list.length;
-        list.removeWhere((p) => p.id == productId || p.productCode == productId);
+        list.removeWhere((p) => p.id == productId || p.productCode == productId || p.sku == productId);
         if (list.length != initialLength) {
           await cacheFullCatalog(list);
         }

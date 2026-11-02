@@ -7,6 +7,7 @@ import '../../../logic/category/category_bloc.dart';
 import '../../../logic/category/category_event.dart';
 import '../../../logic/category/category_state.dart';
 import '../widgets/app_product_image.dart';
+import '../widgets/create_category_dialog.dart';
 
 class CategoriesView extends StatefulWidget {
   final bool isWide;
@@ -22,6 +23,7 @@ class CategoriesView extends StatefulWidget {
 
 class _CategoriesViewState extends State<CategoriesView> {
   final TextEditingController _searchController = TextEditingController();
+  final Set<String> _selectedCategoryIds = {};
 
   @override
   void initState() {
@@ -35,6 +37,157 @@ class _CategoriesViewState extends State<CategoriesView> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _toggleCategorySelection(String id) {
+    setState(() {
+      if (_selectedCategoryIds.contains(id)) {
+        _selectedCategoryIds.remove(id);
+      } else {
+        _selectedCategoryIds.add(id);
+      }
+    });
+  }
+
+  void _selectAllCategories(List<CategoryItem> items) {
+    final Set<String> ids = {};
+    void collect(List<CategoryItem> list) {
+      for (final item in list) {
+        ids.add(item.id);
+        if (item.children.isNotEmpty) {
+          collect(item.children);
+        }
+      }
+    }
+    collect(items);
+
+    setState(() {
+      if (_selectedCategoryIds.containsAll(ids) && ids.isNotEmpty) {
+        _selectedCategoryIds.removeAll(ids);
+      } else {
+        _selectedCategoryIds.addAll(ids);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedCategoryIds.clear();
+    });
+  }
+
+  void _confirmBulkDeleteCategories(BuildContext context) {
+    if (_selectedCategoryIds.isEmpty) return;
+    final count = _selectedCategoryIds.length;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_sweep_rounded, color: Color(0xFFDC2626), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Delete $count Categories',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete $count selected categories?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Selected categories and any of their nested sub-categories will be permanently deleted from the database. Any products assigned to these categories will be unassigned. This operation cannot be undone.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                'DELETE /api/v1/admin/categories/permanent ($count items)',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11,
+                  color: const Color(0xFFDC2626),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              final toDelete = _selectedCategoryIds.toList();
+              Navigator.of(dialogCtx).pop();
+              _clearSelection();
+              context.read<CategoryBloc>().add(BulkDeleteCategories(toDelete));
+            },
+            child: Text(
+              'Delete $count Permanently',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openCreateCategoryDialog(BuildContext context, [CategoryItem? parent]) {
+    showDialog<CategoryItem>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => CreateCategoryDialog(initialParent: parent),
+    );
   }
 
   Color _getCategoryColor(String name) {
@@ -127,6 +280,108 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
+  void _confirmDeleteCategory(BuildContext context, CategoryItem category) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Delete Category',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to permanently delete "${category.name}"?',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This category and any nested sub-categories will be permanently deleted. Products assigned to them will have their category unassigned. This cannot be undone.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                'DELETE /api/v1/admin/categories/${category.id}',
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11,
+                  color: const Color(0xFFDC2626),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<CategoryBloc>().add(DeleteCategory(category.id));
+            },
+            child: Text(
+              'Delete Permanently',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -157,8 +412,13 @@ class _CategoriesViewState extends State<CategoriesView> {
             const SizedBox(height: 16),
 
             // 2. Search & Level Filters Toolbar
-            _buildFilterToolbar(context, state, isDark, surfaceColor, borderColor, textPrimary, textSecondary),
+            _buildFilterToolbar(context, state, isDark, surfaceColor, borderColor, textPrimary, textSecondary, filteredItems),
             const SizedBox(height: 16),
+
+            // Bulk Delete Action Bar
+            if (_selectedCategoryIds.isNotEmpty) ...[
+              _buildBulkActionBar(context, isDark, borderColor),
+            ],
 
             // 3. Category Tree or Filtered List
             if (state.status == CategoryStatus.error && state.allCategories.isEmpty)
@@ -311,6 +571,68 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
+  Widget _buildBulkActionBar(BuildContext context, bool isDark, Color borderColor) {
+    final count = _selectedCategoryIds.length;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDC2626).withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDC2626).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_box_rounded, color: Color(0xFFDC2626), size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '$count ${count == 1 ? 'category' : 'categories'} selected',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _clearSelection,
+            child: Text(
+              'Clear Selection',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: () => _confirmBulkDeleteCategories(context),
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: Text('Delete Selected ($count)'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              textStyle: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFilterToolbar(
     BuildContext context,
     CategoryState state,
@@ -319,6 +641,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     Color borderColor,
     Color textPrimary,
     Color textSecondary,
+    List<CategoryItem> filteredItems,
   ) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -382,6 +705,29 @@ class _CategoriesViewState extends State<CategoriesView> {
               ),
               const SizedBox(width: 10),
 
+              // Select All / Deselect All
+              OutlinedButton.icon(
+                onPressed: () => _selectAllCategories(filteredItems),
+                icon: Icon(
+                  _selectedCategoryIds.isNotEmpty ? Icons.deselect_rounded : Icons.select_all_rounded,
+                  size: 16,
+                ),
+                label: Text(
+                  _selectedCategoryIds.isNotEmpty ? 'Deselect All' : 'Select All',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF059669),
+                  side: BorderSide(color: const Color(0xFF059669).withValues(alpha: 0.3)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(width: 8),
+
               // Expand / Collapse All
               OutlinedButton.icon(
                 onPressed: () {
@@ -406,6 +752,24 @@ class _CategoriesViewState extends State<CategoriesView> {
                   foregroundColor: const Color(0xFF059669),
                   side: BorderSide(color: const Color(0xFF059669).withValues(alpha: 0.3)),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Add Category Button
+              FilledButton.icon(
+                onPressed: () => _openCreateCategoryDialog(context),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add Category'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  textStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
@@ -528,6 +892,19 @@ class _CategoriesViewState extends State<CategoriesView> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     child: Row(
                       children: [
+                        // Selection Checkbox
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: Checkbox(
+                            value: _selectedCategoryIds.contains(root.id),
+                            activeColor: const Color(0xFFDC2626),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                            onChanged: (_) => _toggleCategorySelection(root.id),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
                         // Expand Icon
                         Icon(
                           isExpanded ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_right_rounded,
@@ -642,6 +1019,12 @@ class _CategoriesViewState extends State<CategoriesView> {
                         ),
                         const SizedBox(width: 4),
                         IconButton(
+                          icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                          tooltip: 'Add Sub-Category under ${root.name}',
+                          color: const Color(0xFF059669),
+                          onPressed: () => _openCreateCategoryDialog(context, root),
+                        ),
+                        IconButton(
                           icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
                           tooltip: root.categoryImageUrl != null ? 'Change Category Image' : 'Upload Category Image',
                           color: textSecondary,
@@ -654,6 +1037,12 @@ class _CategoriesViewState extends State<CategoriesView> {
                             color: const Color(0xFFEF4444),
                             onPressed: () => _confirmDeleteCategoryImage(context, root),
                           ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_forever_rounded, size: 18),
+                          tooltip: 'Delete Category',
+                          color: const Color(0xFFDC2626),
+                          onPressed: () => _confirmDeleteCategory(context, root),
+                        ),
                       ],
                     ),
                   ),
@@ -701,6 +1090,19 @@ class _CategoriesViewState extends State<CategoriesView> {
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                     child: Row(
                                       children: [
+                                        // Level 1 Checkbox
+                                        SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: Checkbox(
+                                            value: _selectedCategoryIds.contains(sub.id),
+                                            activeColor: const Color(0xFFDC2626),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                            onChanged: (_) => _toggleCategorySelection(sub.id),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+
                                         if (sub.children.isNotEmpty)
                                           Icon(
                                             isSubExpanded
@@ -789,6 +1191,14 @@ class _CategoriesViewState extends State<CategoriesView> {
                                           ),
                                         const SizedBox(width: 4),
                                         IconButton(
+                                          icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
+                                          tooltip: 'Add Leaf Node under ${sub.name}',
+                                          color: const Color(0xFF059669),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                          onPressed: () => _openCreateCategoryDialog(context, sub),
+                                        ),
+                                        IconButton(
                                           icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
                                           tooltip: sub.categoryImageUrl != null ? 'Change Sub-Category Image' : 'Upload Sub-Category Image',
                                           color: textSecondary,
@@ -805,6 +1215,14 @@ class _CategoriesViewState extends State<CategoriesView> {
                                             constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                                             onPressed: () => _confirmDeleteCategoryImage(context, sub),
                                           ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_forever_rounded, size: 16),
+                                          tooltip: 'Delete Sub-Category',
+                                          color: const Color(0xFFDC2626),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                          onPressed: () => _confirmDeleteCategory(context, sub),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -831,6 +1249,19 @@ class _CategoriesViewState extends State<CategoriesView> {
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
+                                              // Level 2 Checkbox
+                                              SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child: Checkbox(
+                                                  value: _selectedCategoryIds.contains(leaf.id),
+                                                  activeColor: const Color(0xFFDC2626),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+                                                  onChanged: (_) => _toggleCategorySelection(leaf.id),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+
                                               if (leaf.hasIcon && leaf.isEmojiIcon)
                                                 Padding(
                                                   padding: const EdgeInsets.only(right: 4),
@@ -866,6 +1297,15 @@ class _CategoriesViewState extends State<CategoriesView> {
                                                 style: GoogleFonts.jetBrainsMono(
                                                   fontSize: 9.5,
                                                   color: textSecondary,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              InkWell(
+                                                onTap: () => _confirmDeleteCategory(context, leaf),
+                                                borderRadius: BorderRadius.circular(4),
+                                                child: const Padding(
+                                                  padding: EdgeInsets.all(2),
+                                                  child: Icon(Icons.close_rounded, size: 12, color: Color(0xFFDC2626)),
                                                 ),
                                               ),
                                             ],
@@ -933,6 +1373,19 @@ class _CategoriesViewState extends State<CategoriesView> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
+                    // Selection Checkbox
+                    SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: Checkbox(
+                        value: _selectedCategoryIds.contains(cat.id),
+                        activeColor: const Color(0xFFDC2626),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        onChanged: (_) => _toggleCategorySelection(cat.id),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
                     cat.hasIcon
                         ? _buildCategoryThumbnail(cat, const Color(0xFF059669), size: 28, borderRadius: 6)
                         : Container(
@@ -1007,6 +1460,7 @@ class _CategoriesViewState extends State<CategoriesView> {
   }
 
   Widget _buildEmptyView(String query, Color borderColor, bool isDark) {
+    final hasQuery = query.trim().isNotEmpty;
     return Center(
       child: Container(
         padding: const EdgeInsets.all(40),
@@ -1018,10 +1472,14 @@ class _CategoriesViewState extends State<CategoriesView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.search_off_rounded, size: 48, color: Color(0xFF94A3B8)),
+            Icon(
+              hasQuery ? Icons.search_off_rounded : Icons.category_outlined,
+              size: 48,
+              color: const Color(0xFF94A3B8),
+            ),
             const SizedBox(height: 16),
             Text(
-              'No categories found matching "$query"',
+              hasQuery ? 'No categories found matching "$query"' : 'No categories configured yet',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -1029,10 +1487,24 @@ class _CategoriesViewState extends State<CategoriesView> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Try a different keyword or reset the level filter.',
+              hasQuery
+                  ? 'Try a different keyword or reset the level filter.'
+                  : 'Start by creating your first top-level department.',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
                 color: const Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _openCreateCategoryDialog(context),
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: Text(hasQuery ? 'Add New Category' : 'Create First Category'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ],

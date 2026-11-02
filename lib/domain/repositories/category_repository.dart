@@ -39,6 +39,12 @@ abstract class CategoryRepository {
   /// Deactivates a category
   Future<CategoryItem> deactivateCategory(String id);
 
+  /// Permanently deletes a category and its descendants
+  Future<List<String>> deleteCategory(String id);
+
+  /// Permanently deletes multiple categories
+  Future<List<String>> deleteCategoriesPermanently(List<String> ids);
+
   /// Uploads a category image (PNG or JPG) to Google Cloud Storage
   Future<CategoryItem> uploadCategoryImage({
     required String categoryId,

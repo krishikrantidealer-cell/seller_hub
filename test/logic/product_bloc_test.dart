@@ -83,7 +83,23 @@ class MockProductRepository implements ProductRepository {
   }
 
   @override
+  Future<Product> updateProduct(Product product) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+    lastUpdatedProduct = product;
+    return product;
+  }
+
+  @override
   Future<void> deleteProductPermanently(String productId) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+  }
+
+  @override
+  Future<void> deleteMultipleProductsPermanently(List<String> productIds) async {
     if (shouldThrow) {
       throw ApiException(message: errorMessage, statusCode: 500);
     }
@@ -616,6 +632,110 @@ void main() {
       expect(successCalled, true);
       expect(productBloc.state.products.isEmpty, true);
       expect(productBloc.state.pageData.totalElements, 0);
+    });
+
+    test('UpdateProduct persists changes and updates state including variant SKU', () async {
+      final initialProduct = Product(
+        id: 'edit_target_123',
+        productCode: 'PRD-EDIT',
+        sku: 'EBS-MAIN-01',
+        hsnCode: '3808',
+        title: 'Original Title',
+        variants: [
+          ProductVariant(
+            id: '672000000000000000000001',
+            sku: 'EBS-VAR-OLD',
+            label: '500 ml Bottle',
+            displayRate: 400.0,
+            printedMrp: 500.0,
+            stock: 50,
+          ),
+        ],
+      );
+
+      repository.pageDataToReturn = ProductPageData(
+        content: [initialProduct],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      );
+
+      productBloc.add(const FetchProducts());
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(productBloc.state.products.first.variants.first.sku, equals('EBS-VAR-OLD'));
+
+      final updatedProduct = initialProduct.copyWith(
+        title: 'Updated Title',
+        variants: [
+          initialProduct.variants.first.copyWith(sku: 'EBS-VAR-NEW-SKU-99'),
+        ],
+      );
+
+      Product? resultProduct;
+      productBloc.add(UpdateProduct(
+        updatedProduct,
+        onSuccess: (p) => resultProduct = p,
+      ));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(resultProduct, isNotNull);
+      expect(resultProduct!.title, equals('Updated Title'));
+      expect(resultProduct!.variants.first.sku, equals('EBS-VAR-NEW-SKU-99'));
+      expect(productBloc.state.products.first.variants.first.sku, equals('EBS-VAR-NEW-SKU-99'));
+      expect(repository.lastUpdatedProduct?.variants.first.sku, equals('EBS-VAR-NEW-SKU-99'));
+    });
+
+    test('UpdateProduct rolls back state and cache when repository throws', () async {
+      final initialProduct = Product(
+        id: 'edit_target_fail_123',
+        productCode: 'PRD-EDIT-FAIL',
+        sku: 'EBS-MAIN-02',
+        title: 'Original Title',
+        variants: [
+          ProductVariant(
+            id: '672000000000000000000002',
+            sku: 'EBS-VAR-ORIGINAL',
+            label: 'Original Variant',
+            displayRate: 300.0,
+            printedMrp: 350.0,
+            stock: 20,
+          ),
+        ],
+      );
+
+      repository.pageDataToReturn = ProductPageData(
+        content: [initialProduct],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      );
+
+      productBloc.add(const FetchProducts());
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      repository.shouldThrow = true;
+      repository.errorMessage = 'Conflict: SKU in use';
+
+      String? capturedError;
+      final failingUpdate = initialProduct.copyWith(
+        title: 'Should Fail Title',
+        variants: [
+          initialProduct.variants.first.copyWith(sku: 'DUPLICATE-SKU'),
+        ],
+      );
+
+      productBloc.add(UpdateProduct(
+        failingUpdate,
+        onError: (err) => capturedError = err,
+      ));
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(capturedError, contains('Conflict: SKU in use'));
+      expect(productBloc.state.products.first.title, equals('Original Title'));
+      expect(productBloc.state.products.first.variants.first.sku, equals('EBS-VAR-ORIGINAL'));
+      expect(repository.lastUpdatedProduct?.title, equals('Original Title'));
     });
   });
 }

@@ -197,6 +197,12 @@ void main() {
             gstPercentage: 5,
             discountPercentage: 10,
             stock: 100,
+            dimensions: ProductDimensions(
+              length: 20,
+              width: 10,
+              height: 10,
+              unit: 'cm',
+            ),
           ),
         ],
         isAvailable: false,
@@ -207,7 +213,7 @@ void main() {
       final payload = product.toAdminCreatePayload();
 
       expect(payload['sellerId'], '6ab4ada822033f1670582bda');
-      expect(payload['sku'], 'EBS-ADM-SKU-1793010415573');
+      expect(payload.containsKey('sku'), isFalse);
       expect(payload['hsnCode'], '3808');
       expect(payload['title'], 'Postman Admin Test Product 1793010415573');
       expect(payload['technicalName'], 'Bio Organic Nutrient Formulation');
@@ -216,12 +222,6 @@ void main() {
       expect(payload['categoryId'], '6ab4f6f619ec643fd9bf3621');
       expect(payload['productWeight'], 500.0);
       expect(payload['productWeightUnit'], 'g');
-      expect(payload['dimensions'], {
-        'length': 20.0,
-        'width': 10.0,
-        'height': 10.0,
-        'unit': 'cm',
-      });
       expect(payload['variants'], isA<List>());
       final variant = (payload['variants'] as List).first as Map<String, dynamic>;
       expect(variant['label'], '500 ml Bottle');
@@ -229,7 +229,6 @@ void main() {
       expect(variant['packSize'], 500);
       expect(variant['packSizeUnit'], 'ml');
       expect(variant['packQuantity'], 1);
-      expect(variant['packUnit'], 'bottle');
       expect(variant['shippedBy'], 'EBS Direct');
       expect(variant['displayRate'], 450.0);
       expect(variant['printedMrp'], 500.0);
@@ -238,6 +237,14 @@ void main() {
       expect(variant['gstPercentage'], 5.0);
       expect(variant['discountPercentage'], 10.0);
       expect(variant['stock'], 100);
+      expect(variant['dimensions'], [
+        {
+          'length': 20.0,
+          'width': 10.0,
+          'height': 10.0,
+          'unit': 'cm',
+        },
+      ]);
     });
 
     test('Product.fromJson parses the POST /api/v1/admin/products response exactly', () {

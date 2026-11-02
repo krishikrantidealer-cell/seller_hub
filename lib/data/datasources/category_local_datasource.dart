@@ -5,6 +5,7 @@ import '../../core/models/category.dart';
 abstract class CategoryLocalDataSource {
   Future<List<CategoryItem>?> getCachedCategories();
   Future<void> cacheCategories(List<CategoryItem> categories);
+  Future<void> removeCachedCategories(List<String> ids);
   Future<void> clearCache();
 }
 
@@ -44,6 +45,15 @@ class CategoryLocalDataSourceImpl implements CategoryLocalDataSource {
       final encoded = jsonEncode(categories.map((c) => c.toJson()).toList());
       await prefs.setString(_categoriesKey, encoded);
     } catch (_) {}
+  }
+
+  @override
+  Future<void> removeCachedCategories(List<String> ids) async {
+    final current = await getCachedCategories();
+    if (current == null) return;
+    final idSet = ids.toSet();
+    final updated = current.where((c) => !idSet.contains(c.id)).toList();
+    await cacheCategories(updated);
   }
 
   @override

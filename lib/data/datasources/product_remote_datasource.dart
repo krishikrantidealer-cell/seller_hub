@@ -15,7 +15,9 @@ abstract class ProductRemoteDataSource {
     required List<String> subCollectionIds,
   });
   Future<Product> createProduct(Map<String, dynamic> productPayload);
+  Future<Product> updateProduct(String productId, Map<String, dynamic> productPayload);
   Future<void> deleteProductPermanently(String productId);
+  Future<void> deleteMultipleProductsPermanently(List<String> productIds);
   Future<Product> updateProductAvailability(String productId, bool available);
   Future<Product> uploadProductImages(
     String productId,
@@ -28,44 +30,6 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
   final ApiClient _apiClient;
 
   ProductRemoteDataSourceImpl(this._apiClient);
-
-  static final Map<String, dynamic> _cachedPublicProductImages = {};
-  static DateTime? _lastPublicImagesFetch;
-
-  Future<void> _ensurePublicProductImagesCached() async {
-    final now = DateTime.now();
-    if (_cachedPublicProductImages.isNotEmpty &&
-        _lastPublicImagesFetch != null &&
-        now.difference(_lastPublicImagesFetch!).inMinutes < 10) {
-      return;
-    }
-    try {
-      final pubResp = await _apiClient.get(
-        ApiEndpoints.products,
-        queryParameters: {'page': 0, 'size': 100},
-        requiresAuth: false,
-      );
-      if (pubResp['data'] != null && pubResp['data']['content'] is List) {
-        final list = pubResp['data']['content'] as List;
-        for (final p in list) {
-          if (p is Map) {
-            final id = p['id']?.toString();
-            final code = p['productCode']?.toString();
-            final imgs = p['productImages'];
-            if (id != null && imgs != null) _cachedPublicProductImages[id] = imgs;
-            if (code != null && imgs != null) _cachedPublicProductImages[code] = imgs;
-            if (p['images'] != null && (p['images'] as List).isNotEmpty) {
-              if (id != null) _cachedPublicProductImages['${id}_images'] = p['images'];
-              if (code != null) _cachedPublicProductImages['${code}_images'] = p['images'];
-            }
-          }
-        }
-        _lastPublicImagesFetch = now;
-      }
-    } catch (_) {
-      // Background enrichment fallback silently ignored
-    }
-  }
 
   @override
   Future<ProductResponseDto> getProducts({
@@ -92,34 +56,10 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
             'page': page,
             'size': size,
           },
-          requiresAuth: true,
+          requiresAuth: false,
         );
       } else {
         rethrow;
-      }
-    }
-
-    // Enrich admin products with signed productImages from public catalog if images list is empty
-    await _ensurePublicProductImagesCached();
-    if (response['data'] != null && response['data']['content'] is List) {
-      final content = response['data']['content'] as List;
-      for (final item in content) {
-        if (item is Map<String, dynamic>) {
-          final id = item['id']?.toString() ?? '';
-          final code = item['productCode']?.toString() ?? '';
-          if (item['productImages'] == null || (item['productImages'] as List).isEmpty) {
-            final cached = _cachedPublicProductImages[id] ?? _cachedPublicProductImages[code];
-            if (cached != null) {
-              item['productImages'] = cached;
-            }
-          }
-          if (item['images'] == null || (item['images'] as List).isEmpty) {
-            final cachedImgs = _cachedPublicProductImages['${id}_images'] ?? _cachedPublicProductImages['${code}_images'];
-            if (cachedImgs != null) {
-              item['images'] = cachedImgs;
-            }
-          }
-        }
       }
     }
 
@@ -194,7 +134,50 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
   }
 
   @override
+  Future<Product> updateProduct(String productId, Map<String, dynamic> productPayload) async {
+    final response = await _apiClient.patch(
+      ApiEndpoints.adminProduct(productId),
+      body: productPayload,
+      requiresAuth: true,
+    );
+
+    final rawData = response['data'] ?? response;
+    if (rawData is Map) {
+      return Product.fromJson(Map<String, dynamic>.from(rawData));
+    }
+
+    throw const ApiException(
+      message: 'Unexpected product update response format from server.',
+    );
+  }
+
+  @override
+  Future<void> deleteMultipleProductsPermanently(List<String> productIds) async {
+    if (productIds.isEmpty) return;
+    try {
+      await _apiClient.delete(
+        ApiEndpoints.adminProductsPermanent,
+        body: {'productIds': productIds},
+        requiresAuth: true,
+      );
+    } on ApiException catch (e) {
+      if (e.statusCode == 404 || e.statusCode == 405) {
+        // Fallback to legacy single-endpoint delete
+        for (final id in productIds) {
+          await _deleteSingleLegacy(id);
+        }
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  @override
   Future<void> deleteProductPermanently(String productId) async {
+    await deleteMultipleProductsPermanently([productId]);
+  }
+
+  Future<void> _deleteSingleLegacy(String productId) async {
     try {
       await _apiClient.delete(
         ApiEndpoints.adminProductPermanent(productId),
@@ -202,7 +185,6 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
       );
     } on ApiException catch (e) {
       if (e.statusCode == 409) {
-        // Backend requires soft-delete before permanently deleting
         await _apiClient.delete(
           ApiEndpoints.adminProduct(productId),
           requiresAuth: true,

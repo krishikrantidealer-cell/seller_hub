@@ -121,6 +121,22 @@ class CategoryRepositoryImpl implements CategoryRepository {
   }
 
   @override
+  Future<List<String>> deleteCategory(String id) async {
+    final deletedIds = await remoteDataSource.deleteCategory(id);
+    await localDataSource?.removeCachedCategories(deletedIds);
+    _syncInBackground();
+    return deletedIds;
+  }
+
+  @override
+  Future<List<String>> deleteCategoriesPermanently(List<String> ids) async {
+    final deletedIds = await remoteDataSource.deleteCategoriesPermanently(ids);
+    await localDataSource?.removeCachedCategories(deletedIds);
+    _syncInBackground();
+    return deletedIds;
+  }
+
+  @override
   Future<CategoryItem> uploadCategoryImage({
     required String categoryId,
     required List<int> fileBytes,

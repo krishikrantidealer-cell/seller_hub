@@ -26,6 +26,8 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
     on<CreateCategory>(_onCreateCategory);
     on<UpdateCategory>(_onUpdateCategory);
     on<DeactivateCategory>(_onDeactivateCategory);
+    on<DeleteCategory>(_onDeleteCategory);
+    on<BulkDeleteCategories>(_onBulkDeleteCategories);
     on<UploadCategoryItemImage>(_onUploadCategoryItemImage);
     on<DeleteCategoryItemImage>(_onDeleteCategoryItemImage);
 
@@ -220,6 +222,48 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
     try {
       await categoryRepository.deactivateCategory(event.id);
       add(const FetchCategories(isRefresh: true));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString().replaceAll('ApiException: ', '')));
+    }
+  }
+
+  Future<void> _onDeleteCategory(
+    DeleteCategory event,
+    Emitter<CategoryState> emit,
+  ) async {
+    try {
+      final deletedIds = await categoryRepository.deleteCategory(event.id);
+      final idSet = deletedIds.toSet();
+      final updatedAll = state.allCategories.where((c) => !idSet.contains(c.id)).toList();
+      final treeData = _buildTreeAndLookups(updatedAll);
+      emit(state.copyWith(
+        status: CategoryStatus.loaded,
+        allCategories: updatedAll,
+        rootCategories: treeData.roots,
+        childrenByParentId: treeData.childrenByParentId,
+        categoryById: treeData.categoryById,
+      ));
+    } catch (e) {
+      emit(state.copyWith(errorMessage: e.toString().replaceAll('ApiException: ', '')));
+    }
+  }
+
+  Future<void> _onBulkDeleteCategories(
+    BulkDeleteCategories event,
+    Emitter<CategoryState> emit,
+  ) async {
+    try {
+      final deletedIds = await categoryRepository.deleteCategoriesPermanently(event.ids);
+      final idSet = deletedIds.toSet();
+      final updatedAll = state.allCategories.where((c) => !idSet.contains(c.id)).toList();
+      final treeData = _buildTreeAndLookups(updatedAll);
+      emit(state.copyWith(
+        status: CategoryStatus.loaded,
+        allCategories: updatedAll,
+        rootCategories: treeData.roots,
+        childrenByParentId: treeData.childrenByParentId,
+        categoryById: treeData.categoryById,
+      ));
     } catch (e) {
       emit(state.copyWith(errorMessage: e.toString().replaceAll('ApiException: ', '')));
     }

@@ -82,6 +82,78 @@ class DeactivateCollection extends CollectionEvent {
   List<Object?> get props => [collectionId];
 }
 
+class ActivateCollection extends CollectionEvent {
+  final String collectionId;
+
+  const ActivateCollection(this.collectionId);
+
+  @override
+  List<Object?> get props => [collectionId];
+}
+
+class DeleteCollectionPermanently extends CollectionEvent {
+  final String collectionId;
+
+  const DeleteCollectionPermanently(this.collectionId);
+
+  @override
+  List<Object?> get props => [collectionId];
+}
+
+class BulkDeleteCollections extends CollectionEvent {
+  final List<String> collectionIds;
+
+  const BulkDeleteCollections(this.collectionIds);
+
+  @override
+  List<Object?> get props => [collectionIds];
+}
+
+class DeleteSubCollection extends CollectionEvent {
+  final String collectionId;
+  final String subCollectionId;
+
+  const DeleteSubCollection({
+    required this.collectionId,
+    required this.subCollectionId,
+  });
+
+  @override
+  List<Object?> get props => [collectionId, subCollectionId];
+}
+
+class BulkDeleteSubCollections extends CollectionEvent {
+  final String collectionId;
+  final List<String> subCollectionIds;
+
+  const BulkDeleteSubCollections({
+    required this.collectionId,
+    required this.subCollectionIds,
+  });
+
+  @override
+  List<Object?> get props => [collectionId, subCollectionIds];
+}
+
+class AddSubCollection extends CollectionEvent {
+  final String collectionId;
+  final String name;
+  final String slug;
+  final String? image;
+  final bool isActive;
+
+  const AddSubCollection({
+    required this.collectionId,
+    required this.name,
+    required this.slug,
+    this.image,
+    this.isActive = true,
+  });
+
+  @override
+  List<Object?> get props => [collectionId, name, slug, image, isActive];
+}
+
 class ResetDeactivateCollectionState extends CollectionEvent {
   const ResetDeactivateCollectionState();
 }

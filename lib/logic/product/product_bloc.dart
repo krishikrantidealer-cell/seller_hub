@@ -26,7 +26,9 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<AssignProductCollections>(_onAssignProductCollections);
     on<FetchAllCatalogProducts>(_onFetchAllCatalogProducts);
     on<CreateProduct>(_onCreateProduct);
+    on<UpdateProduct>(_onUpdateProduct);
     on<DeleteProductPermanently>(_onDeleteProductPermanently);
+    on<DeleteMultipleProductsPermanently>(_onDeleteMultipleProductsPermanently);
     on<ToggleProductAvailability>(_onToggleProductAvailability);
     on<UploadProductImages>(_onUploadProductImages);
 
@@ -427,15 +429,141 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
+  Future<void> _onUpdateProduct(
+    UpdateProduct event,
+    Emitter<ProductState> emit,
+  ) async {
+    final previousState = state;
+    final Product? previousProduct = state.products.cast<Product?>().firstWhere(
+      (p) => (p?.id.isNotEmpty == true && p!.id == event.product.id) ||
+             (p?.productCode.isNotEmpty == true && p!.productCode == event.product.productCode),
+      orElse: () => null,
+    );
+
+    // 1. Optimistic update in-memory and local database cache (0ms instant UI responsiveness)
+    final updatedList = List<Product>.from(state.products);
+    final index = updatedList.indexWhere((p) =>
+        (p.id.isNotEmpty && p.id == event.product.id) ||
+        (p.productCode.isNotEmpty && p.productCode == event.product.productCode) ||
+        (p.sku.isNotEmpty && p.sku == event.product.sku));
+
+    if (index != -1) {
+      updatedList[index] = event.product;
+    } else {
+      updatedList.insert(0, event.product);
+    }
+
+    final updatedPageData = ProductPageData(
+      content: updatedList,
+      page: state.pageData.page,
+      size: state.pageData.size,
+      totalElements: state.pageData.totalElements,
+      totalPages: state.pageData.totalPages,
+      first: state.pageData.first,
+      last: state.pageData.last,
+      count: updatedList.length,
+    );
+
+    await productRepository.updateLocalProduct(event.product);
+
+    List<Product>? updatedAll;
+    if (state.allCatalogProducts.isNotEmpty) {
+      final allList = List<Product>.from(state.allCatalogProducts);
+      final aIdx = allList.indexWhere((p) =>
+          (p.id.isNotEmpty && p.id == event.product.id) ||
+          (p.productCode.isNotEmpty && p.productCode == event.product.productCode) ||
+          (p.sku.isNotEmpty && p.sku == event.product.sku));
+      if (aIdx != -1) {
+        allList[aIdx] = event.product;
+      } else {
+        allList.insert(0, event.product);
+      }
+      updatedAll = allList;
+    }
+
+    emit(state.copyWith(
+      status: ProductStatus.loaded,
+      pageData: updatedPageData,
+      allCatalogProducts: updatedAll ?? state.allCatalogProducts,
+    ));
+
+    // 2. Persist to backend database via PATCH /api/v1/admin/products/{productId}
+    if (event.product.id.isNotEmpty) {
+      try {
+        final serverUpdated = await productRepository.updateProduct(event.product);
+
+        final finalList = List<Product>.from(state.products);
+        final fIdx = finalList.indexWhere((p) =>
+            (p.id.isNotEmpty && p.id == serverUpdated.id) ||
+            (p.productCode.isNotEmpty && p.productCode == serverUpdated.productCode) ||
+            (p.sku.isNotEmpty && p.sku == serverUpdated.sku));
+        if (fIdx != -1) {
+          finalList[fIdx] = serverUpdated;
+        } else {
+          finalList.insert(0, serverUpdated);
+        }
+
+        final finalPageData = ProductPageData(
+          content: finalList,
+          page: state.pageData.page,
+          size: state.pageData.size,
+          totalElements: state.pageData.totalElements,
+          totalPages: state.pageData.totalPages,
+          first: state.pageData.first,
+          last: state.pageData.last,
+          count: finalList.length,
+        );
+
+        List<Product>? finalAll;
+        if (state.allCatalogProducts.isNotEmpty) {
+          final allList = List<Product>.from(state.allCatalogProducts);
+          final aIdx = allList.indexWhere((p) =>
+              (p.id.isNotEmpty && p.id == serverUpdated.id) ||
+              (p.productCode.isNotEmpty && p.productCode == serverUpdated.productCode) ||
+              (p.sku.isNotEmpty && p.sku == serverUpdated.sku));
+          if (aIdx != -1) {
+            allList[aIdx] = serverUpdated;
+          } else {
+            allList.insert(0, serverUpdated);
+          }
+          finalAll = allList;
+        }
+
+        _webSocketService.broadcastProductChange(serverUpdated);
+
+        emit(state.copyWith(
+          status: ProductStatus.loaded,
+          pageData: finalPageData,
+          allCatalogProducts: finalAll ?? state.allCatalogProducts,
+          errorMessage: null,
+        ));
+
+        event.onSuccess?.call(serverUpdated);
+      } catch (e) {
+        // Rollback local cache and state on server failure
+        if (previousProduct != null) {
+          await productRepository.updateLocalProduct(previousProduct);
+        }
+        final message = e is ApiException ? e.message : 'Failed to update product: $e';
+        emit(previousState.copyWith(
+          errorMessage: message,
+        ));
+        event.onError?.call(message);
+      }
+    } else {
+      event.onSuccess?.call(event.product);
+    }
+  }
+
   Future<void> _onDeleteProductPermanently(
     DeleteProductPermanently event,
     Emitter<ProductState> emit,
   ) async {
     final previousState = state;
     bool matches(Product p) =>
-        (p.id.isNotEmpty && p.id == event.productId) ||
-        p.productCode == event.productId ||
-        p.sku == event.productId;
+        (p.id.isNotEmpty && (p.id == event.productId || p.id == event.productCode || p.id == event.sku)) ||
+        (p.productCode.isNotEmpty && (p.productCode == event.productId || p.productCode == event.productCode || p.productCode == event.sku)) ||
+        (p.sku.isNotEmpty && (p.sku == event.productId || p.sku == event.productCode || p.sku == event.sku));
 
     final currentList = List<Product>.from(state.pageData.content)..removeWhere(matches);
     final currentAll = List<Product>.from(state.allCatalogProducts)..removeWhere(matches);
@@ -478,50 +606,134 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     }
   }
 
+  Future<void> _onDeleteMultipleProductsPermanently(
+    DeleteMultipleProductsPermanently event,
+    Emitter<ProductState> emit,
+  ) async {
+    final targetSet = event.productIds.toSet();
+
+    bool matches(Product p) =>
+        (p.id.isNotEmpty && targetSet.contains(p.id)) ||
+        (p.productCode.isNotEmpty && targetSet.contains(p.productCode)) ||
+        (p.sku.isNotEmpty && targetSet.contains(p.sku));
+
+    final currentList = List<Product>.from(state.pageData.content)..removeWhere(matches);
+    final currentAll = List<Product>.from(state.allCatalogProducts)..removeWhere(matches);
+
+    final removedCount = state.pageData.content.length - currentList.length;
+    final newTotal = state.pageData.totalElements > 0
+        ? (state.pageData.totalElements - removedCount).clamp(0, 999999)
+        : currentList.length;
+    final safePageSize = state.pageData.size > 0 ? state.pageData.size : 20;
+
+    final updatedPageData = ProductPageData(
+      content: currentList,
+      page: state.pageData.page,
+      size: state.pageData.size,
+      totalElements: newTotal,
+      totalPages: (newTotal / safePageSize).ceil().clamp(1, 999999),
+      first: state.pageData.first,
+      last: state.pageData.last,
+      count: currentList.length,
+    );
+
+    // 1. Optimistic instant emission (0ms) so product table and SKU counts update immediately
+    emit(state.copyWith(
+      status: ProductStatus.loaded,
+      pageData: updatedPageData,
+      allCatalogProducts: currentAll,
+      errorMessage: null,
+    ));
+
+    event.onSuccess?.call(targetSet.length);
+
+    // 2. Perform atomic deletion in background via unified endpoint
+    try {
+      await productRepository.deleteMultipleProductsPermanently(event.productIds);
+    } catch (e) {
+      final message = e is ApiException ? e.message : 'Failed to delete products: $e';
+      emit(state.copyWith(
+        errorMessage: message,
+      ));
+      event.onError?.call(message);
+    }
+  }
+
   Future<void> _onToggleProductAvailability(
     ToggleProductAvailability event,
     Emitter<ProductState> emit,
   ) async {
+    final previousState = state;
+
+    // 1. Optimistic immediate toggle (0ms)
+    final currentList = List<Product>.from(state.pageData.content);
+    final idx = currentList.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
+    if (idx != -1) {
+      currentList[idx] = currentList[idx].copyWith(isAvailable: event.isAvailable);
+    }
+
+    final currentAll = List<Product>.from(state.allCatalogProducts);
+    final allIdx = currentAll.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
+    if (allIdx != -1) {
+      currentAll[allIdx] = currentAll[allIdx].copyWith(isAvailable: event.isAvailable);
+    }
+
+    final optimisticPageData = ProductPageData(
+      content: currentList,
+      page: state.pageData.page,
+      size: state.pageData.size,
+      totalElements: state.pageData.totalElements,
+      totalPages: state.pageData.totalPages,
+      first: state.pageData.first,
+      last: state.pageData.last,
+      count: currentList.length,
+    );
+
+    emit(state.copyWith(
+      pageData: optimisticPageData,
+      allCatalogProducts: currentAll,
+    ));
+
     try {
       final updated = await productRepository.updateProductAvailability(
         productId: event.productId,
         isAvailable: event.isAvailable,
       );
 
-      final currentList = List<Product>.from(state.pageData.content);
-      final idx = currentList.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
-      if (idx != -1) {
-        currentList[idx] = updated;
+      final confirmedList = List<Product>.from(state.pageData.content);
+      final cIdx = confirmedList.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
+      if (cIdx != -1) {
+        confirmedList[cIdx] = updated;
       }
 
-      final currentAll = List<Product>.from(state.allCatalogProducts);
-      final allIdx = currentAll.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
-      if (allIdx != -1) {
-        currentAll[allIdx] = updated;
+      final confirmedAll = List<Product>.from(state.allCatalogProducts);
+      final caIdx = confirmedAll.indexWhere((p) => p.id == event.productId || p.productCode == event.productId);
+      if (caIdx != -1) {
+        confirmedAll[caIdx] = updated;
       }
 
-      final updatedPageData = ProductPageData(
-        content: currentList,
+      final confirmedPageData = ProductPageData(
+        content: confirmedList,
         page: state.pageData.page,
         size: state.pageData.size,
         totalElements: state.pageData.totalElements,
         totalPages: state.pageData.totalPages,
         first: state.pageData.first,
         last: state.pageData.last,
-        count: currentList.length,
+        count: confirmedList.length,
       );
 
       emit(state.copyWith(
         status: ProductStatus.loaded,
-        pageData: updatedPageData,
-        allCatalogProducts: currentAll,
+        pageData: confirmedPageData,
+        allCatalogProducts: confirmedAll,
         errorMessage: null,
       ));
 
       event.onSuccess?.call(updated);
     } catch (e) {
       final message = e is ApiException ? e.message : 'Failed to update availability: $e';
-      emit(state.copyWith(errorMessage: message));
+      emit(previousState.copyWith(errorMessage: message));
       event.onError?.call(message);
     }
   }

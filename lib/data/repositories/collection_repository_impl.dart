@@ -72,4 +72,108 @@ class CollectionRepositoryImpl implements CollectionRepository {
     await localDataSource?.updateCachedCollection(deactivatedItem);
     return deactivatedItem;
   }
+
+  @override
+  Future<CollectionItem> activateCollection(String id) async {
+    final activatedItem = await remoteDataSource.activateCollection(id);
+    await localDataSource?.updateCachedCollection(activatedItem);
+    return activatedItem;
+  }
+
+  @override
+  Future<void> deleteCollectionPermanently(String id) async {
+    await remoteDataSource.deleteCollectionPermanently(id);
+    await localDataSource?.removeCachedCollection(id);
+  }
+
+  @override
+  Future<List<String>> deleteCollectionsPermanently(List<String> ids) async {
+    final deleted = await remoteDataSource.deleteCollectionsPermanently(ids);
+    for (final id in deleted) {
+      await localDataSource?.removeCachedCollection(id);
+    }
+    return deleted;
+  }
+
+  @override
+  Future<CollectionItem> addSubCollection({
+    required String collectionId,
+    required String name,
+    required String slug,
+    String? image,
+    bool isActive = true,
+  }) async {
+    final updatedCollection = await remoteDataSource.addSubCollection(
+      collectionId: collectionId,
+      name: name,
+      slug: slug,
+      image: image,
+      isActive: isActive,
+    );
+    await updateLocalCollection(updatedCollection);
+    return updatedCollection;
+  }
+
+  @override
+  Future<List<String>> deleteSubCollection({
+    required String collectionId,
+    required String subCollectionId,
+  }) async {
+    final deletedIds = await remoteDataSource.deleteSubCollection(
+      collectionId: collectionId,
+      subCollectionId: subCollectionId,
+    );
+    // Refresh cached collection if present
+    final cached = await localDataSource?.getCachedCollections();
+    if (cached != null) {
+      final items = List<CollectionItem>.from(cached.items);
+      final idx = items.indexWhere((c) => c.id == collectionId);
+      if (idx != -1) {
+        final col = items[idx];
+        final updatedSubs = col.subCollections
+            .where((s) => !deletedIds.contains(s.id))
+            .toList();
+        items[idx] = col.copyWith(
+          subCollections: updatedSubs,
+          subCollectionCount: updatedSubs.length,
+        );
+        await localDataSource?.cacheCollections(CollectionsData(
+          count: items.length,
+          items: items,
+        ));
+      }
+    }
+    return deletedIds;
+  }
+
+  @override
+  Future<List<String>> deleteSubCollectionsBulk({
+    required String collectionId,
+    required List<String> subCollectionIds,
+  }) async {
+    final deletedIds = await remoteDataSource.deleteSubCollectionsBulk(
+      collectionId: collectionId,
+      subCollectionIds: subCollectionIds,
+    );
+    final cached = await localDataSource?.getCachedCollections();
+    if (cached != null) {
+      final items = List<CollectionItem>.from(cached.items);
+      final idx = items.indexWhere((c) => c.id == collectionId);
+      if (idx != -1) {
+        final col = items[idx];
+        final updatedSubs = col.subCollections
+            .where((s) => !deletedIds.contains(s.id))
+            .toList();
+        items[idx] = col.copyWith(
+          subCollections: updatedSubs,
+          subCollectionCount: updatedSubs.length,
+        );
+        await localDataSource?.cacheCollections(CollectionsData(
+          count: items.length,
+          items: items,
+        ));
+      }
+    }
+    return deletedIds;
+  }
 }

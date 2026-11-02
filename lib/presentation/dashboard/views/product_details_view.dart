@@ -1,6 +1,7 @@
-import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/admin_user.dart';
@@ -10,10 +11,12 @@ import '../../../core/models/product.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
 import '../../../logic/category/category_bloc.dart';
 import '../../../logic/collection/collection_bloc.dart';
+import '../../../logic/collection/collection_event.dart';
 import '../../../logic/product/product_bloc.dart';
 import '../../../logic/product/product_event.dart';
 import '../widgets/app_product_image.dart';
 import '../widgets/app_html_view.dart';
+import '../widgets/app_html_editor.dart';
 import '../widgets/assign_collections_dialog.dart';
 
 class ProductImageUploadItem {
@@ -68,6 +71,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late TextEditingController _targetDiseasesController;
   late TextEditingController _dosageController;
   late TextEditingController _appMethodController;
+  late TextEditingController _variantSkuController;
   late TextEditingController _variantController;
   late TextEditingController _packSizeController;
   late TextEditingController _unitController;
@@ -89,8 +93,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   String _selectedSellerName = '';
   String _selectedCategoryId = '';
   String _selectedCategoryName = '';
-  String _selectedCollectionId = '';
-  String _selectedCollectionName = '';
+  List<String> _selectedCollectionIds = [];
+  List<String> _selectedCollectionNames = [];
   String _selectedSubCollectionId = '';
   String _selectedSubCollectionName = '';
 
@@ -102,6 +106,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
   int _selectedVariantIndex = 0;
   List<ProductVariant> _workingVariants = [];
+  final ScrollController _variantScrollController = ScrollController();
+  bool _isSaving = false;
+  DateTime? _lastSaveClickTime;
+  bool _pointerDownOnSave = false;
 
   @override
   void initState() {
@@ -109,6 +117,17 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _currentProduct = widget.product;
     _isEditing = widget.startInEditMode || widget.isCreateMode;
     _initControllers(_currentProduct);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          final colState = context.read<CollectionBloc>().state;
+          if (colState.collections.isEmpty) {
+            context.read<CollectionBloc>().add(const FetchCollections());
+          }
+        } catch (_) {}
+      }
+    });
   }
 
   void _initControllers(Product p) {
@@ -155,6 +174,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _targetDiseasesController = TextEditingController();
       _dosageController = TextEditingController();
       _appMethodController = TextEditingController();
+      _variantSkuController = TextEditingController();
       _variantController = TextEditingController(text: 'Pack 1');
       _packSizeController = TextEditingController();
       _unitController = TextEditingController(text: 'ml');
@@ -163,10 +183,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _printedMrpController = TextEditingController();
       _costPriceController = TextEditingController();
       _gstController = TextEditingController(text: '5');
-      _shippedByController = TextEditingController();
+      _shippedByController = TextEditingController(text: 'essentialbiocropscience');
       _swgController = TextEditingController();
       _stockController = TextEditingController();
-      _ratingsController = TextEditingController();
+      _ratingsController = TextEditingController(text: '4.8');
       _refundPolicyController = TextEditingController();
       _weightController = TextEditingController();
       _weightUnitController = TextEditingController(text: 'g');
@@ -176,9 +196,20 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
       _selectedCategoryId = p.categoryId;
       _selectedCategoryName = p.category;
-      _selectedCollectionId = '';
-      _selectedCollectionName = p.collections;
-      _selectedSubCollectionId = '';
+      _selectedCollectionIds = List<String>.from(p.collectionIds);
+      if (p.collections.isNotEmpty) {
+        _selectedCollectionNames = p.collections
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      } else {
+        _selectedCollectionNames = [];
+      }
+      if (_selectedCollectionIds.isEmpty && p.assignedCollections.isNotEmpty) {
+        _selectedCollectionIds = List<String>.from(p.assignedCollections);
+      }
+      _selectedSubCollectionId = p.subCollectionIds.isNotEmpty ? p.subCollectionIds.first : '';
       _selectedSubCollectionName = p.subCollections;
 
       _editIsAvailable = true;
@@ -208,6 +239,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _targetDiseasesController = TextEditingController(text: p.targetDiseases);
     _dosageController = TextEditingController(text: p.dosage);
     _appMethodController = TextEditingController(text: p.applicationMethod);
+    _variantSkuController = TextEditingController(text: initialVar?.sku ?? '');
     _variantController = TextEditingController(text: initialVar?.label ?? p.variant);
     _packSizeController = TextEditingController(text: (initialVar != null ? initialVar.packSize : (int.tryParse(p.packSize) ?? 1)).toString());
     _unitController = TextEditingController(text: initialVar?.unit ?? p.unit);
@@ -216,10 +248,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _printedMrpController = TextEditingController(text: (initialVar?.printedMrp ?? p.printedMrp).toStringAsFixed(2));
     _costPriceController = TextEditingController(text: (initialVar?.costPrice ?? p.costPrice).toStringAsFixed(2));
     _gstController = TextEditingController(text: (initialVar?.gstPercentage ?? p.gst).toStringAsFixed(0));
-    _shippedByController = TextEditingController(text: initialVar?.shippedBy ?? p.shippedBy);
+    _shippedByController = TextEditingController(
+      text: (initialVar?.shippedBy == 'essentialbiocropscience')
+          ? initialVar!.shippedBy
+          : 'essentialbiocropscience',
+    );
     _swgController = TextEditingController(text: p.swg);
     _stockController = TextEditingController(text: (initialVar?.stock ?? p.stock).toString());
-    _ratingsController = TextEditingController(text: p.ratings.toStringAsFixed(1));
+    _ratingsController = TextEditingController(text: (p.ratings > 0 ? p.ratings : 4.8).toStringAsFixed(1));
     _refundPolicyController = TextEditingController(text: p.refundPolicy);
     _weightController = TextEditingController(text: p.productWeight.toStringAsFixed(2));
     _weightUnitController = TextEditingController(text: p.productWeightUnit);
@@ -229,9 +265,20 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
     _selectedCategoryId = p.categoryId;
     _selectedCategoryName = p.category;
-    _selectedCollectionId = p.assignedCollections.isNotEmpty ? p.assignedCollections.first : '';
-    _selectedCollectionName = p.collections;
-    _selectedSubCollectionId = p.assignedCollections.length > 1 ? p.assignedCollections[1] : '';
+    _selectedCollectionIds = List<String>.from(p.collectionIds);
+    if (p.collections.isNotEmpty) {
+      _selectedCollectionNames = p.collections
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    } else {
+      _selectedCollectionNames = [];
+    }
+    if (_selectedCollectionIds.isEmpty && p.assignedCollections.isNotEmpty) {
+      _selectedCollectionIds = List<String>.from(p.assignedCollections);
+    }
+    _selectedSubCollectionId = p.subCollectionIds.isNotEmpty ? p.subCollectionIds.first : '';
     _selectedSubCollectionName = p.subCollections;
 
     _editIsAvailable = p.isAvailable;
@@ -258,6 +305,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final pricePerBase = totalBase > 0 ? (disp / totalBase) : 0.0;
 
     _workingVariants[_selectedVariantIndex] = cur.copyWith(
+      sku: _variantSkuController.text.trim().isNotEmpty ? _variantSkuController.text.trim() : cur.sku,
       label: _variantController.text.trim(),
       packSize: ps,
       unit: unit,
@@ -273,6 +321,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       discountPercentage: discPct,
       stock: st,
       gstPercentage: double.tryParse(_gstController.text.trim()) ?? cur.gstPercentage,
+      swg: double.tryParse(_swgController.text.trim()) ?? cur.swg,
+      dimensions: _dimensionsController.text.trim().isNotEmpty
+          ? ProductDimensions.fromJson(_dimensionsController.text.trim())
+          : cur.dimensions,
       shippedBy: _shippedByController.text.trim(),
     );
   }
@@ -282,24 +334,38 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     setState(() {});
   }
 
-  void _selectVariant(int index) {
+  void _selectVariant(int index, {bool syncCurrent = true}) {
     if (index < 0 || index >= _workingVariants.length) return;
-    if (_isEditing) {
+    if (_isEditing && syncCurrent) {
       _syncCurrentVariantFromControllers();
     }
     setState(() {
       _selectedVariantIndex = index;
       final v = _workingVariants[index];
+      _variantSkuController.text = v.sku;
       _variantController.text = v.label;
-      _packSizeController.text = v.packSize.toString();
+      _packSizeController.text = v.packSize > 0 ? v.packSize.toString() : '';
       _unitController.text = v.unit;
-      _packQuantityController.text = v.packQuantity.toString();
-      _displayRateController.text = v.displayRate.toStringAsFixed(2);
-      _printedMrpController.text = v.printedMrp.toStringAsFixed(2);
-      _costPriceController.text = v.costPrice.toStringAsFixed(2);
+      _packQuantityController.text = v.packQuantity > 0 ? v.packQuantity.toString() : '1';
+      _displayRateController.text = v.displayRate > 0 ? v.displayRate.toStringAsFixed(2) : '';
+      _printedMrpController.text = v.printedMrp > 0 ? v.printedMrp.toStringAsFixed(2) : '';
+      _costPriceController.text = v.costPrice > 0 ? v.costPrice.toStringAsFixed(2) : '';
       _stockController.text = v.stock.toString();
-      _shippedByController.text = v.shippedBy;
+      _shippedByController.text = (v.shippedBy.isNotEmpty)
+          ? v.shippedBy
+          : 'essentialbiocropscience';
       _gstController.text = v.gstPercentage.toStringAsFixed(0);
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_variantScrollController.hasClients) {
+        final target = (index * 140.0 - 60.0).clamp(0.0, _variantScrollController.position.maxScrollExtent);
+        _variantScrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+        );
+      }
     });
   }
 
@@ -310,8 +376,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     setState(() {
       final newIndex = _workingVariants.length + 1;
       final unit = _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : 'ml';
+      final baseSku = (_currentProduct.sku.isNotEmpty ? _currentProduct.sku : 'PROD')
+          .replaceAll(RegExp(r'\s*-\s*'), '-')
+          .trim();
+      final autoSku = '$baseSku-${newIndex.toString().padLeft(2, '0')}';
       final newVariant = ProductVariant(
         id: 'var_${DateTime.now().millisecondsSinceEpoch}',
+        sku: autoSku,
         displayOrder: newIndex,
         isDefault: _workingVariants.isEmpty,
         label: 'Pack $newIndex (${_packSizeController.text.trim()}$unit x 1)',
@@ -322,7 +393,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         packUnit: 'pack',
         shippedBy: _shippedByController.text.trim().isNotEmpty
             ? _shippedByController.text.trim()
-            : (_vendorController.text.trim().isNotEmpty ? _vendorController.text.trim() : 'Seller Standard'),
+            : 'essentialbiocropscience',
         totalBaseQuantity: int.tryParse(_packSizeController.text.trim()) ?? 1,
         totalBaseUnit: unit,
         displayRate: double.tryParse(_displayRateController.text.trim()) ?? 500.0,
@@ -344,8 +415,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     setState(() {
       final source = _workingVariants[index];
       final newIndex = _workingVariants.length + 1;
+      final baseSku = (_currentProduct.sku.isNotEmpty ? _currentProduct.sku : 'PROD')
+          .replaceAll(RegExp(r'\s*-\s*'), '-')
+          .trim();
+      final autoSku = '$baseSku-${newIndex.toString().padLeft(2, '0')}';
       final duplicate = source.copyWith(
         id: 'var_${DateTime.now().millisecondsSinceEpoch}',
+        sku: autoSku,
         displayOrder: newIndex,
         isDefault: false,
         label: '${source.label} (Copy)',
@@ -376,7 +452,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         _workingVariants[0] = _workingVariants[0].copyWith(isDefault: true);
       }
       final newIdx = (index >= _workingVariants.length) ? _workingVariants.length - 1 : index;
-      _selectVariant(newIdx);
+      _selectedVariantIndex = newIdx;
+      _selectVariant(newIdx, syncCurrent: false);
     });
   }
 
@@ -409,6 +486,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _targetDiseasesController.dispose();
     _dosageController.dispose();
     _appMethodController.dispose();
+    _variantSkuController.dispose();
     _variantController.dispose();
     _packSizeController.dispose();
     _unitController.dispose();
@@ -425,6 +503,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _weightController.dispose();
     _weightUnitController.dispose();
     _dimensionsController.dispose();
+    _variantScrollController.dispose();
     super.dispose();
   }
 
@@ -474,6 +553,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   */
 
   void _saveChanges() {
+    final now = DateTime.now();
+    if (_lastSaveClickTime != null && now.difference(_lastSaveClickTime!) < const Duration(milliseconds: 500)) {
+      return;
+    }
+    _lastSaveClickTime = now;
+
     final title = _titleController.text.trim();
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -517,6 +602,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       return;
     }
 
+    setState(() => _isSaving = true);
+
     if (_isEditing) {
       _syncCurrentVariantFromControllers();
     }
@@ -528,12 +615,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final discountPct = printedMrp > 0 ? (discountRs / printedMrp * 100) : 0.0;
     final stock = int.tryParse(_stockController.text) ?? _currentProduct.stock;
     final gst = double.tryParse(_gstController.text) ?? _currentProduct.gst;
-    final ratings = double.tryParse(_ratingsController.text) ?? _currentProduct.ratings;
+    final rawRating = double.tryParse(_ratingsController.text.trim()) ?? 4.8;
+    final ratings = rawRating.clamp(0.0, 5.0);
     final weight = double.tryParse(_weightController.text) ?? _currentProduct.productWeight;
 
     final assignedCols = <String>[
-      if (_selectedCollectionId.isNotEmpty) _selectedCollectionId,
-      if (_selectedSubCollectionId.isNotEmpty) _selectedSubCollectionId,
+      ..._selectedCollectionIds,
+      if (_selectedSubCollectionId.isNotEmpty && !_selectedCollectionIds.contains(_selectedSubCollectionId))
+        _selectedSubCollectionId,
     ];
 
     final updatedProduct = _currentProduct.copyWith(
@@ -546,8 +635,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       sellerName: _selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text.trim(),
       categoryId: _selectedCategoryId.isNotEmpty ? _selectedCategoryId : _currentProduct.categoryId,
       category: _selectedCategoryName.isNotEmpty ? _selectedCategoryName : _categoryController.text.trim(),
-      collections: _selectedCollectionName.isNotEmpty ? _selectedCollectionName : _collectionsController.text.trim(),
+      collections: _selectedCollectionNames.isNotEmpty ? _selectedCollectionNames.join(', ') : _collectionsController.text.trim(),
+      collectionIds: _selectedCollectionIds,
       subCollections: _selectedSubCollectionName.isNotEmpty ? _selectedSubCollectionName : _subCollectionsController.text.trim(),
+      subCollectionIds: _selectedSubCollectionId.isNotEmpty ? [_selectedSubCollectionId] : [],
       assignedCollections: assignedCols.isNotEmpty ? assignedCols : _currentProduct.assignedCollections,
       description: _descriptionController.text.trim(),
       technicalContent: _techContentController.text.trim(),
@@ -584,6 +675,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
     if (widget.isCreateMode) {
       widget.onProductCreated?.call(updatedProduct, _pendingImages);
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted && _isSaving) {
+          setState(() => _isSaving = false);
+        }
+      });
       return;
     }
 
@@ -603,6 +699,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     setState(() {
       _currentProduct = updatedProduct;
       _isEditing = false;
+      _isSaving = false;
     });
 
     widget.onProductUpdated?.call(updatedProduct);
@@ -774,18 +871,40 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: _saveChanges,
-                    icon: const Icon(Icons.check_circle_rounded, size: 16),
-                    label: Text(
-                      widget.isCreateMode ? 'Save & Publish Product' : 'Save Changes',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w800),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: (_) {
+                      _pointerDownOnSave = true;
+                      FocusManager.instance.primaryFocus?.unfocus();
+                    },
+                    onPointerCancel: (_) => _pointerDownOnSave = false,
+                    onPointerUp: (_) {
+                      if (_pointerDownOnSave && !_isSaving) {
+                        _pointerDownOnSave = false;
+                        _saveChanges();
+                      }
+                    },
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _saveChanges,
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.check_circle_rounded, size: 16),
+                      label: Text(
+                        _isSaving
+                            ? 'Saving...'
+                            : (widget.isCreateMode ? 'Save & Publish Product' : 'Save Changes'),
+                        style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w800),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
                     ),
                   ),
                 ] else ...[
@@ -872,12 +991,27 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
           const SizedBox(height: 18),
 
-          // Main Responsive Grid Layout
+          // Main Responsive Grid Layout (Industry Standard E-Commerce Structure)
           if (isWide)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Left Column: Media, Commercials & Logistics (380px)
+                // Left Column: Identity, Narrative/Documentation & Multi-Variants (Main Workspace)
+                Expanded(
+                  flex: 65,
+                  child: Column(
+                    children: [
+                      _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+                      const SizedBox(height: 18),
+                      _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+                      const SizedBox(height: 18),
+                      _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 20),
+
+                // Right Column: Media Gallery, Commercial Pricing & Logistics Sidebar (380px)
                 SizedBox(
                   width: 380,
                   child: Column(
@@ -890,22 +1024,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 20),
-
-                // Right Column: Identity, Agronomy & Narrative (Flexible)
-                Expanded(
-                  child: Column(
-                    children: [
-                      _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                      const SizedBox(height: 18),
-                      _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                      const SizedBox(height: 18),
-                      _buildAgronomyCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                      const SizedBox(height: 18),
-                      _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                    ],
-                  ),
-                ),
               ],
             )
           else
@@ -914,17 +1032,15 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               children: [
                 _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
                 const SizedBox(height: 16),
-                _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+                _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
                 const SizedBox(height: 16),
                 _buildImageAndMediaCard(p, isDark, surfaceColor, borderColor, cardBgColor),
                 const SizedBox(height: 16),
+                _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+                const SizedBox(height: 16),
                 _buildPricingCard(p, isDark, surfaceColor, borderColor, cardBgColor, grossProfit, marginPct),
                 const SizedBox(height: 16),
-                _buildAgronomyCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                const SizedBox(height: 16),
                 _buildLogisticsAndPackagingCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                const SizedBox(height: 16),
-                _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
               ],
             ),
         ],
@@ -987,12 +1103,20 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               borderColor: borderColor,
             ),
             const SizedBox(height: 12),
+            _buildField(
+              controller: _techContentController,
+              label: 'Chemical Composition & Technical Content',
+              hint: 'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
+              isDark: isDark,
+              borderColor: borderColor,
+            ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: _buildField(
                     controller: _productCodeController,
-                    label: 'Product Code (SKU) *',
+                    label: 'Product Code *',
                     hint: 'e.g. AGRI-INS-001',
                     isDark: isDark,
                     borderColor: borderColor,
@@ -1131,48 +1255,105 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                             colBloc = ctx.watch<CollectionBloc>();
                           } catch (_) {}
                           final collections = colBloc?.state.collections ?? <CollectionItem>[];
-                          final currentSelected = collections.where((c) => c.id == _selectedCollectionId || c.name == _selectedCollectionName).firstOrNull;
-                          final displayText = currentSelected != null
-                              ? currentSelected.name
-                              : (_selectedCollectionName.isNotEmpty ? _selectedCollectionName : _collectionsController.text);
+                          final currentSelectedList = collections.where((c) =>
+                              _selectedCollectionIds.contains(c.id) ||
+                              _selectedCollectionNames.contains(c.name)).toList();
+                          final displayText = currentSelectedList.isNotEmpty
+                              ? currentSelectedList.map((c) => c.name).join(', ')
+                              : (_selectedCollectionNames.isNotEmpty
+                                  ? _selectedCollectionNames.join(', ')
+                                  : _collectionsController.text);
 
-                          return _buildSearchableSelectField<CollectionItem>(
-                            label: 'Collection',
-                            displayText: displayText,
-                            placeholder: '-- Select Collection (Optional) --',
-                            prefixIcon: Icons.collections_bookmark_rounded,
-                            hasValue: _selectedCollectionId.isNotEmpty || _collectionsController.text.isNotEmpty,
-                            isDark: isDark,
-                            borderColor: borderColor,
-                            onTap: () async {
-                              final picked = await _showSearchablePicker<CollectionItem>(
-                                context: context,
-                                title: 'Select Collection',
-                                titleIcon: Icons.collections_bookmark_rounded,
-                                searchHint: 'Search collections by name...',
-                                items: collections,
-                                selectedItem: currentSelected,
-                                labelBuilder: (c) => c.name,
-                                subtitleBuilder: (c) => '${c.subCollections.length} sub-collections',
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSearchableSelectField<CollectionItem>(
+                                label: 'Collections (Multiple)',
+                                displayText: displayText,
+                                placeholder: '-- Select Collections (Optional) --',
+                                prefixIcon: Icons.collections_bookmark_rounded,
+                                hasValue: _selectedCollectionIds.isNotEmpty || _selectedCollectionNames.isNotEmpty || _collectionsController.text.isNotEmpty,
                                 isDark: isDark,
-                              );
-                              if (picked != null) {
-                                setState(() {
-                                  _selectedCollectionId = picked.id;
-                                  _selectedCollectionName = picked.name;
-                                  _collectionsController.text = picked.name;
-                                  _selectedSubCollectionId = '';
-                                  _selectedSubCollectionName = '';
-                                  _subCollectionsController.text = '';
-                                });
-                              }
-                            },
+                                borderColor: borderColor,
+                                onTap: () async {
+                                  final pickedList = await _showMultiSearchablePicker<CollectionItem>(
+                                    context: context,
+                                    title: 'Select Collections',
+                                    titleIcon: Icons.collections_bookmark_rounded,
+                                    searchHint: 'Search collections by name...',
+                                    items: collections,
+                                    selectedItems: currentSelectedList,
+                                    labelBuilder: (c) => c.name,
+                                    subtitleBuilder: (c) => '${c.subCollections.length} sub-collections',
+                                    isDark: isDark,
+                                  );
+                                  if (pickedList != null) {
+                                    setState(() {
+                                      _selectedCollectionIds = pickedList.map((c) => c.id).toList();
+                                      _selectedCollectionNames = pickedList.map((c) => c.name).toList();
+                                      _collectionsController.text = _selectedCollectionNames.join(', ');
+                                      // If previously selected subcollection no longer belongs to any selected collection, clear it
+                                      final allSubIds = pickedList.expand((c) => c.subCollections.map((s) => s.id)).toSet();
+                                      if (_selectedSubCollectionId.isNotEmpty && !allSubIds.contains(_selectedSubCollectionId)) {
+                                        _selectedSubCollectionId = '';
+                                        _selectedSubCollectionName = '';
+                                        _subCollectionsController.text = '';
+                                      }
+                                    });
+                                  }
+                                },
+                              ),
+                              if (_selectedCollectionNames.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: _selectedCollectionNames.map((colName) {
+                                    final colItem = collections.where((c) => c.name == colName).firstOrNull;
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF059669).withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            colName,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(0xFF059669),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          InkWell(
+                                            onTap: () {
+                                              setState(() {
+                                                _selectedCollectionNames.remove(colName);
+                                                if (colItem != null) {
+                                                  _selectedCollectionIds.remove(colItem.id);
+                                                }
+                                                _collectionsController.text = _selectedCollectionNames.join(', ');
+                                              });
+                                            },
+                                            child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFF059669)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ],
                           );
                         })
                       : _buildField(
                           controller: _collectionsController,
-                          label: 'Collection',
-                          hint: 'e.g. Crop Protection',
+                          label: 'Collections',
+                          hint: 'e.g. Crop Protection, Seeds',
                           isDark: isDark,
                           borderColor: borderColor,
                         ),
@@ -1186,8 +1367,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                             colBloc = ctx.watch<CollectionBloc>();
                           } catch (_) {}
                           final collections = colBloc?.state.collections ?? <CollectionItem>[];
-                          final parentCol = collections.where((c) => c.id == _selectedCollectionId || c.name == _selectedCollectionName).firstOrNull;
-                          final subItems = parentCol?.subCollections ?? <SubCollectionItem>[];
+                          final selectedCols = collections.where((c) =>
+                              _selectedCollectionIds.contains(c.id) ||
+                              _selectedCollectionNames.contains(c.name)).toList();
+                          final subItems = <SubCollectionItem>[];
+                          for (final col in selectedCols) {
+                            subItems.addAll(col.subCollections);
+                          }
                           final currentSelected = subItems.where((s) => s.id == _selectedSubCollectionId || s.name == _selectedSubCollectionName).firstOrNull;
                           final displayText = currentSelected != null
                               ? currentSelected.name
@@ -1196,7 +1382,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                           return _buildSearchableSelectField<SubCollectionItem>(
                             label: 'Sub Collection',
                             displayText: displayText,
-                            placeholder: parentCol == null ? '-- Select Collection First --' : '-- Select Sub Collection (Optional) --',
+                            placeholder: selectedCols.isEmpty ? '-- Select Collection First --' : '-- Select Sub Collection (Optional) --',
                             prefixIcon: Icons.subdirectory_arrow_right_rounded,
                             hasValue: _selectedSubCollectionId.isNotEmpty || _subCollectionsController.text.isNotEmpty,
                             isDark: isDark,
@@ -1204,7 +1390,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                             onTap: () async {
                               if (subItems.isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please select a collection first')),
+                                  const SnackBar(content: Text('Please select at least one collection with sub-collections first')),
                                 );
                                 return;
                               }
@@ -1216,6 +1402,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                 items: subItems,
                                 selectedItem: currentSelected,
                                 labelBuilder: (s) => s.name,
+                                subtitleBuilder: (s) {
+                                  final parent = selectedCols.where((c) => c.subCollections.any((sub) => sub.id == s.id)).firstOrNull;
+                                  return parent != null ? 'Collection: ${parent.name}' : '';
+                                },
                                 isDark: isDark,
                               );
                               if (picked != null) {
@@ -1240,103 +1430,32 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 Expanded(
                   child: _buildField(
                     controller: _ratingsController,
-                    label: 'Ratings (1.0 - 5.0)',
+                    label: 'Rating (0.0 - 5.0)',
                     hint: '4.8',
-                    keyboardType: TextInputType.number,
+                    height: 40,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    prefixIcon: const Icon(
+                      Icons.star_rounded,
+                      size: 16,
+                      color: Color(0xFFF59E0B),
+                    ),
                     isDark: isDark,
                     borderColor: borderColor,
+                    onChanged: (val) {
+                      final parsed = double.tryParse(val.trim());
+                      if (parsed != null && parsed > 5.0) {
+                        _ratingsController.text = '5.0';
+                        _ratingsController.selection = TextSelection.fromPosition(
+                          const TextPosition(offset: 3),
+                        );
+                      }
+                    },
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 14),
-
-            // Storefront Collections & Taxonomy Management
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: borderColor),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.collections_bookmark_rounded, size: 18, color: Color(0xFF059669)),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Storefront Collections Assignment',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                          ),
-                        ],
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () => _openAssignCollectionsDialog(context),
-                        icon: const Icon(Icons.tune_rounded, size: 15),
-                        label: Text(
-                          'Assign / Manage Collections',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF059669),
-                          side: const BorderSide(color: Color(0xFF059669)),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  if (_currentProduct.assignedCollections.isEmpty)
-                    Text(
-                      'No storefront collections assigned yet. Click "Assign / Manage Collections" to link this product to crop, pest, or offer collections.',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _currentProduct.assignedCollections.map((colId) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF059669).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
-                          ),
-                          child: Text(
-                            '#$colId',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF059669),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                ],
-              ),
             ),
             const SizedBox(height: 14),
             Row(
@@ -1487,6 +1606,17 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ),
             ],
           ),
+          if (p.technicalContent.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Composition: ${p.technicalContent}',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           Wrap(
             spacing: 8,
@@ -1559,38 +1689,101 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                if (p.assignedCollections.isEmpty)
-                  Text(
-                    'No storefront collections assigned yet. Click "Assign / Manage Collections" to link this product to crop, pest, or offer collections.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: p.assignedCollections.map((colId) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF059669).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
-                        ),
-                        child: Text(
-                          '#$colId',
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF059669),
-                          ),
+                Builder(
+                  builder: (ctx) {
+                    final displayItems = p.assignedCollections.isNotEmpty
+                        ? p.assignedCollections
+                        : [
+                            if (p.collections.isNotEmpty)
+                              ...p.collections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
+                            if (p.subCollections.isNotEmpty)
+                              ...p.subCollections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
+                          ];
+
+                    if (displayItems.isEmpty) {
+                      return Text(
+                        'No storefront collections assigned yet. Click "Assign / Manage Collections" to link this product to crop, pest, or offer collections.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                         ),
                       );
-                    }).toList(),
-                  ),
+                    }
+
+                    List<CollectionItem> collections = [];
+                    try {
+                      collections = ctx.watch<CollectionBloc>().state.collections;
+                    } catch (_) {}
+
+                    String resolveName(String id) {
+                      for (final c in collections) {
+                        if (c.id == id || c.slug == id || c.name.toLowerCase() == id.toLowerCase()) {
+                          return c.name;
+                        }
+                        for (final s in c.subCollections) {
+                          if (s.id == id || s.slug == id || s.name.toLowerCase() == id.toLowerCase()) {
+                            return '${c.name} > ${s.name}';
+                          }
+                        }
+                      }
+                      final colIdx = p.collectionIds.indexOf(id);
+                      if (colIdx != -1 && p.collections.isNotEmpty) {
+                        final names = p.collections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+                        if (colIdx < names.length) return names[colIdx];
+                      }
+                      final subColIdx = p.subCollectionIds.indexOf(id);
+                      if (subColIdx != -1 && p.subCollections.isNotEmpty) {
+                        final names = p.subCollections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+                        if (subColIdx < names.length) return names[subColIdx];
+                      }
+                      final assignedIdx = p.assignedCollections.indexOf(id);
+                      final allNames = [
+                        if (p.collections.isNotEmpty) ...p.collections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
+                        if (p.subCollections.isNotEmpty) ...p.subCollections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
+                      ];
+                      if (assignedIdx != -1 && assignedIdx < allNames.length) {
+                        return allNames[assignedIdx];
+                      }
+                      return id;
+                    }
+
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: displayItems.map((colId) {
+                        final displayName = resolveName(colId);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.bookmark_added_rounded,
+                                size: 13,
+                                color: Color(0xFF059669),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                displayName,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF059669),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1618,6 +1811,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final activeVariant = variantsList[safeIdx];
 
     return Container(
+      clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: surfaceColor,
@@ -1699,129 +1893,66 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ),
           const SizedBox(height: 16),
 
-          // Horizontal Variant Pill Selector
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                ...List.generate(variantsList.length, (idx) {
-                  final v = variantsList[idx];
-                  final isSelected = idx == safeIdx;
+          // Horizontal Variant Pill Selector strictly clipped inside this card
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            clipBehavior: Clip.antiAlias,
+            child: Listener(
+              onPointerSignal: (pointerSignal) {
+                if (pointerSignal is PointerScrollEvent && _variantScrollController.hasClients) {
+                  final delta = pointerSignal.scrollDelta.dy != 0
+                      ? pointerSignal.scrollDelta.dy
+                      : pointerSignal.scrollDelta.dx;
+                  final target = (_variantScrollController.offset + delta)
+                      .clamp(0.0, _variantScrollController.position.maxScrollExtent);
+                  _variantScrollController.jumpTo(target);
+                }
+              },
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: {
+                    PointerDeviceKind.touch,
+                    PointerDeviceKind.mouse,
+                    PointerDeviceKind.trackpad,
+                    PointerDeviceKind.stylus,
+                  },
+                ),
+                child: SingleChildScrollView(
+                  controller: _variantScrollController,
+                  scrollDirection: Axis.horizontal,
+                  clipBehavior: Clip.hardEdge,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                  child: Row(
+                    children: [
+                      ...List.generate(variantsList.length, (idx) {
+                        final v = variantsList[idx];
+                        final isSelected = idx == safeIdx;
 
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: InkWell(
-                      onTap: () => _selectVariant(idx),
-                      borderRadius: BorderRadius.circular(10),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFF059669)
-                              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFF059669)
-                                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-                            width: isSelected ? 1.5 : 1,
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: _VariantPillChip(
+                            variant: v,
+                            index: idx,
+                            isSelected: isSelected,
+                            isDark: isDark,
+                            isEditing: _isEditing,
+                            canDelete: _isEditing && variantsList.length > 1,
+                            onTap: () => _selectVariant(idx),
+                            onDelete: () => _deleteVariant(idx),
                           ),
+                        );
+                      }),
+                      if (_isEditing) ...[
+                        _AddSkuPillButton(
+                          isDark: isDark,
+                          onTap: _addVariant,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (v.isDefault) ...[
-                              Icon(
-                                Icons.star_rounded,
-                                size: 14,
-                                color: isSelected ? Colors.amberAccent : const Color(0xFFD97706),
-                              ),
-                              const SizedBox(width: 4),
-                            ],
-                            Text(
-                              v.label.isNotEmpty ? v.label : 'Variant ${idx + 1}',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                color: isSelected
-                                    ? Colors.white
-                                    : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Colors.white.withValues(alpha: 0.22)
-                                    : (isDark ? Colors.black26 : Colors.white),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '₹${v.displayRate.toStringAsFixed(0)}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : const Color(0xFF059669),
-                                ),
-                              ),
-                            ),
-                            if (_isEditing && variantsList.length > 1) ...[
-                              const SizedBox(width: 6),
-                              InkWell(
-                                onTap: () => _deleteVariant(idx),
-                                borderRadius: BorderRadius.circular(12),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(2),
-                                  child: Icon(
-                                    Icons.close_rounded,
-                                    size: 13,
-                                    color: isSelected ? Colors.white70 : const Color(0xFFEF4444),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                if (_isEditing) ...[
-                  InkWell(
-                    onTap: _addVariant,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF059669).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(0xFF059669).withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.add_rounded, size: 15, color: Color(0xFF059669)),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Add SKU',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF059669),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                      ],
+                    ],
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
           ),
 
@@ -2007,26 +2138,52 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                   children: [
                                     Expanded(
                                       flex: 3,
-                                      child: Row(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          if (_isEditing && isCur) ...[
-                                            const Icon(Icons.edit_rounded, size: 12, color: Color(0xFF059669)),
-                                            const SizedBox(width: 4),
-                                          ],
-                                          Flexible(
-                                            child: Text(
-                                              v.label,
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 12,
-                                                fontWeight: isCur ? FontWeight.w800 : FontWeight.w600,
-                                                color: isCur
-                                                    ? const Color(0xFF059669)
-                                                    : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                                          Row(
+                                            children: [
+                                              if (_isEditing && isCur) ...[
+                                                const Icon(Icons.edit_rounded, size: 12, color: Color(0xFF059669)),
+                                                const SizedBox(width: 4),
+                                              ],
+                                              Flexible(
+                                                child: Text(
+                                                  v.label,
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 12,
+                                                    fontWeight: isCur ? FontWeight.w800 : FontWeight.w600,
+                                                    color: isCur
+                                                        ? const Color(0xFF059669)
+                                                        : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                ),
                                               ),
-                                              overflow: TextOverflow.ellipsis,
-                                              maxLines: 1,
-                                            ),
+                                            ],
                                           ),
+                                          if (v.sku.isNotEmpty) ...[
+                                            const SizedBox(height: 2),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: isDark
+                                                    ? const Color(0xFF334155).withValues(alpha: 0.5)
+                                                    : const Color(0xFFE2E8F0),
+                                                borderRadius: BorderRadius.circular(3),
+                                              ),
+                                              child: Text(
+                                                v.sku,
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
@@ -2200,7 +2357,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Editing SKU #${index + 1}: ${v.label.isNotEmpty ? v.label : "Unnamed Variant"}',
+                      'Editing SKU #${index + 1}${v.sku.isNotEmpty ? " (${v.sku})" : ""}: ${v.label.isNotEmpty ? v.label : "Unnamed Variant"}',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w800,
@@ -2270,6 +2427,18 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         Expanded(
                           flex: 2,
                           child: _buildField(
+                            controller: _variantSkuController,
+                            label: 'Variant SKU',
+                            hint: 'e.g. KKR-01-01',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: _buildField(
                             controller: _packSizeController,
                             label: 'Pack Size *',
                             hint: '250',
@@ -2281,7 +2450,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          flex: 2,
+                          flex: 1,
                           child: _buildField(
                             controller: _unitController,
                             label: 'Unit *',
@@ -2293,7 +2462,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          flex: 2,
+                          flex: 1,
                           child: _buildField(
                             controller: _packQuantityController,
                             label: 'Pack Quantity *',
@@ -2371,13 +2540,23 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: _buildField(
-                            controller: _shippedByController,
+                          child: _buildDropdownField(
                             label: 'Fulfilled / Shipped By',
-                            hint: 'essentialbiocropscience',
+                            value: _shippedByController.text.trim().isNotEmpty
+                                ? _shippedByController.text.trim()
+                                : 'essentialbiocropscience',
+                            items: _shippedByOptions,
+                            prefixIcon: Icons.local_shipping_outlined,
                             isDark: isDark,
                             borderColor: borderColor,
-                            onChanged: (_) => _onVariantFieldChanged(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _shippedByController.text = val;
+                                });
+                                _onVariantFieldChanged();
+                              }
+                            },
                           ),
                         ),
                       ],
@@ -2388,13 +2567,32 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 // Responsive stacked layout for smaller screen widths
                 return Column(
                   children: [
-                    _buildField(
-                      controller: _variantController,
-                      label: 'Variant Label / Name *',
-                      hint: 'e.g. 1 ltr (250ml x 4)',
-                      isDark: isDark,
-                      borderColor: borderColor,
-                      onChanged: (_) => _onVariantFieldChanged(),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: _buildField(
+                            controller: _variantController,
+                            label: 'Variant Label / Name *',
+                            hint: 'e.g. 1 ltr (250ml x 4)',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: _buildField(
+                            controller: _variantSkuController,
+                            label: 'Variant SKU',
+                            hint: 'e.g. KKR-01-01',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                            onChanged: (_) => _onVariantFieldChanged(),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -2507,13 +2705,23 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: _buildField(
-                            controller: _shippedByController,
+                          child: _buildDropdownField(
                             label: 'Shipped By',
-                            hint: 'essentialbiocropscience',
+                            value: _shippedByController.text.trim().isNotEmpty
+                                ? _shippedByController.text.trim()
+                                : 'essentialbiocropscience',
+                            items: _shippedByOptions,
+                            prefixIcon: Icons.local_shipping_outlined,
                             isDark: isDark,
                             borderColor: borderColor,
-                            onChanged: (_) => _onVariantFieldChanged(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _shippedByController.text = val;
+                                });
+                                _onVariantFieldChanged();
+                              }
+                            },
                           ),
                         ),
                       ],
@@ -2609,18 +2817,44 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   // CARD 2: IMAGE & VISUAL ASSETS
   // ==========================================
   Future<void> _pickProductImages() async {
+    const maxImages = 5;
+    if (_pendingImages.length >= maxImages) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Maximum of 5 product images allowed. Please remove an image before adding more.'),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
       );
       if (files.isNotEmpty) {
-        for (final f in files) {
+        final remainingSlots = maxImages - _pendingImages.length;
+        final filesToAdd = files.take(remainingSlots).toList();
+
+        for (final f in filesToAdd) {
           final bytes = await f.readAsBytes();
           if (bytes.isNotEmpty) {
             _pendingImages.add(ProductImageUploadItem(name: f.name, bytes: bytes));
           }
         }
+
+        if (files.length > remainingSlots && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Added $remainingSlots image(s). Maximum limit of 5 product images reached.'),
+              backgroundColor: const Color(0xFFF59E0B),
+            ),
+          );
+        }
+
         if (_pendingImages.isNotEmpty) {
           setState(() {
             _activePreviewImageIndex = 0;
@@ -2646,6 +2880,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     Color borderColor,
     Color cardBgColor,
   ) {
+    const double heroHeight = 190.0;
     Widget heroWidget;
 
     if (_pendingImages.isNotEmpty && _activePreviewImageIndex < _pendingImages.length) {
@@ -2653,14 +2888,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         Uint8List.fromList(_pendingImages[_activePreviewImageIndex].bytes),
         fit: BoxFit.cover,
         width: double.infinity,
-        height: 344,
+        height: heroHeight,
       );
     } else if (p.originalImageUrl.isNotEmpty) {
       heroWidget = AppProductImage(
         imageUrl: p.originalImageUrl,
         fallbackUrls: p.candidateImageUrls,
         width: double.infinity,
-        height: 344,
+        height: heroHeight,
         borderRadius: 10,
         borderColor: borderColor,
         categoryColor: const Color(0xFF64748B),
@@ -2669,32 +2904,46 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         padding: EdgeInsets.zero,
       );
     } else {
-      heroWidget = Container(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.add_photo_alternate_outlined,
-              size: 48,
-              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'No product images uploaded',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+      heroWidget = InkWell(
+        onTap: _isEditing && _pendingImages.length < 5 ? _pickProductImages : null,
+        child: Container(
+          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.cloud_upload_outlined,
+                size: 38,
                 color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                'No product images uploaded',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
+              ),
+              if (_isEditing) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Click or tap button below to browse (max 5)',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10.5,
+                    color: const Color(0xFF059669),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       );
     }
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(14),
@@ -2706,7 +2955,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: SizedBox(
-              height: 344,
+              height: heroHeight,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -2714,29 +2963,29 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
                   // Original Asset Badge (Top Left)
                   Positioned(
-                    top: 10,
-                    left: 10,
+                    top: 8,
+                    left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.72),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(5),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             _pendingImages.isNotEmpty ? Icons.fiber_new_rounded : Icons.image_outlined,
-                            size: 12,
+                            size: 11,
                             color: _pendingImages.isNotEmpty ? const Color(0xFF10B981) : Colors.white70,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             _pendingImages.isNotEmpty
-                                ? 'Upload Queued (${_pendingImages.length})'
+                                ? 'Upload Queued (${_pendingImages.length}/5)'
                                 : 'Original Image',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
+                              fontSize: 10,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                             ),
@@ -2750,52 +2999,59 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ),
           ),
           if (_isEditing) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: _pickProductImages,
-              icon: const Icon(Icons.cloud_upload_outlined, size: 16),
+              onPressed: _pendingImages.length >= 5 ? null : _pickProductImages,
+              icon: Icon(
+                _pendingImages.length >= 5 ? Icons.check_circle_outline_rounded : Icons.cloud_upload_outlined,
+                size: 15,
+              ),
               label: Text(
                 _pendingImages.isEmpty
-                    ? 'Upload Product Images (PNG, JPG, WEBP)'
-                    : 'Add More Product Images (${_pendingImages.length} selected)',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                    ? 'Upload Images (Max 5: PNG, JPG, WEBP)'
+                    : _pendingImages.length >= 5
+                        ? 'Max 5 Images Selected (5/5)'
+                        : 'Add More Images (${_pendingImages.length}/5 selected)',
+                style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF059669),
-                side: const BorderSide(color: Color(0xFF059669)),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                foregroundColor: _pendingImages.length >= 5 ? const Color(0xFF64748B) : const Color(0xFF059669),
+                side: BorderSide(
+                  color: _pendingImages.length >= 5 ? borderColor : const Color(0xFF059669),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
             if (_pendingImages.isNotEmpty) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               SizedBox(
-                height: 56,
+                height: 48,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _pendingImages.length,
-                  separatorBuilder: (_, index) => const SizedBox(width: 8),
+                  separatorBuilder: (_, index) => const SizedBox(width: 6),
                   itemBuilder: (context, idx) {
                     final item = _pendingImages[idx];
                     final isSel = idx == _activePreviewImageIndex;
                     return InkWell(
                       onTap: () => setState(() => _activePreviewImageIndex = idx),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
                           Container(
-                            width: 56,
-                            height: 56,
+                            width: 48,
+                            height: 48,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6),
                               border: Border.all(
                                 color: isSel ? const Color(0xFF059669) : borderColor,
                                 width: isSel ? 2 : 1,
                               ),
                             ),
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(7),
+                              borderRadius: BorderRadius.circular(5),
                               child: Image.memory(
                                 Uint8List.fromList(item.bytes),
                                 fit: BoxFit.cover,
@@ -2803,8 +3059,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                             ),
                           ),
                           Positioned(
-                            top: -4,
-                            right: -4,
+                            top: -3,
+                            right: -3,
                             child: InkWell(
                               onTap: () {
                                 setState(() {
@@ -2820,7 +3076,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                   color: Color(0xFFDC2626),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.close_rounded, size: 12, color: Colors.white),
+                                child: const Icon(Icons.close_rounded, size: 10, color: Colors.white),
                               ),
                             ),
                           ),
@@ -3202,12 +3458,23 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ],
             ),
             const SizedBox(height: 12),
-            _buildField(
-              controller: _shippedByController,
+            _buildDropdownField(
               label: 'Shipped By Partner',
-              hint: 'Krishi Kranti Logistics / Seller',
+              value: _shippedByController.text.trim().isNotEmpty
+                  ? _shippedByController.text.trim()
+                  : 'essentialbiocropscience',
+              items: _shippedByOptions,
+              prefixIcon: Icons.local_shipping_outlined,
               isDark: isDark,
               borderColor: borderColor,
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _shippedByController.text = val;
+                  });
+                  _onVariantFieldChanged();
+                }
+              },
             ),
             const SizedBox(height: 12),
             _buildField(
@@ -3248,7 +3515,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           _buildGridValueRow('Shipping Weight', '${p.productWeight} ${p.productWeightUnit}', isDark),
           _buildGridValueRow('Volumetric SWG', p.swg, isDark),
           _buildGridValueRow('Dimensions (LxWxH)', p.dimensions, isDark),
-          _buildGridValueRow('Shipped By Partner', p.shippedBy, isDark),
+          _buildGridValueRow('Shipped By Partner', p.shippedBy.isNotEmpty ? p.shippedBy : 'essentialbiocropscience', isDark),
           _buildGridValueRow('Refund / Return Policy', p.refundPolicy, isDark),
         ],
       ),
@@ -3256,293 +3523,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
 
   // ==========================================
-  // CARD 5: AGRONOMY, CROPS & CHEMICAL SPECS
-  // ==========================================
-  Widget _buildAgronomyCard(
-    Product p,
-    bool isDark,
-    Color surfaceColor,
-    Color borderColor,
-    Color cardBgColor,
-  ) {
-    if (_isEditing) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.eco_rounded, color: Color(0xFF10B981), size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Edit Agronomic Specifications',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _buildField(
-              controller: _techContentController,
-              label: 'Chemical Composition & Technical Content',
-              hint: 'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
-              maxLines: 2,
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            _buildField(
-              controller: _modeOfActionController,
-              label: 'Biochemical Mode of Action',
-              hint: 'e.g. Dual-action contact and stomach poison with rapid knockdown',
-              maxLines: 2,
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _dosageController,
-                    label: 'Dosage Recommendation',
-                    hint: 'e.g. 2 - 2.5 ml per liter of water',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _appMethodController,
-                    label: 'Application Method',
-                    hint: 'e.g. Foliar Spray with knapsack sprayer',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildField(
-              controller: _suitableCropController,
-              label: 'Suitable Crops (Comma-separated)',
-              hint: 'Cotton, Paddy, Sugarcane, Vegetables, Pulses',
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _targetPestsController,
-                    label: 'Target Pests (Comma-separated)',
-                    hint: 'Bollworms, Aphids, Whiteflies, Thrips',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _targetDiseasesController,
-                    label: 'Target Diseases (Comma-separated)',
-                    hint: 'None / Fungal Blight, Rust',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Read-only view
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.eco_rounded, size: 20, color: Color(0xFF10B981)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Agronomic Specifications & Field Efficacy',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Technical Content
-          _buildSectionHeader('Chemical Composition & Technical Content', isDark),
-          Text(
-            p.technicalContent.isNotEmpty ? p.technicalContent : 'Standard formulated technical concentration.',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Mode of Action
-          _buildSectionHeader('Biochemical Mode of Action', isDark),
-          Text(
-            p.modeOfAction.isNotEmpty ? p.modeOfAction : 'Standard action mechanism.',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Recommended Dosage & Application Callout Box
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0B241C) : const Color(0xFFE8F5E9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.water_drop_rounded, color: Color(0xFF059669), size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'RECOMMENDED DOSAGE & APPLICATION METHOD',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: const Color(0xFF059669),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${p.dosage} • ${p.applicationMethod}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? const Color(0xFFD1FAE5) : const Color(0xFF064E3B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 18),
-
-          // Suitable Crops Chips
-          _buildSectionHeader('Suitable Crops / Target Field Crops', isDark),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: p.suitableCrop.split(RegExp(r'[,•;]')).map((crop) {
-              final trimmed = crop.trim();
-              if (trimmed.isEmpty) return const SizedBox.shrink();
-              return Chip(
-                avatar: const Icon(Icons.grass_rounded, size: 14, color: Color(0xFF059669)),
-                label: Text(trimmed),
-                backgroundColor: const Color(0xFF059669).withValues(alpha: 0.1),
-                side: BorderSide(color: const Color(0xFF059669).withValues(alpha: 0.2)),
-                labelStyle: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-              );
-            }).toList(),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Target Pests & Diseases Chips
-          _buildSectionHeader('Target Pests & Controlled Diseases', isDark),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ...p.targetPests.split(RegExp(r'[,•;]')).map((pest) {
-                final trimmed = pest.trim();
-                if (trimmed.isEmpty) return const SizedBox.shrink();
-                return Chip(
-                  avatar: const Icon(Icons.bug_report_rounded, size: 14, color: Color(0xFFF59E0B)),
-                  label: Text('Pest: $trimmed'),
-                  backgroundColor: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-                  side: BorderSide(color: const Color(0xFFF59E0B).withValues(alpha: 0.25)),
-                  labelStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                );
-              }),
-              ...p.targetDiseases.split(RegExp(r'[,•;]')).map((disease) {
-                final trimmed = disease.trim();
-                if (trimmed.isEmpty || trimmed.toLowerCase().contains('none')) return const SizedBox.shrink();
-                return Chip(
-                  avatar: const Icon(Icons.coronavirus_rounded, size: 14, color: Color(0xFFEF4444)),
-                  label: Text('Disease: $trimmed'),
-                  backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                  side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.25)),
-                  labelStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFEF4444),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                );
-              }),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // CARD 6: DESCRIPTION, FEATURES & BENEFITS
+  // CARD 6: PRODUCT NARRATIVE & DOCUMENTATION
   // ==========================================
   Widget _buildDescriptionAndBenefitsCard(
     Product p,
@@ -3568,7 +3549,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Edit Product Narrative & Documentation',
+                    'Product Narrative & Commercial Documentation',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -3580,31 +3561,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ],
             ),
             const SizedBox(height: 14),
-            _buildField(
+            AppHtmlEditor(
               controller: _descriptionController,
               label: 'Full Commercial Description',
-              hint: 'Comprehensive product description for farmers and dealers...',
-              maxLines: 4,
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            _buildField(
-              controller: _featuresController,
-              label: 'Key Features (Comma-separated or bullet lines)',
-              hint: 'Quick knockdown, Broad spectrum, Translaminar action',
-              maxLines: 3,
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            _buildField(
-              controller: _benefitsController,
-              label: 'Farmer & Yield Benefits (Comma-separated or bullet lines)',
-              hint: 'Protects critical crop growth phase, Enhances greening',
-              maxLines: 3,
-              isDark: isDark,
-              borderColor: borderColor,
+              hintText: 'Comprehensive product description with agronomy tables, per-acre dosage, application guide, and guidelines...',
+              isRequired: true,
+              minHeight: 320,
             ),
           ],
         ),
@@ -3622,17 +3584,25 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Commercial Description & Agronomic Documentation',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
+          Row(
+            children: [
+              const Icon(Icons.description_outlined, color: Color(0xFF059669), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Product Narrative & Commercial Documentation',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
 
-          // Description (Parsed HTML with rich typography, list support & 4-line truncation)
+          // Description (Parsed HTML with rich typography, list support & collapsible view)
           AppHtmlView(
             htmlData: p.description,
             fontSize: 13.5,
@@ -3640,65 +3610,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             collapsible: true,
             maxLines: 4,
           ),
-
-          const SizedBox(height: 18),
-
-          // Features
-          _buildSectionHeader('Key Product Features', isDark),
-          const SizedBox(height: 6),
-          ...p.features.split(RegExp(r'[,•;]')).map((feat) {
-            final trimmed = feat.trim();
-            if (trimmed.isEmpty) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF10B981)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      trimmed,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-
-          const SizedBox(height: 16),
-
-          // Benefits
-          _buildSectionHeader('Farmer & Yield Benefits', isDark),
-          const SizedBox(height: 6),
-          ...p.benefits.split(RegExp(r'[,•;]')).map((ben) {
-            final trimmed = ben.trim();
-            if (trimmed.isEmpty) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.workspace_premium_rounded, size: 16, color: Color(0xFFF59E0B)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      trimmed,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
         ],
       ),
     );
@@ -3707,16 +3618,22 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   // ==========================================
   // HELPER WIDGETS
   // ==========================================
-  Widget _buildField({
-    required TextEditingController controller,
+  static const List<String> _shippedByOptions = [
+    'essentialbiocropscience',
+  ];
+
+  Widget _buildDropdownField({
     required String label,
-    required String hint,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
     required bool isDark,
     required Color borderColor,
-    int maxLines = 1,
-    TextInputType? keyboardType,
-    void Function(String)? onChanged,
+    IconData? prefixIcon,
   }) {
+    final effectiveItems = items.isNotEmpty ? items : const ['essentialbiocropscience'];
+    final effectiveValue = effectiveItems.contains(value) ? value : effectiveItems.first;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3729,23 +3646,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ),
         ),
         const SizedBox(height: 5),
-        TextField(
-          controller: controller,
-          maxLines: maxLines,
-          keyboardType: keyboardType,
-          onChanged: onChanged,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-          ),
+        InputDecorator(
           decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: GoogleFonts.plusJakartaSans(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w400,
-              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-            ),
+            prefixIcon: prefixIcon != null
+                ? Icon(prefixIcon, size: 18, color: const Color(0xFF059669))
+                : null,
             filled: true,
             fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
             border: OutlineInputBorder(
@@ -3762,7 +3667,115 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: effectiveValue,
+              isExpanded: true,
+              isDense: true,
+              dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              icon: Icon(
+                Icons.arrow_drop_down_rounded,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+              items: effectiveItems.map((opt) {
+                return DropdownMenuItem<String>(
+                  value: opt,
+                  child: Text(
+                    opt,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: onChanged,
+            ),
+          ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required bool isDark,
+    required Color borderColor,
+    int maxLines = 1,
+    double? height,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    Widget? prefixIcon,
+    Widget? suffix,
+    void Function(String)? onChanged,
+  }) {
+    final inputWidget = TextField(
+      controller: controller,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      onChanged: onChanged,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: isDark ? Colors.white : const Color(0xFF0F172A),
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        prefixIcon: prefixIcon,
+        prefixIconConstraints: height != null
+            ? const BoxConstraints(minWidth: 36, minHeight: 36)
+            : null,
+        suffix: suffix,
+        isDense: height != null,
+        hintStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w400,
+          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+        ),
+        filled: true,
+        fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+        ),
+        contentPadding: height != null
+            ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: height != null ? 12 : 11.5,
+            fontWeight: height != null ? FontWeight.w600 : FontWeight.w700,
+            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+          ),
+        ),
+        SizedBox(height: height != null ? 6 : 5),
+        height != null ? SizedBox(height: height, child: inputWidget) : inputWidget,
       ],
     );
   }
@@ -3793,21 +3806,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSectionHeader(String text, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        text,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-          letterSpacing: 0.3,
-        ),
-      ),
     );
   }
 
@@ -3973,6 +3971,35 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           searchHint: searchHint,
           items: items,
           selectedItem: selectedItem,
+          labelBuilder: labelBuilder,
+          subtitleBuilder: subtitleBuilder,
+          isDark: isDark,
+        );
+      },
+    );
+  }
+
+  Future<List<T>?> _showMultiSearchablePicker<T>({
+    required BuildContext context,
+    required String title,
+    required IconData titleIcon,
+    required String searchHint,
+    required List<T> items,
+    required List<T> selectedItems,
+    required String Function(T) labelBuilder,
+    String Function(T)? subtitleBuilder,
+    bool isDark = false,
+  }) async {
+    return showDialog<List<T>>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return _MultiSearchablePickerDialog<T>(
+          title: title,
+          titleIcon: titleIcon,
+          searchHint: searchHint,
+          items: items,
+          initialSelectedItems: selectedItems,
           labelBuilder: labelBuilder,
           subtitleBuilder: subtitleBuilder,
           isDark: isDark,
@@ -4171,6 +4198,556 @@ class _SearchablePickerDialogState<T> extends State<_SearchablePickerDialog<T>> 
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiSearchablePickerDialog<T> extends StatefulWidget {
+  final String title;
+  final IconData titleIcon;
+  final String searchHint;
+  final List<T> items;
+  final List<T> initialSelectedItems;
+  final String Function(T) labelBuilder;
+  final String Function(T)? subtitleBuilder;
+  final bool isDark;
+
+  const _MultiSearchablePickerDialog({
+    required this.title,
+    required this.titleIcon,
+    required this.searchHint,
+    required this.items,
+    required this.initialSelectedItems,
+    required this.labelBuilder,
+    this.subtitleBuilder,
+    this.isDark = false,
+  });
+
+  @override
+  State<_MultiSearchablePickerDialog<T>> createState() => _MultiSearchablePickerDialogState<T>();
+}
+
+class _MultiSearchablePickerDialogState<T> extends State<_MultiSearchablePickerDialog<T>> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  late Set<T> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set<T>.from(widget.initialSelectedItems);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final cardBgColor = isDark ? const Color(0xFF111827) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
+    final query = _searchQuery.toLowerCase();
+
+    final filtered = widget.items.where((item) {
+      if (query.isEmpty) return true;
+      final label = widget.labelBuilder(item).toLowerCase();
+      final sub = widget.subtitleBuilder != null ? widget.subtitleBuilder!(item).toLowerCase() : '';
+      return label.contains(query) || sub.contains(query);
+    }).toList();
+
+    return Dialog(
+      backgroundColor: cardBgColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: borderColor),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 540, maxHeight: 620),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 12, 10),
+              child: Row(
+                children: [
+                  Icon(widget.titleIcon, size: 20, color: const Color(0xFF059669)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: (val) => setState(() => _searchQuery = val),
+                decoration: InputDecoration(
+                  hintText: widget.searchHint,
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  ),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                  isDense: true,
+                  filled: true,
+                  fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF059669)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${_selected.length} of ${widget.items.length} selected',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _selected.addAll(filtered);
+                          });
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          'Select All',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF059669),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _selected.isEmpty
+                            ? null
+                            : () {
+                                setState(() {
+                                  _selected.clear();
+                                });
+                              },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          'Clear',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Divider(height: 1, color: borderColor),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No matching items found',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, index) => Divider(height: 1, color: borderColor.withValues(alpha: 0.5)),
+                      itemBuilder: (context, idx) {
+                        final item = filtered[idx];
+                        final isSelected = _selected.contains(item);
+                        final label = widget.labelBuilder(item);
+                        final subtitle = widget.subtitleBuilder != null ? widget.subtitleBuilder!(item) : null;
+
+                        return InkWell(
+                          onTap: () {
+                            setState(() {
+                              if (isSelected) {
+                                _selected.remove(item);
+                              } else {
+                                _selected.add(item);
+                              }
+                            });
+                          },
+                          child: Container(
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF059669).withValues(alpha: 0.15) : const Color(0xFF059669).withValues(alpha: 0.08))
+                                : null,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            child: Row(
+                              children: [
+                                Checkbox(
+                                  value: isSelected,
+                                  activeColor: const Color(0xFF059669),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                  onChanged: (_) {
+                                    setState(() {
+                                      if (isSelected) {
+                                        _selected.remove(item);
+                                      } else {
+                                        _selected.add(item);
+                                      }
+                                    });
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        label,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 13,
+                                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                          color: isSelected
+                                              ? const Color(0xFF059669)
+                                              : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                                        ),
+                                      ),
+                                      if (subtitle != null && subtitle.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          subtitle,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11,
+                                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            Divider(height: 1, color: borderColor),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      side: BorderSide(color: borderColor),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(_selected.toList()),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(
+                      'Done (${_selected.length})',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VariantPillChip extends StatefulWidget {
+  final ProductVariant variant;
+  final int index;
+  final bool isSelected;
+  final bool isDark;
+  final bool isEditing;
+  final bool canDelete;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _VariantPillChip({
+    required this.variant,
+    required this.index,
+    required this.isSelected,
+    required this.isDark,
+    required this.isEditing,
+    required this.canDelete,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  State<_VariantPillChip> createState() => _VariantPillChipState();
+}
+
+class _VariantPillChipState extends State<_VariantPillChip> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = widget.variant;
+    final isSelected = widget.isSelected;
+    final isDark = widget.isDark;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? const Color(0xFF059669)
+                : (_isHovered
+                    ? (isDark ? const Color(0xFF243044) : const Color(0xFFE2E8F0))
+                    : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF059669)
+                  : (_isHovered
+                      ? const Color(0xFF059669).withValues(alpha: 0.65)
+                      : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
+              width: isSelected ? 1.5 : 1,
+            ),
+            boxShadow: _isHovered
+                ? [
+                    BoxShadow(
+                      color: isSelected
+                          ? const Color(0xFF059669).withValues(alpha: 0.38)
+                          : (isDark
+                              ? Colors.black.withValues(alpha: 0.5)
+                              : const Color(0xFF0F172A).withValues(alpha: 0.14)),
+                      blurRadius: 10,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : (isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF059669).withValues(alpha: 0.22),
+                          blurRadius: 5,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (v.isDefault) ...[
+                Icon(
+                  Icons.star_rounded,
+                  size: 14,
+                  color: isSelected ? Colors.amberAccent : const Color(0xFFD97706),
+                ),
+                const SizedBox(width: 4),
+              ],
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
+                child: Text(
+                  v.label.isNotEmpty ? v.label : 'Variant ${widget.index + 1}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected
+                        ? Colors.white
+                        : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.22)
+                      : (isDark ? Colors.black26 : Colors.white),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '₹${v.displayRate.toStringAsFixed(0)}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : const Color(0xFF059669),
+                  ),
+                ),
+              ),
+              if (widget.canDelete) ...[
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: widget.onDelete,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 13,
+                      color: isSelected ? Colors.white70 : const Color(0xFFEF4444),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddSkuPillButton extends StatefulWidget {
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _AddSkuPillButton({
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_AddSkuPillButton> createState() => _AddSkuPillButtonState();
+}
+
+class _AddSkuPillButtonState extends State<_AddSkuPillButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? const Color(0xFF059669).withValues(alpha: 0.18)
+                : const Color(0xFF059669).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _isHovered
+                  ? const Color(0xFF059669)
+                  : const Color(0xFF059669).withValues(alpha: 0.4),
+              width: 1,
+            ),
+            boxShadow: _isHovered
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF059669).withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add_rounded, size: 15, color: Color(0xFF059669)),
+              const SizedBox(width: 4),
+              Text(
+                'Add SKU',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF059669),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -22,6 +22,7 @@ class CustomersView extends StatefulWidget {
 
 class _CustomersViewState extends State<CustomersView> {
   final TextEditingController _searchController = TextEditingController();
+  bool _showTrash = false;
 
   @override
   void dispose() {
@@ -56,15 +57,54 @@ class _CustomersViewState extends State<CustomersView> {
         }
       },
       builder: (context, state) {
-        final filtered = state.filteredUsers;
+        final activeCustomers = state.users.where((u) => !u.isDeleted).toList();
+        final trashCustomers = state.users.where((u) => u.isDeleted).toList();
+        final currentPool = _showTrash ? trashCustomers : activeCustomers;
+
+        final query = state.searchQuery.trim().toLowerCase();
+        final filtered = currentPool.where((u) {
+          if (query.isNotEmpty) {
+            final matchesName = u.fullName.toLowerCase().contains(query);
+            final matchesShop = (u.shopName ?? '').toLowerCase().contains(query);
+            final matchesPhone = u.phoneNumber.toLowerCase().contains(query);
+            final matchesEmail = (u.email ?? '').toLowerCase().contains(query);
+            final matchesCity = (u.address?.cityTehsil ?? '').toLowerCase().contains(query);
+            final matchesState = (u.address?.state ?? '').toLowerCase().contains(query);
+            final matchesId = u.id.toLowerCase().contains(query);
+
+            if (!matchesName && !matchesShop && !matchesPhone && !matchesEmail && !matchesCity && !matchesState && !matchesId) {
+              return false;
+            }
+          }
+
+          if (!_showTrash) {
+            if (state.statusFilter == 'VERIFIED' && !u.isVerified) return false;
+            if (state.statusFilter == 'KYC_PENDING' && u.isKycComplete) return false;
+            if (state.statusFilter == 'BLOCKED' && !u.isBlocked) return false;
+          }
+
+          return true;
+        }).toList();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. KPI Metric Summary Cards
-            _buildMetricsOverview(context, state, isDark, surfaceColor, borderColor),
+            // Top Tab Switcher: Active Customers vs Trash
+            _buildTrashTabs(context, activeCustomers.length, trashCustomers.length, isDark, surfaceColor, borderColor),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            // If in trash mode, show info banner
+            if (_showTrash) ...[
+              _buildTrashBanner(context, isDark),
+              const SizedBox(height: 12),
+            ],
+
+            // 1. KPI Metric Summary Cards (only on Active directory)
+            if (!_showTrash) ...[
+              _buildMetricsOverview(context, activeCustomers, isDark, surfaceColor, borderColor),
+              const SizedBox(height: 16),
+            ],
 
             // 2. Action & Filter Bar (Search + Status + Refresh)
             _buildActionBar(context, state, isDark, surfaceColor, borderColor),
@@ -79,9 +119,137 @@ class _CustomersViewState extends State<CustomersView> {
     );
   }
 
+  Widget _buildTrashTabs(
+    BuildContext context,
+    int activeCount,
+    int trashCount,
+    bool isDark,
+    Color surfaceColor,
+    Color borderColor,
+  ) {
+    return Row(
+      children: [
+        InkWell(
+          onTap: () => setState(() {
+            _showTrash = false;
+          }),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: !_showTrash
+                  ? const Color(0xFF059669).withValues(alpha: isDark ? 0.22 : 0.12)
+                  : surfaceColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: !_showTrash ? const Color(0xFF059669) : borderColor,
+                width: !_showTrash ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.people_alt_rounded,
+                  size: 16,
+                  color: !_showTrash
+                      ? const Color(0xFF059669)
+                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Active Customers ($activeCount)',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: !_showTrash ? FontWeight.w700 : FontWeight.w600,
+                    color: !_showTrash
+                        ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: () => setState(() {
+            _showTrash = true;
+          }),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: _showTrash
+                  ? const Color(0xFFE11D48).withValues(alpha: isDark ? 0.22 : 0.12)
+                  : surfaceColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _showTrash ? const Color(0xFFE11D48) : borderColor,
+                width: _showTrash ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.delete_outline_rounded,
+                  size: 16,
+                  color: _showTrash
+                      ? const Color(0xFFE11D48)
+                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Trash ($trashCount)',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: _showTrash ? FontWeight.w700 : FontWeight.w600,
+                    color: _showTrash
+                        ? (isDark ? const Color(0xFFFDA4AF) : const Color(0xFFE11D48))
+                        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrashBanner(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF881337).withValues(alpha: 0.2) : const Color(0xFFFFF1F2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark ? const Color(0xFFBE123C).withValues(alpha: 0.4) : const Color(0xFFFECDD3),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFE11D48)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Trash View: Customers here have been soft-deleted. Click "Restore" to reactivate their account, or "Delete Forever" to permanently purge.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFFDA4AF) : const Color(0xFF9F1239),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMetricsOverview(
     BuildContext context,
-    AdminUserState state,
+    List<AdminUser> activeCustomers,
     bool isDark,
     Color surfaceColor,
     Color borderColor,
@@ -92,7 +260,7 @@ class _CustomersViewState extends State<CustomersView> {
         final items = [
           _buildMetricCard(
             title: 'TOTAL CUSTOMERS',
-            value: '${state.totalCount}',
+            value: '${activeCustomers.length}',
             subtitle: 'Registered buyer accounts',
             icon: Icons.people_alt_rounded,
             color: const Color(0xFF059669),
@@ -102,7 +270,7 @@ class _CustomersViewState extends State<CustomersView> {
           ),
           _buildMetricCard(
             title: 'VERIFIED BUYERS',
-            value: '${state.verifiedCount}',
+            value: '${activeCustomers.where((u) => u.isVerified).length}',
             subtitle: 'OTP / Phone verified',
             icon: Icons.verified_user_rounded,
             color: const Color(0xFF2563EB),
@@ -112,7 +280,7 @@ class _CustomersViewState extends State<CustomersView> {
           ),
           _buildMetricCard(
             title: 'KYC PENDING',
-            value: '${state.kycPendingCount}',
+            value: '${activeCustomers.where((u) => !u.isKycComplete).length}',
             subtitle: 'Documentation incomplete',
             icon: Icons.pending_actions_rounded,
             color: const Color(0xFFD97706),
@@ -122,7 +290,7 @@ class _CustomersViewState extends State<CustomersView> {
           ),
           _buildMetricCard(
             title: 'BLOCKED ACCOUNTS',
-            value: '${state.blockedCount}',
+            value: '${activeCustomers.where((u) => u.isBlocked).length}',
             subtitle: 'Access restricted by admin',
             icon: Icons.block_rounded,
             color: const Color(0xFFDC2626),
@@ -253,7 +421,9 @@ class _CustomersViewState extends State<CustomersView> {
                   color: isDark ? Colors.white : const Color(0xFF0F172A),
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Search customers by Name, Phone, Email, City or ID...',
+                  hintText: _showTrash
+                      ? 'Search soft-deleted customers in trash...'
+                      : 'Search customers by Name, Phone, Email, City or ID...',
                   hintStyle: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
@@ -291,41 +461,43 @@ class _CustomersViewState extends State<CustomersView> {
               ),
             ),
           ),
-          const SizedBox(width: 10),
 
-          // Status Filter Dropdown
-          Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: borderColor),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: state.statusFilter,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+          // Status Filter Dropdown (Active Customers only)
+          if (!_showTrash) ...[
+            const SizedBox(width: 10),
+            Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: borderColor),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: state.statusFilter,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  dropdownColor: surfaceColor,
+                  items: const [
+                    DropdownMenuItem(value: 'ALL', child: Text('All Statuses')),
+                    DropdownMenuItem(value: 'VERIFIED', child: Text('Verified Only')),
+                    DropdownMenuItem(value: 'KYC_PENDING', child: Text('KYC Pending')),
+                    DropdownMenuItem(value: 'BLOCKED', child: Text('Blocked Only')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      context.read<CustomerBloc>().add(FilterAdminUsersStatus(val));
+                    }
+                  },
                 ),
-                dropdownColor: surfaceColor,
-                items: const [
-                  DropdownMenuItem(value: 'ALL', child: Text('All Statuses')),
-                  DropdownMenuItem(value: 'VERIFIED', child: Text('Verified Only')),
-                  DropdownMenuItem(value: 'KYC_PENDING', child: Text('KYC Pending')),
-                  DropdownMenuItem(value: 'BLOCKED', child: Text('Blocked Only')),
-                ],
-                onChanged: (val) {
-                  if (val != null) {
-                    context.read<CustomerBloc>().add(FilterAdminUsersStatus(val));
-                  }
-                },
               ),
             ),
-          ),
+          ],
           const SizedBox(width: 8),
 
           // Refresh Button
@@ -438,13 +610,15 @@ class _CustomersViewState extends State<CustomersView> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.people_outline_rounded,
+                _showTrash ? Icons.delete_outline_rounded : Icons.people_outline_rounded,
                 size: 42,
                 color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
               ),
               const SizedBox(height: 12),
               Text(
-                state.users.isEmpty ? 'No customers found' : 'No matching customers',
+                _showTrash
+                    ? 'Trash is empty'
+                    : (state.users.isEmpty ? 'No customers found' : 'No matching customers'),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -453,9 +627,11 @@ class _CustomersViewState extends State<CustomersView> {
               ),
               const SizedBox(height: 6),
               Text(
-                state.users.isEmpty
-                    ? 'No registered customer accounts retrieved from the backend API.'
-                    : 'Try adjusting your search query or filter criteria.',
+                _showTrash
+                    ? 'No soft-deleted customer accounts found in the trash.'
+                    : (state.users.isEmpty
+                        ? 'No registered customer accounts retrieved from the backend API.'
+                        : 'Try adjusting your search query or filter criteria.'),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5,
                   color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -662,7 +838,9 @@ class _CustomersViewState extends State<CustomersView> {
                             spacing: 4,
                             runSpacing: 4,
                             children: [
-                              if (user.isBlocked)
+                              if (user.isDeleted)
+                                _statusBadge('IN TRASH', const Color(0xFFE11D48), isDark)
+                              else if (user.isBlocked)
                                 _statusBadge('BLOCKED', const Color(0xFFDC2626), isDark)
                               else ...[
                                 if (user.isVerified)
@@ -693,70 +871,83 @@ class _CustomersViewState extends State<CustomersView> {
 
                         // Actions Column
                         SizedBox(
-                          width: 130,
+                          width: _showTrash ? 110 : 130,
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerRight,
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                              IconButton(
-                                icon: const Icon(Icons.visibility_outlined, size: 16),
-                                tooltip: 'View details',
-                                padding: const EdgeInsets.all(6),
-                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                onPressed: () {
-                                  if (widget.onSelectCustomer != null) {
-                                    widget.onSelectCustomer!(user);
-                                  } else {
-                                    _showCustomerDetailsDialog(
-                                      context,
-                                      user,
-                                      isDark,
-                                      surfaceColor,
-                                      borderColor,
-                                    );
-                                  }
-                                },
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  user.isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
-                                  size: 16,
-                                  color: user.isBlocked ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                                ),
-                                tooltip: user.isBlocked ? 'Unblock customer' : 'Block customer',
-                                padding: const EdgeInsets.all(6),
-                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                onPressed: () => _confirmToggleBlock(context, user),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  user.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
-                                  size: 16,
-                                  color: user.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
-                                ),
-                                tooltip: user.isDeleted ? 'Restore customer account' : 'Soft-delete / Deactivate customer',
-                                padding: const EdgeInsets.all(6),
-                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                onPressed: () => _confirmToggleDelete(context, user),
-                              ),
-                              if (user.isDeleted)
                                 IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_forever_rounded,
-                                    size: 16,
-                                    color: Color(0xFFDC2626),
-                                  ),
-                                  tooltip: 'Permanently delete customer',
+                                  icon: const Icon(Icons.visibility_outlined, size: 16),
+                                  tooltip: 'View details',
                                   padding: const EdgeInsets.all(6),
                                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                  onPressed: () => _confirmPermanentDelete(context, user),
+                                  onPressed: () {
+                                    if (widget.onSelectCustomer != null) {
+                                      widget.onSelectCustomer!(user);
+                                    } else {
+                                      _showCustomerDetailsDialog(
+                                        context,
+                                        user,
+                                        isDark,
+                                        surfaceColor,
+                                        borderColor,
+                                      );
+                                    }
+                                  },
                                 ),
-                            ],
+                                if (user.isDeleted) ...[
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.restore_from_trash_rounded,
+                                      size: 16,
+                                      color: Color(0xFF059669),
+                                    ),
+                                    tooltip: 'Restore customer account',
+                                    padding: const EdgeInsets.all(6),
+                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                    onPressed: () => _confirmToggleDelete(context, user),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_forever_rounded,
+                                      size: 16,
+                                      color: Color(0xFFDC2626),
+                                    ),
+                                    tooltip: 'Permanently delete customer',
+                                    padding: const EdgeInsets.all(6),
+                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                    onPressed: () => _confirmPermanentDelete(context, user),
+                                  ),
+                                ] else ...[
+                                  IconButton(
+                                    icon: Icon(
+                                      user.isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                                      size: 16,
+                                      color: user.isBlocked ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                    ),
+                                    tooltip: user.isBlocked ? 'Unblock customer' : 'Block customer',
+                                    padding: const EdgeInsets.all(6),
+                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                    onPressed: () => _confirmToggleBlock(context, user),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 16,
+                                      color: Color(0xFFE11D48),
+                                    ),
+                                    tooltip: 'Move to Trash (Deactivate)',
+                                    padding: const EdgeInsets.all(6),
+                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                    onPressed: () => _confirmToggleDelete(context, user),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
                     ],
                     ),
                   ),
@@ -832,7 +1023,9 @@ class _CustomersViewState extends State<CustomersView> {
                   Wrap(
                     spacing: 4,
                     children: [
-                      if (user.isBlocked)
+                      if (user.isDeleted)
+                        _statusBadge('IN TRASH', const Color(0xFFE11D48), isDark)
+                      else if (user.isBlocked)
                         _statusBadge('BLOCKED', const Color(0xFFDC2626), isDark)
                       else if (user.isVerified)
                         _statusBadge('VERIFIED', const Color(0xFF059669), isDark),
@@ -899,25 +1092,16 @@ class _CustomersViewState extends State<CustomersView> {
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(
-                          user.isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
-                          size: 16,
-                          color: user.isBlocked ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                      if (user.isDeleted) ...[
+                        IconButton(
+                          icon: const Icon(
+                            Icons.restore_from_trash_rounded,
+                            size: 16,
+                            color: Color(0xFF059669),
+                          ),
+                          tooltip: 'Restore customer account',
+                          onPressed: () => _confirmToggleDelete(context, user),
                         ),
-                        tooltip: user.isBlocked ? 'Unblock customer' : 'Block customer',
-                        onPressed: () => _confirmToggleBlock(context, user),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          user.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
-                          size: 16,
-                          color: user.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
-                        ),
-                        tooltip: user.isDeleted ? 'Restore customer account' : 'Deactivate customer',
-                        onPressed: () => _confirmToggleDelete(context, user),
-                      ),
-                      if (user.isDeleted)
                         IconButton(
                           icon: const Icon(
                             Icons.delete_forever_rounded,
@@ -927,6 +1111,26 @@ class _CustomersViewState extends State<CustomersView> {
                           tooltip: 'Permanently delete customer',
                           onPressed: () => _confirmPermanentDelete(context, user),
                         ),
+                      ] else ...[
+                        IconButton(
+                          icon: Icon(
+                            user.isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
+                            size: 16,
+                            color: user.isBlocked ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                          ),
+                          tooltip: user.isBlocked ? 'Unblock customer' : 'Block customer',
+                          onPressed: () => _confirmToggleBlock(context, user),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 16,
+                            color: Color(0xFFE11D48),
+                          ),
+                          tooltip: 'Move to Trash (Deactivate)',
+                          onPressed: () => _confirmToggleDelete(context, user),
+                        ),
+                      ],
                     ],
                   ),
                 ],

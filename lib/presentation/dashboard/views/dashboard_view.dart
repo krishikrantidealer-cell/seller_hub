@@ -64,6 +64,10 @@ class _DashboardViewState extends State<DashboardView> {
   // Customers management state
   AdminUser? _viewingCustomer;
 
+  // Collapsible sidebar state (desktop)
+  bool _isSidebarMinimized = false;
+  bool _isSidebarHovered = false;
+
   @override
   void initState() {
     super.initState();
@@ -152,26 +156,47 @@ class _DashboardViewState extends State<DashboardView> {
             ),
       body: Row(
         children: [
-          // Desktop Persistent Compact Sidebar
+          // Desktop Persistent Compact & Minimizable Sidebar
           if (isWide)
-            SizedBox(
-              width: 224,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  border: Border(right: BorderSide(color: borderColor, width: 1)),
-                ),
-                child: DashboardSidebar(
-                  selectedIndex: _selectedNavIndex,
-                  onNavItemSelected: _onNavItemSelected,
-                  productsCount: totalProductsCount,
-                  collectionsCount: collectionsCount,
-                  categoriesCount: categoriesCount,
-                  sellersCount: sellersCount,
-                  customersCount: customersCount,
-                  ordersCount: _orders.length,
-                  isDrawer: false,
-                  onLogout: () => _handleLogout(context),
+            MouseRegion(
+              onEnter: (_) {
+                if (_isSidebarMinimized && !_isSidebarHovered) {
+                  setState(() => _isSidebarHovered = true);
+                }
+              },
+              onExit: (_) {
+                if (_isSidebarHovered) {
+                  setState(() => _isSidebarHovered = false);
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOutCubic,
+                width: (_isSidebarMinimized && !_isSidebarHovered) ? 68 : 224,
+                child: ClipRect(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: surfaceColor,
+                      border: Border(right: BorderSide(color: borderColor, width: 1)),
+                    ),
+                    child: DashboardSidebar(
+                      selectedIndex: _selectedNavIndex,
+                      onNavItemSelected: _onNavItemSelected,
+                      productsCount: totalProductsCount,
+                      collectionsCount: collectionsCount,
+                      categoriesCount: categoriesCount,
+                      sellersCount: sellersCount,
+                      customersCount: customersCount,
+                      ordersCount: _orders.length,
+                      isDrawer: false,
+                      isMinimized: _isSidebarMinimized && !_isSidebarHovered,
+                      onToggleMinimize: () => setState(() {
+                        _isSidebarMinimized = !_isSidebarMinimized;
+                        _isSidebarHovered = false;
+                      }),
+                      onLogout: () => _handleLogout(context),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -193,24 +218,22 @@ class _DashboardViewState extends State<DashboardView> {
 
                 // Active Section Body
                 Expanded(
-                  child: SelectionArea(
-                    child: SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isWide ? 32 : 16,
-                        vertical: 24,
-                      ),
-                      child: _buildActiveContent(
-                        isWide,
-                        products,
-                        allCatalogProducts,
-                        totalProductsCount,
-                        collectionsCount,
-                        categoriesCount,
-                        displaySellers,
-                        sellersCount,
-                        customersCount,
-                      ),
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isWide ? 32 : 16,
+                      vertical: 24,
+                    ),
+                    child: _buildActiveContent(
+                      isWide,
+                      products,
+                      allCatalogProducts,
+                      totalProductsCount,
+                      collectionsCount,
+                      categoriesCount,
+                      displaySellers,
+                      sellersCount,
+                      customersCount,
                     ),
                   ),
                 ),
@@ -269,7 +292,33 @@ class _DashboardViewState extends State<DashboardView> {
             _openInEditMode = false;
           }),
           onProductUpdated: (updated) {
-            context.read<ProductBloc>().add(UpdateLocalProduct(updated));
+            final prevProduct = _viewingProduct;
+            context.read<ProductBloc>().add(UpdateProduct(
+              updated,
+              onSuccess: (savedProduct) {
+                if (mounted) {
+                  setState(() {
+                    _viewingProduct = savedProduct;
+                  });
+                }
+              },
+              onError: (err) {
+                if (mounted) {
+                  if (prevProduct != null) {
+                    setState(() {
+                      _viewingProduct = prevProduct;
+                    });
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to update product on server: $err'),
+                      backgroundColor: const Color(0xFFEF4444),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+            ));
             setState(() {
               _viewingProduct = updated;
             });
@@ -357,7 +406,7 @@ class _DashboardViewState extends State<DashboardView> {
           },
           onOpenAddProduct: _openAddProductScreen,
           onProductUpdated: (updated) {
-            context.read<ProductBloc>().add(UpdateLocalProduct(updated));
+            context.read<ProductBloc>().add(UpdateProduct(updated));
           },
         );
       }

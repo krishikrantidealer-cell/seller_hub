@@ -35,6 +35,7 @@ class CollectionRepositoryImpl implements CollectionRepository {
     required String name,
     required String slug,
     required String description,
+    String? image,
     bool isActive = true,
     int priority = 0,
     List<Map<String, dynamic>> subCollections = const [],
@@ -44,6 +45,7 @@ class CollectionRepositoryImpl implements CollectionRepository {
       name: name,
       slug: slug,
       description: description,
+      image: image,
       isActive: isActive,
       priority: priority,
       subCollections: subCollections,
@@ -175,5 +177,48 @@ class CollectionRepositoryImpl implements CollectionRepository {
       }
     }
     return deletedIds;
+  }
+
+  @override
+  Future<String> uploadCollectionImageDirect({
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    return await remoteDataSource.uploadCollectionImageDirect(
+      fileBytes: fileBytes,
+      fileName: fileName,
+    );
+  }
+
+  @override
+  Future<CollectionItem> uploadCollectionImage({
+    required String collectionId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    final updated = await remoteDataSource.uploadCollectionImage(
+      collectionId: collectionId,
+      fileBytes: fileBytes,
+      fileName: fileName,
+    );
+    await localDataSource?.updateCachedCollection(updated);
+    return updated;
+  }
+
+  @override
+  Future<CollectionItem> uploadSubCollectionImage({
+    required String collectionId,
+    required String subCollectionId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    final updated = await remoteDataSource.uploadSubCollectionImage(
+      collectionId: collectionId,
+      subCollectionId: subCollectionId,
+      fileBytes: fileBytes,
+      fileName: fileName,
+    );
+    await localDataSource?.updateCachedCollection(updated);
+    return updated;
   }
 }

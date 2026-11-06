@@ -31,6 +31,8 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
     on<DeleteSubCollection>(_onDeleteSubCollection);
     on<BulkDeleteSubCollections>(_onBulkDeleteSubCollections);
     on<AddSubCollection>(_onAddSubCollection);
+    on<UploadCollectionItemImage>(_onUploadCollectionItemImage);
+    on<UploadSubCollectionItemImage>(_onUploadSubCollectionItemImage);
 
     // Subscribe to real-time collection updates from WebSocket pipeline
     _wsSubscription = _webSocketService.collectionUpdates.listen((_) {
@@ -388,6 +390,7 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
         name: event.name,
         slug: event.slug,
         description: event.description,
+        image: event.image,
         isActive: event.isActive,
         priority: event.priority,
         subCollections: event.subCollections,
@@ -474,6 +477,55 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
           errorMessage: 'Failed to load collections: $e',
         ));
       }
+    }
+  }
+
+  Future<void> _onUploadCollectionItemImage(
+    UploadCollectionItemImage event,
+    Emitter<CollectionState> emit,
+  ) async {
+    try {
+      final updated = await collectionRepository.uploadCollectionImage(
+        collectionId: event.collectionId,
+        fileBytes: event.fileBytes,
+        fileName: event.fileName,
+      );
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      final index = currentItems.indexWhere((c) => c.id == event.collectionId);
+      if (index != -1) {
+        currentItems[index] = updated;
+        emit(state.copyWith(
+          data: CollectionsData(count: currentItems.length, items: currentItems),
+        ));
+      }
+    } catch (_) {
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    }
+  }
+
+  Future<void> _onUploadSubCollectionItemImage(
+    UploadSubCollectionItemImage event,
+    Emitter<CollectionState> emit,
+  ) async {
+    try {
+      final updated = await collectionRepository.uploadSubCollectionImage(
+        collectionId: event.collectionId,
+        subCollectionId: event.subCollectionId,
+        fileBytes: event.fileBytes,
+        fileName: event.fileName,
+      );
+
+      final currentItems = List<CollectionItem>.from(state.data.items);
+      final index = currentItems.indexWhere((c) => c.id == event.collectionId);
+      if (index != -1) {
+        currentItems[index] = updated;
+        emit(state.copyWith(
+          data: CollectionsData(count: currentItems.length, items: currentItems),
+        ));
+      }
+    } catch (_) {
+      add(const FetchCollections(isRefresh: true, isBackground: true));
     }
   }
 }

@@ -43,7 +43,12 @@ class DashboardTopAppBar extends StatelessWidget {
     } else if (selectedNavIndex == 1) {
       if (viewingProduct != null) {
         title = 'Product Specification Sheet';
-        subtitle = '${viewingProduct!.productCode} • HSN: ${viewingProduct!.hsnCode} • ${viewingProduct!.technicalName}';
+        final parts = <String>[
+          if (viewingProduct!.productCode.isNotEmpty) viewingProduct!.productCode,
+          if (viewingProduct!.hsnCode.isNotEmpty) 'HSN: ${viewingProduct!.hsnCode}',
+          if (viewingProduct!.technicalName.isNotEmpty) viewingProduct!.technicalName,
+        ];
+        subtitle = parts.isNotEmpty ? parts.join(' • ') : 'Product Specifications & Merchandising';
       } else {
         title = 'Product Catalog & Inventory';
         subtitle = '38-field agri schema with CIBRC chemical & HSN compliance';

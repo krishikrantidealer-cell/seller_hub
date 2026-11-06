@@ -1,7 +1,7 @@
 class AppConstants {
   static const String appName = 'Seller Hub';
   static const String appTagline = 'Enterprise Agri-Commerce Suite';
-  static const String helplinePhone = '1800-300-8899';
+  static const String helplinePhone = '+91 9098544263';
   static const String helplineHours = 'Mon-Sat, 10AM-7PM';
   static const String supportEmail = 'seller-support@agribegri.com';
   

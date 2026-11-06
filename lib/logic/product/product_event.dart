@@ -183,6 +183,25 @@ class ToggleProductAvailability extends ProductEvent {
   List<Object?> get props => [productId, isAvailable];
 }
 
+class SetDefaultProductVariant extends ProductEvent {
+  final String productId;
+  final String variantId;
+  final bool isDefault;
+  final void Function(Product updatedProduct)? onSuccess;
+  final void Function(String errorMessage)? onError;
+
+  const SetDefaultProductVariant({
+    required this.productId,
+    required this.variantId,
+    this.isDefault = true,
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [productId, variantId, isDefault];
+}
+
 class UploadProductImages extends ProductEvent {
   final String productId;
   final List<List<int>> filesBytes;

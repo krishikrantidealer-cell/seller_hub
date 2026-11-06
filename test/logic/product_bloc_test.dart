@@ -124,6 +124,23 @@ class MockProductRepository implements ProductRepository {
   }
 
   @override
+  Future<Product> setDefaultVariant({
+    required String productId,
+    required String variantId,
+    bool isDefault = true,
+  }) async {
+    if (shouldThrow) {
+      throw ApiException(message: errorMessage, statusCode: 500);
+    }
+    final existing = lastUpdatedProduct ??
+        Product(
+          id: productId,
+          title: 'Test Product',
+        );
+    return existing;
+  }
+
+  @override
   Future<Product> uploadProductImages({
     required String productId,
     required List<List<int>> filesBytes,

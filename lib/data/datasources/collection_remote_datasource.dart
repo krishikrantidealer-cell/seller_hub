@@ -9,6 +9,7 @@ abstract class CollectionRemoteDataSource {
     required String name,
     required String slug,
     required String description,
+    String? image,
     bool isActive = true,
     int priority = 0,
     List<Map<String, dynamic>> subCollections = const [],
@@ -36,6 +37,21 @@ abstract class CollectionRemoteDataSource {
   Future<List<String>> deleteSubCollectionsBulk({
     required String collectionId,
     required List<String> subCollectionIds,
+  });
+  Future<String> uploadCollectionImageDirect({
+    required List<int> fileBytes,
+    required String fileName,
+  });
+  Future<CollectionItem> uploadCollectionImage({
+    required String collectionId,
+    required List<int> fileBytes,
+    required String fileName,
+  });
+  Future<CollectionItem> uploadSubCollectionImage({
+    required String collectionId,
+    required String subCollectionId,
+    required List<int> fileBytes,
+    required String fileName,
   });
 }
 
@@ -66,6 +82,7 @@ class CollectionRemoteDataSourceImpl implements CollectionRemoteDataSource {
     required String name,
     required String slug,
     required String description,
+    String? image,
     bool isActive = true,
     int priority = 0,
     List<Map<String, dynamic>> subCollections = const [],
@@ -79,6 +96,10 @@ class CollectionRemoteDataSourceImpl implements CollectionRemoteDataSource {
       'priority': priority,
       'subCollections': subCollections,
     };
+
+    if (image != null && image.isNotEmpty) {
+      body['image'] = image;
+    }
 
     if (bannerTitle != null && bannerTitle.isNotEmpty) {
       body['bannerTitle'] = bannerTitle;
@@ -267,5 +288,93 @@ class CollectionRemoteDataSourceImpl implements CollectionRemoteDataSource {
       return (rawData['items'] as List).map((e) => e.toString()).toList();
     }
     return subCollectionIds;
+  }
+
+  @override
+  Future<String> uploadCollectionImageDirect({
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    final extension = fileName.toLowerCase().endsWith('.png')
+        ? 'png'
+        : (fileName.toLowerCase().endsWith('.webp') ? 'webp' : 'jpeg');
+    final contentType = extension == 'png'
+        ? 'image/png'
+        : (extension == 'webp' ? 'image/webp' : 'image/jpeg');
+
+    final response = await apiClient.postMultipart(
+      ApiEndpoints.adminCollectionUploadImage,
+      fileFieldName: 'file',
+      fileBytes: fileBytes,
+      fileName: fileName,
+      contentType: contentType,
+      requiresAuth: true,
+    );
+
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic>) {
+      final url = rawData['url'] ?? rawData['imageUrl'];
+      if (url != null) return url.toString();
+    }
+    throw const ApiException(message: 'Failed to upload collection image.');
+  }
+
+  @override
+  Future<CollectionItem> uploadCollectionImage({
+    required String collectionId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    final extension = fileName.toLowerCase().endsWith('.png')
+        ? 'png'
+        : (fileName.toLowerCase().endsWith('.webp') ? 'webp' : 'jpeg');
+    final contentType = extension == 'png'
+        ? 'image/png'
+        : (extension == 'webp' ? 'image/webp' : 'image/jpeg');
+
+    final response = await apiClient.postMultipart(
+      ApiEndpoints.adminCollectionImage(collectionId),
+      fileFieldName: 'file',
+      fileBytes: fileBytes,
+      fileName: fileName,
+      contentType: contentType,
+      requiresAuth: true,
+    );
+
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic>) {
+      return CollectionItem.fromJson(rawData);
+    }
+    throw const ApiException(message: 'Failed to upload collection image.');
+  }
+
+  @override
+  Future<CollectionItem> uploadSubCollectionImage({
+    required String collectionId,
+    required String subCollectionId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    final extension = fileName.toLowerCase().endsWith('.png')
+        ? 'png'
+        : (fileName.toLowerCase().endsWith('.webp') ? 'webp' : 'jpeg');
+    final contentType = extension == 'png'
+        ? 'image/png'
+        : (extension == 'webp' ? 'image/webp' : 'image/jpeg');
+
+    final response = await apiClient.postMultipart(
+      ApiEndpoints.adminSubCollectionImage(collectionId, subCollectionId),
+      fileFieldName: 'file',
+      fileBytes: fileBytes,
+      fileName: fileName,
+      contentType: contentType,
+      requiresAuth: true,
+    );
+
+    final rawData = response['data'];
+    if (rawData is Map<String, dynamic>) {
+      return CollectionItem.fromJson(rawData);
+    }
+    throw const ApiException(message: 'Failed to upload sub-collection image.');
   }
 }

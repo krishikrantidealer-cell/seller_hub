@@ -30,6 +30,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     on<DeleteProductPermanently>(_onDeleteProductPermanently);
     on<DeleteMultipleProductsPermanently>(_onDeleteMultipleProductsPermanently);
     on<ToggleProductAvailability>(_onToggleProductAvailability);
+    on<SetDefaultProductVariant>(_onSetDefaultProductVariant);
     on<UploadProductImages>(_onUploadProductImages);
 
     // Subscribe to live WebSocket product and inventory events
@@ -782,6 +783,55 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       event.onSuccess?.call(updated);
     } catch (e) {
       final message = e is ApiException ? e.message : 'Failed to upload images: $e';
+      emit(state.copyWith(errorMessage: message));
+      event.onError?.call(message);
+    }
+  }
+
+  Future<void> _onSetDefaultProductVariant(
+    SetDefaultProductVariant event,
+    Emitter<ProductState> emit,
+  ) async {
+    try {
+      final updated = await productRepository.setDefaultVariant(
+        productId: event.productId,
+        variantId: event.variantId,
+        isDefault: event.isDefault,
+      );
+
+      final currentList = List<Product>.from(state.pageData.content);
+      final idx = currentList.indexWhere((p) => p.id == updated.id || p.productCode == updated.id);
+      if (idx != -1) {
+        currentList[idx] = updated;
+      }
+
+      final currentAll = List<Product>.from(state.allCatalogProducts);
+      final allIdx = currentAll.indexWhere((p) => p.id == updated.id || p.productCode == updated.id);
+      if (allIdx != -1) {
+        currentAll[allIdx] = updated;
+      }
+
+      final updatedPageData = ProductPageData(
+        content: currentList,
+        page: state.pageData.page,
+        size: state.pageData.size,
+        totalElements: state.pageData.totalElements,
+        totalPages: state.pageData.totalPages,
+        first: state.pageData.first,
+        last: state.pageData.last,
+        count: currentList.length,
+      );
+
+      emit(state.copyWith(
+        status: ProductStatus.loaded,
+        pageData: updatedPageData,
+        allCatalogProducts: currentAll,
+        errorMessage: null,
+      ));
+
+      event.onSuccess?.call(updated);
+    } catch (e) {
+      final message = e is ApiException ? e.message : 'Failed to set default variant: $e';
       emit(state.copyWith(errorMessage: message));
       event.onError?.call(message);
     }

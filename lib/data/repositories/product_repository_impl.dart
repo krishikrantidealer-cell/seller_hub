@@ -132,6 +132,21 @@ class ProductRepositoryImpl implements ProductRepository {
   }
 
   @override
+  Future<Product> setDefaultVariant({
+    required String productId,
+    required String variantId,
+    bool isDefault = true,
+  }) async {
+    final updated = await remoteDataSource.setDefaultVariant(
+      productId: productId,
+      variantId: variantId,
+      isDefault: isDefault,
+    );
+    await localDataSource?.updateCachedProduct(updated);
+    return updated;
+  }
+
+  @override
   Future<Product> uploadProductImages({
     required String productId,
     required List<List<int>> filesBytes,

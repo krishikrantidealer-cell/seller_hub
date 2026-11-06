@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "seller_hub (Localhost Backend :8080)",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "-d",
+                "chrome",
+                "--web-port",
+                "3001",
+                "--dart-define=API_BASE_URL=http://localhost:8080"
+            ]
+        },
+        {
+            "name": "seller_hub (Production Cloud Run Backend)",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "-d",
+                "chrome",
+                "--web-port",
+                "3001",
+                "--dart-define=API_BASE_URL=https://ebs-biocrop-backend-925275374871.asia-south1.run.app"
+            ]
+        }
+    ]
+}

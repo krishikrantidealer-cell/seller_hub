@@ -29,6 +29,7 @@ class CreateCollection extends CollectionEvent {
   final String name;
   final String slug;
   final String description;
+  final String? image;
   final bool isActive;
   final int priority;
   final List<Map<String, dynamic>> subCollections;
@@ -38,6 +39,7 @@ class CreateCollection extends CollectionEvent {
     required this.name,
     required this.slug,
     required this.description,
+    this.image,
     this.isActive = true,
     this.priority = 0,
     this.subCollections = const [],
@@ -49,6 +51,7 @@ class CreateCollection extends CollectionEvent {
         name,
         slug,
         description,
+        image,
         isActive,
         priority,
         subCollections,
@@ -156,4 +159,36 @@ class AddSubCollection extends CollectionEvent {
 
 class ResetDeactivateCollectionState extends CollectionEvent {
   const ResetDeactivateCollectionState();
+}
+
+class UploadCollectionItemImage extends CollectionEvent {
+  final String collectionId;
+  final List<int> fileBytes;
+  final String fileName;
+
+  const UploadCollectionItemImage({
+    required this.collectionId,
+    required this.fileBytes,
+    required this.fileName,
+  });
+
+  @override
+  List<Object?> get props => [collectionId, fileBytes, fileName];
+}
+
+class UploadSubCollectionItemImage extends CollectionEvent {
+  final String collectionId;
+  final String subCollectionId;
+  final List<int> fileBytes;
+  final String fileName;
+
+  const UploadSubCollectionItemImage({
+    required this.collectionId,
+    required this.subCollectionId,
+    required this.fileBytes,
+    required this.fileName,
+  });
+
+  @override
+  List<Object?> get props => [collectionId, subCollectionId, fileBytes, fileName];
 }

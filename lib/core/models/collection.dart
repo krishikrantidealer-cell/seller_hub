@@ -69,6 +69,7 @@ class CollectionItem extends Equatable {
   final String name;
   final String slug;
   final String description;
+  final String? image;
   final bool isActive;
   final int priority;
   final List<SubCollectionItem> subCollections;
@@ -83,6 +84,7 @@ class CollectionItem extends Equatable {
     required this.name,
     required this.slug,
     this.description = '',
+    this.image,
     this.isActive = true,
     this.priority = 0,
     this.subCollections = const [],
@@ -105,6 +107,7 @@ class CollectionItem extends Equatable {
       name: json['name'] as String? ?? '',
       slug: json['slug'] as String? ?? '',
       description: json['description'] as String? ?? '',
+      image: json['image'] as String?,
       isActive: json['isActive'] as bool? ?? true,
       priority: (json['priority'] as num?)?.toInt() ?? 0,
       subCollections: subList,
@@ -121,6 +124,7 @@ class CollectionItem extends Equatable {
     'name': name,
     'slug': slug,
     'description': description,
+    'image': image,
     'isActive': isActive,
     'priority': priority,
     'subCollections': subCollections.map((s) => s.toJson()).toList(),
@@ -136,6 +140,7 @@ class CollectionItem extends Equatable {
     String? name,
     String? slug,
     String? description,
+    String? image,
     bool? isActive,
     int? priority,
     List<SubCollectionItem>? subCollections,
@@ -150,6 +155,7 @@ class CollectionItem extends Equatable {
       name: name ?? this.name,
       slug: slug ?? this.slug,
       description: description ?? this.description,
+      image: image ?? this.image,
       isActive: isActive ?? this.isActive,
       priority: priority ?? this.priority,
       subCollections: subCollections ?? this.subCollections,
@@ -167,6 +173,7 @@ class CollectionItem extends Equatable {
     name,
     slug,
     description,
+    image,
     isActive,
     priority,
     subCollections,

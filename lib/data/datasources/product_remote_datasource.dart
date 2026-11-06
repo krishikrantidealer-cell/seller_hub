@@ -19,6 +19,11 @@ abstract class ProductRemoteDataSource {
   Future<void> deleteProductPermanently(String productId);
   Future<void> deleteMultipleProductsPermanently(List<String> productIds);
   Future<Product> updateProductAvailability(String productId, bool available);
+  Future<Product> setDefaultVariant({
+    required String productId,
+    required String variantId,
+    bool isDefault = true,
+  });
   Future<Product> uploadProductImages(
     String productId,
     List<List<int>> filesBytes,
@@ -235,6 +240,27 @@ class ProductRemoteDataSourceImpl implements ProductRemoteDataSource {
     }
     throw const ApiException(
       message: 'Unexpected product availability response format from server.',
+    );
+  }
+
+  @override
+  Future<Product> setDefaultVariant({
+    required String productId,
+    required String variantId,
+    bool isDefault = true,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiEndpoints.adminProductVariantDefault(productId, variantId),
+      body: {'isDefault': isDefault},
+      requiresAuth: true,
+    );
+
+    final rawData = response['data'] ?? response;
+    if (rawData is Map) {
+      return Product.fromJson(Map<String, dynamic>.from(rawData));
+    }
+    throw const ApiException(
+      message: 'Unexpected variant default response format from server.',
     );
   }
 

@@ -79,6 +79,7 @@ class _AssignCollectionsDialogState extends State<AssignCollectionsDialog> {
     setState(() {
       if (isChecked == true) {
         _selectedSubCollectionIds.add(subCollectionId);
+        _selectedCollectionIds.add(collectionId);
       } else {
         _selectedSubCollectionIds.remove(subCollectionId);
       }
@@ -93,6 +94,9 @@ class _AssignCollectionsDialogState extends State<AssignCollectionsDialog> {
     for (final c in colState.collections) {
       for (final s in c.subCollections) {
         allKnownSubIds.add(s.id);
+        if (_selectedSubCollectionIds.contains(s.id)) {
+          _selectedCollectionIds.add(c.id);
+        }
       }
     }
 
@@ -200,9 +204,9 @@ class _AssignCollectionsDialogState extends State<AssignCollectionsDialog> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                'POST {{baseUrl}}/api/v1/admin/products/${widget.product.id}/collections',
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 11,
+                                'Link product to storefront crop, pest, and nutrient shelves',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
                                   color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                                 ),
                               ),

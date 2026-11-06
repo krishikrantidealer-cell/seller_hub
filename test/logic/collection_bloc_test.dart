@@ -47,6 +47,7 @@ class MockCollectionRemoteDataSource implements CollectionRemoteDataSource {
     int priority = 0,
     List<Map<String, dynamic>> subCollections = const [],
     String? bannerTitle,
+    String? image,
   }) async {
     return CollectionItem(
       id: 'new_col',
@@ -55,6 +56,7 @@ class MockCollectionRemoteDataSource implements CollectionRemoteDataSource {
       description: description,
       isActive: isActive,
       priority: priority,
+      image: image,
     );
   }
 
@@ -133,6 +135,52 @@ class MockCollectionRemoteDataSource implements CollectionRemoteDataSource {
     required List<String> subCollectionIds,
   }) async {
     return subCollectionIds;
+  }
+
+  @override
+  Future<String> uploadCollectionImageDirect({
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    return 'https://example.com/mock-direct-img.png';
+  }
+
+  @override
+  Future<CollectionItem> uploadCollectionImage({
+    required String collectionId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    return CollectionItem(
+      id: collectionId,
+      name: 'Shop by Crop',
+      slug: 'shop-by-crop',
+      description: 'Mock',
+      image: 'https://example.com/mock-col-img.png',
+    );
+  }
+
+  @override
+  Future<CollectionItem> uploadSubCollectionImage({
+    required String collectionId,
+    required String subCollectionId,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    return CollectionItem(
+      id: collectionId,
+      name: 'Shop by Crop',
+      slug: 'shop-by-crop',
+      description: 'Mock',
+      subCollections: [
+        SubCollectionItem(
+          id: subCollectionId,
+          name: 'Rice',
+          slug: 'rice',
+          image: 'https://example.com/mock-sub-img.png',
+        ),
+      ],
+    );
   }
 }
 

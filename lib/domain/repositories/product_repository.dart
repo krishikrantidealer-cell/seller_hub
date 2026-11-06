@@ -47,6 +47,13 @@ abstract class ProductRepository {
     required bool isAvailable,
   });
 
+  /// Set or unset a variant as the default for a product via PATCH /api/v1/admin/products/{productId}/variants/{variantId}/default
+  Future<Product> setDefaultVariant({
+    required String productId,
+    required String variantId,
+    bool isDefault = true,
+  });
+
   /// Upload product images via POST /api/v1/admin/products/{productId}/images
   Future<Product> uploadProductImages({
     required String productId,

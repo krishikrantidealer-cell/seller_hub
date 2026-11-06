@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -357,6 +358,77 @@ class _CollectionsViewState extends State<CollectionsView> {
         builder: (ctx) => AssignProductsView(collection: item),
       ),
     );
+  }
+
+  Future<void> _pickAndUploadCollectionImage(BuildContext context, CollectionItem item) async {
+    final bloc = context.read<CollectionBloc>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+      );
+      if (files.isNotEmpty) {
+        final file = files.first;
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) {
+          bloc.add(
+            UploadCollectionItemImage(
+              collectionId: item.id,
+              fileBytes: bytes,
+              fileName: file.name,
+            ),
+          );
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Uploading image for "${item.name}"...'),
+              duration: const Duration(seconds: 2),
+              backgroundColor: const Color(0xFF059669),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Collection image pick error: $e');
+    }
+  }
+
+  Future<void> _pickAndUploadSubCollectionImage(
+    BuildContext context,
+    CollectionItem parentItem,
+    SubCollectionItem sub,
+  ) async {
+    final bloc = context.read<CollectionBloc>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+      );
+      if (files.isNotEmpty) {
+        final file = files.first;
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) {
+          bloc.add(
+            UploadSubCollectionItemImage(
+              collectionId: parentItem.id,
+              subCollectionId: sub.id,
+              fileBytes: bytes,
+              fileName: file.name,
+            ),
+          );
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Uploading image for "${sub.name}"...'),
+              duration: const Duration(seconds: 2),
+              backgroundColor: const Color(0xFF7C3AED),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Sub-collection image pick error: $e');
+    }
   }
 
   void _confirmDeleteCollection(BuildContext context, CollectionItem item) {
@@ -1159,16 +1231,26 @@ class _CollectionsViewState extends State<CollectionsView> {
                   ),
                   const SizedBox(width: 8),
 
-                  // Collection Theme Icon
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: themeColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Center(
-                      child: Icon(themeIcon, color: themeColor, size: 20),
+                  // Collection Theme Icon or Image
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 38,
+                      height: 38,
+                      child: item.image != null && item.image!.isNotEmpty
+                          ? AppProductImage(
+                              imageUrl: item.image!,
+                              width: 38,
+                              height: 38,
+                              borderRadius: 10,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: themeColor.withValues(alpha: 0.12),
+                              child: Center(
+                                child: Icon(themeIcon, color: themeColor, size: 20),
+                              ),
+                            ),
                     ),
                   ),
 
@@ -1309,6 +1391,14 @@ class _CollectionsViewState extends State<CollectionsView> {
                         tooltip: 'Assign Products',
                         color: const Color(0xFF059669),
                         onPressed: () => _openAssignProductsDialog(context, item),
+                      ),
+
+                      // Upload / Change Collection Image
+                      IconButton(
+                        icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+                        tooltip: 'Upload / Change Collection Image',
+                        color: const Color(0xFF059669),
+                        onPressed: () => _pickAndUploadCollectionImage(context, item),
                       ),
 
                       // Edit button
@@ -1698,6 +1788,17 @@ class _CollectionsViewState extends State<CollectionsView> {
               ],
             ),
           ),
+          // Upload / Change subcollection image button
+          IconButton(
+            icon: const Icon(Icons.add_photo_alternate_outlined, size: 15),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+            splashRadius: 14,
+            tooltip: 'Upload / Change Sub-Collection Image',
+            color: const Color(0xFF7C3AED),
+            onPressed: () => _pickAndUploadSubCollectionImage(context, parentItem, sub),
+          ),
+          const SizedBox(width: 4),
           // Delete subcollection button
           IconButton(
             icon: const Icon(Icons.close_rounded, size: 14),

@@ -13,6 +13,7 @@ abstract class CollectionRepository {
     required String name,
     required String slug,
     required String description,
+    String? image,
     bool isActive = true,
     int priority = 0,
     List<Map<String, dynamic>> subCollections = const [],
@@ -40,5 +41,20 @@ abstract class CollectionRepository {
   Future<List<String>> deleteSubCollectionsBulk({
     required String collectionId,
     required List<String> subCollectionIds,
+  });
+  Future<String> uploadCollectionImageDirect({
+    required List<int> fileBytes,
+    required String fileName,
+  });
+  Future<CollectionItem> uploadCollectionImage({
+    required String collectionId,
+    required List<int> fileBytes,
+    required String fileName,
+  });
+  Future<CollectionItem> uploadSubCollectionImage({
+    required String collectionId,
+    required String subCollectionId,
+    required List<int> fileBytes,
+    required String fileName,
   });
 }

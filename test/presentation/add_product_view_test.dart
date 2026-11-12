@@ -156,9 +156,9 @@ void main() {
     await tester.pumpWidget(buildTestableWidget());
     await tester.pumpAndSettle();
 
-    // Verify placeholder text is shown and helper warning indicates no seller selected
-    expect(find.text('-- Select Seller (Required) --'), findsOneWidget);
-    expect(find.text('No seller selected initially. Please pick a seller to associate with this product.'), findsOneWidget);
+    // Verify placeholder text is shown and helper indicates optional seller selection
+    expect(find.text('-- None (Direct / Platform Listing) --'), findsOneWidget);
+    expect(find.text('Optional. Assign a specific merchant seller or leave blank for direct platform inventory.'), findsOneWidget);
   });
 
   testWidgets('Vendor field is completely removed from the form', (tester) async {
@@ -222,7 +222,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Category *'), findsOneWidget);
-    expect(find.text('Seller (Store Owner) *'), findsOneWidget);
+    expect(find.text('Seller (Store Owner) (Optional)'), findsOneWidget);
     expect(find.text('-- Select Category (Required) --'), findsOneWidget);
   });
 
@@ -303,7 +303,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap on Seller selector placeholder
-    await tester.tap(find.text('-- Select Seller (Required) --'));
+    await tester.tap(find.text('-- None (Direct / Platform Listing) --'));
     await tester.pumpAndSettle();
 
     // Dialog should be visible

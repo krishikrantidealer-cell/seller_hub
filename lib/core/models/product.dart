@@ -967,7 +967,8 @@ class Product extends Equatable {
     'sku': sku.isNotEmpty ? sku : productCode,
     'productCode': productCode,
     'hsnCode': hsnCode,
-    'sellerId': sellerId,
+    if (sellerId.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(sellerId))
+      'sellerId': sellerId,
     'title': title,
     'brandName': brandName,
     'technicalName': technicalName,
@@ -1010,7 +1011,8 @@ class Product extends Equatable {
 
   /// Exports in exact structure expected by POST /api/v1/admin/products
   Map<String, dynamic> toAdminCreatePayload() => {
-    'sellerId': sellerId,
+    if (sellerId.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(sellerId))
+      'sellerId': sellerId,
     'hsnCode': hsnCode.isNotEmpty ? hsnCode : '3808',
     'title': title,
     if (brandName.isNotEmpty) 'brandName': brandName,

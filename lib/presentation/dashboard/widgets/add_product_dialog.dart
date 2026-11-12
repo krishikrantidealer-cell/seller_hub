@@ -370,7 +370,9 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
     final resolvedSellerName = matchingSeller?.displayName ?? '';
 
     final newProduct = Product(
-      sellerId: _selectedSellerId!.trim(),
+      sellerId: (_selectedSellerId != null && _selectedSellerId!.trim().isNotEmpty)
+          ? _selectedSellerId!.trim()
+          : '',
       sellerName: resolvedSellerName,
       vendor: resolvedSellerName,
       sku: skuVal,
@@ -605,7 +607,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Seller (Store Owner) *',
+                    'Seller (Store Owner) (Optional)',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -619,11 +621,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF161E2E) : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _selectedSellerId == null
-                            ? const Color(0xFF3B82F6).withValues(alpha: 0.5)
-                            : borderColor,
-                      ),
+                      border: Border.all(color: borderColor),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -631,7 +629,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                         isExpanded: true,
                         dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
                         hint: Text(
-                          isLoading ? 'Loading sellers...' : '-- Select Seller (Required) --',
+                          isLoading ? 'Loading sellers...' : '-- None (Direct / Platform Listing) --',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
@@ -1058,10 +1056,6 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
         children: [
           Row(
             children: [
-              Expanded(
-                child: _buildFormField('Technical Content', _technicalContentController, 'e.g. Chlorpyrifos 20% w/w a.i.', isDark),
-              ),
-              const SizedBox(width: 16),
               Expanded(
                 child: _buildFormField('Mode of Action', _modeOfActionController, 'e.g. Systemic & Contact AChE Inhibitor', isDark),
               ),

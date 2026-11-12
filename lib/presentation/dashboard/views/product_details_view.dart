@@ -1631,6 +1631,16 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     }
 
     // Read-only view
+    final categoryBlocState = context.read<CategoryBloc>().state;
+    final catFromBloc = p.categoryId.isNotEmpty
+        ? categoryBlocState.allCategories.where((c) => c.id == p.categoryId).firstOrNull?.name
+        : null;
+    final displayCategory = p.category.trim().isNotEmpty
+        ? p.category.trim()
+        : (catFromBloc != null && catFromBloc.trim().isNotEmpty
+            ? catFromBloc.trim()
+            : p.resolvedCategory.trim());
+
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -1643,23 +1653,25 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF059669).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  p.category.toUpperCase(),
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: const Color(0xFF059669),
+              if (displayCategory.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF059669).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    displayCategory.toUpperCase(),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: const Color(0xFF059669),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
               if (p.collections.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

@@ -348,29 +348,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       return;
     }
 
-    // 2. Validate Seller Selection (Requirement: no seller selected at first, must select one)
-    if (_selectedSellerId == null || _selectedSellerId!.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 10),
-              Text('Please select a Seller from the dropdown before saving.'),
-            ],
-          ),
-          backgroundColor: const Color(0xFFDC2626),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      setState(() {
-        _selectedTabIndex = 0;
-        _tabController.index = 0;
-      });
-      return;
-    }
-
-    // 3. Validate Category Selection
+    // 2. Validate Category Selection
     if (_selectedCategory == null || _selectedCategory!.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -440,7 +418,9 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     final resolvedSellerName = matchingSeller?.displayName ?? '';
 
     final newProduct = Product(
-      sellerId: _selectedSellerId!.trim(),
+      sellerId: (_selectedSellerId != null && _selectedSellerId!.trim().isNotEmpty)
+          ? _selectedSellerId!.trim()
+          : '',
       sellerName: resolvedSellerName,
       vendor: resolvedSellerName, // backward compat
       sku: skuVal,
@@ -827,16 +807,14 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         : '';
 
                     return _buildSearchableSelectField<AdminUser>(
-                      label: 'Seller (Store Owner) *',
+                      label: 'Seller (Store Owner) (Optional)',
                       prefixIcon: Icons.store_rounded,
                       displayText: displayText,
                       placeholder: isLoading
                           ? 'Loading sellers from server...'
-                          : '-- Select Seller (Required) --',
+                          : '-- None (Direct / Platform Listing) --',
                       hasValue: _selectedSellerId != null,
-                      helperText: _selectedSellerId == null
-                          ? 'No seller selected initially. Please pick a seller to associate with this product.'
-                          : null,
+                      helperText: 'Optional. Assign a specific merchant seller or leave blank for direct platform inventory.',
                       trailingBadge: selectedSeller != null
                           ? Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
@@ -1245,13 +1223,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 10),
-                _buildFormField(
-                  'Technical Content / Chemical Composition',
-                  _technicalContentController,
-                  'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
-                  isDark,
                 ),
                 const SizedBox(height: 14),
                 AppHtmlEditor(

@@ -258,7 +258,7 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
             _buildInfoRow('Refund Policy', p.refundPolicy, '', '', isDark),
           const SizedBox(height: 16),
           Text(
-            'Product Description & Commercial Narrative',
+            'Product Description',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 12.5,
               fontWeight: FontWeight.w800,

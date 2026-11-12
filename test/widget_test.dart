@@ -924,7 +924,7 @@ void main() {
 
     // Verify Product Details View is displayed with narrative and pricing
     expect(find.text('Pricing & Commercial Matrix'), findsOneWidget);
-    expect(find.text('Product Narrative & Commercial Documentation'), findsOneWidget);
+    expect(find.text('Product Description'), findsOneWidget);
 
     // Tap breadcrumb back to return to catalog
     await tester.tap(find.text('Products Catalog'));

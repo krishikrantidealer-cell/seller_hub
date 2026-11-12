@@ -3737,7 +3737,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Product Narrative & Commercial Documentation',
+                    'Product Description',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -3778,7 +3778,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Product Narrative & Commercial Documentation',
+                  'Product Description',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,

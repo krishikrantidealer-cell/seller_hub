@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -46,6 +47,12 @@ abstract class AdminUserRemoteDataSource {
   Future<AdminUser> reviewSellerKyc({
     required String userId,
     required bool approved,
+  });
+
+  Future<Uint8List> downloadKycDocument({
+    required String userId,
+    required String documentType,
+    int index = 0,
   });
 }
 
@@ -289,5 +296,22 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
     }
 
     return AdminUser.fromJson(resData);
+  }
+
+  @override
+  Future<Uint8List> downloadKycDocument({
+    required String userId,
+    required String documentType,
+    int index = 0,
+  }) async {
+    final path = ApiEndpoints.adminSellerKycDocumentDownload(userId, documentType, index);
+    final response = await _apiClient.getRaw(path, requiresAuth: true);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+    throw ApiException(
+      message: 'Failed to download KYC document: HTTP ${response.statusCode}',
+      statusCode: response.statusCode,
+    );
   }
 }

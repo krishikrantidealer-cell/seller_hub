@@ -26,6 +26,7 @@ class WebSocketService {
   final _categoryUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
   final _collectionUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
   final _orderUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
+  final _userUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
   final _authRevokedController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionStateController = StreamController<bool>.broadcast();
 
@@ -33,7 +34,7 @@ class WebSocketService {
   Stream<Map<String, dynamic>> get categoryUpdates => _categoryUpdatesController.stream;
   Stream<Map<String, dynamic>> get collectionUpdates => _collectionUpdatesController.stream;
   Stream<Map<String, dynamic>> get orderUpdates => _orderUpdatesController.stream;
-  Stream<Map<String, dynamic>> get authRevokedUpdates => _authRevokedController.stream;
+  Stream<Map<String, dynamic>> get userUpdates => _userUpdatesController.stream;
   Stream<bool> get connectionStatus => _connectionStateController.stream;
   bool get isConnected => _isConnected;
 
@@ -183,6 +184,8 @@ class WebSocketService {
           _collectionUpdatesController.add(decoded);
         } else if (event.startsWith('orders:')) {
           _orderUpdatesController.add(decoded);
+        } else if (event.startsWith('users:')) {
+          _userUpdatesController.add(decoded);
         } else if (event == 'auth:session_revoked') {
           _authRevokedController.add(decoded);
         }
@@ -220,6 +223,19 @@ class WebSocketService {
 
     // 2. Deliver to local controllers so current UI updates synchronously with 0ms delay
     _productUpdatesController.add(payload);
+  }
+
+  /// Broadcasts an updated user / seller across the enterprise WebSocket channel
+  void broadcastUserUpdate(Map<String, dynamic> data) {
+    if (!enabled) return;
+    final payload = {
+      'type': 'USER_UPDATE',
+      'event': 'users:update',
+      'data': data,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    _send(payload);
+    _userUpdatesController.add(payload);
   }
 
   /// Broadcasts a live stock count update for instant multi-user table synchronization

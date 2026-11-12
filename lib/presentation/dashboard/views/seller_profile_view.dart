@@ -9,6 +9,7 @@ import '../../../logic/product/product_bloc.dart';
 import '../../../logic/product/product_event.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
+import '../../../domain/repositories/admin_user_repository.dart';
 import '../widgets/add_product_dialog.dart';
 import '../widgets/bulk_add_products_dialog.dart';
 
@@ -1083,15 +1084,6 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   isDark,
                   borderColor,
                   enabled: _isEditing,
-                  suffixAction: _buildViewDocButton('View GST Certificate', () {
-                    _showDocumentViewer(
-                      context,
-                      title: 'Goods & Services Tax (GST) Certificate',
-                      docType: 'Official Tax Certificate',
-                      documentNumber: _gstinController.text.trim().isNotEmpty ? _gstinController.text.trim() : _currentSeller.gstin,
-                      fileUrl: 'https://storage.googleapis.com/sellerhub-prod-media-us/compliance/gst_${_currentSeller.id}.pdf',
-                    );
-                  }),
                 ),
               ),
               const SizedBox(width: 16),
@@ -1102,15 +1094,6 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   isDark,
                   borderColor,
                   enabled: _isEditing,
-                  suffixAction: _buildViewDocButton('View PAN Card', () {
-                    _showDocumentViewer(
-                      context,
-                      title: 'Permanent Account Number (PAN Card)',
-                      docType: 'Income Tax Department Identity',
-                      documentNumber: panVal,
-                      fileUrl: 'https://storage.googleapis.com/sellerhub-prod-media-us/compliance/pan_${_currentSeller.id}.pdf',
-                    );
-                  }),
                 ),
               ),
               const SizedBox(width: 16),
@@ -1121,17 +1104,6 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   isDark,
                   borderColor,
                   enabled: _isEditing,
-                  suffixAction: _buildViewDocButton('View License PDF', () {
-                    _showDocumentViewer(
-                      context,
-                      title: 'Fertilizer & Pesticide Trading License',
-                      docType: 'Agricultural Ministry Dealership License',
-                      documentNumber: licVal.isNotEmpty ? licVal : 'LIC-AGRI-2026-GUJ',
-                      fileUrl: licVal.startsWith('http')
-                          ? licVal
-                          : 'https://storage.googleapis.com/sellerhub-prod-media-us/compliance/lic_fertilizer_${_currentSeller.id}.pdf',
-                    );
-                  }),
                 ),
               ),
             ],
@@ -1303,6 +1275,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 _buildKycDocSlot(
                   title: '1. GST Registration Certificate',
                   docKey: 'gstCertificate',
+                  backendDocType: 'gst-certificate',
                   subtitle: 'Official Tax Form REG-06 matching GSTIN',
                   docNumber: _currentSeller.gstin.isNotEmpty ? _currentSeller.gstin : 'GSTIN Pending',
                   fileUrl: _currentSeller.gstCertificate,
@@ -1313,6 +1286,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 _buildKycDocSlot(
                   title: '2. Company / Proprietor PAN Card',
                   docKey: 'panCard',
+                  backendDocType: 'pan-card',
                   subtitle: 'Income Tax Department Business Identity',
                   docNumber: _currentSeller.panNumber.isNotEmpty ? _currentSeller.panNumber : 'PAN Pending',
                   fileUrl: _currentSeller.panCard,
@@ -1323,6 +1297,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 _buildKycDocSlot(
                   title: '3. Signatory Aadhaar Card',
                   docKey: 'aadhaarCard',
+                  backendDocType: 'aadhaar-card',
                   subtitle: 'Authorized Signatory / Proprietor Identity',
                   docNumber: 'UIDAI Identity Verification',
                   fileUrl: _currentSeller.aadhaarCard,
@@ -1333,6 +1308,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 _buildKycDocSlot(
                   title: '4. Agri & Pesticide Licenses',
                   docKey: 'licenceImage',
+                  backendDocType: 'licence',
                   subtitle: 'Fertilizer, Insecticide, or Seed Dealership',
                   docNumber: _currentSeller.licenceImages.isNotEmpty
                       ? '${_currentSeller.licenceImages.length} License(s) Uploaded'
@@ -1397,6 +1373,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     required bool isUploaded,
     required bool isDark,
     required Color borderColor,
+    String? backendDocType,
     bool isMultiple = false,
     int count = 0,
   }) {
@@ -1481,6 +1458,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                       docType: subtitle,
                       documentNumber: docNumber,
                       fileUrl: fileUrl,
+                      backendDocType: backendDocType,
                     );
                   },
                   icon: const Icon(Icons.visibility_rounded, size: 14),
@@ -2557,35 +2535,6 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     );
   }
 
-  Widget _buildViewDocButton(String tooltip, VoidCallback onTap) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(4),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFF059669).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.visibility_rounded, size: 11, color: Color(0xFF059669)),
-            const SizedBox(width: 3),
-            Text(
-              'View Doc',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF059669),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildTableColHeader(String title, bool isDark, {bool alignRight = false}) {
     return Align(
@@ -2635,6 +2584,8 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     required String docType,
     required String documentNumber,
     String? fileUrl,
+    String? backendDocType,
+    int index = 0,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
@@ -2898,6 +2849,56 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    if (backendDocType != null && _currentSeller.id.isNotEmpty) ...[
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          try {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Fetching document from private secure storage...'),
+                                duration: Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            final bytes = await context.read<AdminUserRepository>().downloadKycDocument(
+                              userId: _currentSeller.id,
+                              documentType: backendDocType,
+                              index: index,
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Document successfully retrieved (${bytes.lengthInBytes} bytes)'),
+                                  backgroundColor: const Color(0xFF059669),
+                                  duration: const Duration(seconds: 3),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to download document: $e'),
+                                  backgroundColor: const Color(0xFFEF4444),
+                                  duration: const Duration(seconds: 3),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.download_rounded, size: 15),
+                        label: const Text('Download Official File'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF059669),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     TextButton(
                       onPressed: () => Navigator.of(ctx).pop(),
                       child: const Text('Close'),

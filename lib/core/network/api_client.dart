@@ -424,6 +424,16 @@ class ApiClient {
     }
   }
 
+  Future<http.Response> getRaw(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    bool requiresAuth = true,
+  }) async {
+    final uri = _buildUri(path, queryParameters);
+    final headers = await _buildHeaders(requiresAuth: requiresAuth);
+    return await _client.get(uri, headers: headers).timeout(_timeout);
+  }
+
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParameters,

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seller_hub/core/models/admin_user.dart';
@@ -176,6 +177,15 @@ class FakeAdminUserRepository implements AdminUserRepository {
     );
     if (idx >= 0) sellersList[idx] = updated;
     return updated;
+  }
+
+  @override
+  Future<Uint8List> downloadKycDocument({
+    required String userId,
+    required String documentType,
+    int index = 0,
+  }) async {
+    return Uint8List.fromList([1, 2, 3, 4]);
   }
 }
 

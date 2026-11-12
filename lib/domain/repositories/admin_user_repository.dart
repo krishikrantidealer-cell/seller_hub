@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import '../../core/models/admin_user.dart';
 
@@ -57,5 +58,13 @@ abstract class AdminUserRepository {
   Future<AdminUser> reviewSellerKyc({
     required String userId,
     required bool approved,
+  });
+
+  /// Downloads a seller KYC document binary bytes from private storage
+  /// GET /api/v1/admin/users/{userId}/kyc-documents/{documentType}/{index}
+  Future<Uint8List> downloadKycDocument({
+    required String userId,
+    required String documentType,
+    int index = 0,
   });
 }

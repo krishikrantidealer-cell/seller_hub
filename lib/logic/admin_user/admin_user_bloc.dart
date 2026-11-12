@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/models/admin_user.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/network/websocket_service.dart';
 import '../../domain/repositories/admin_user_repository.dart';
 import 'admin_user_event.dart';
 import 'admin_user_state.dart';
@@ -8,11 +10,15 @@ import 'admin_user_state.dart';
 class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
   final AdminUserRepository repository;
   final String role; // 'SELLERS' or 'CUSTOMERS'
+  final WebSocketService _webSocketService;
+  StreamSubscription? _wsSubscription;
 
   AdminUserBloc({
     required this.repository,
     required this.role,
-  }) : super(const AdminUserState()) {
+    WebSocketService? webSocketService,
+  })  : _webSocketService = webSocketService ?? WebSocketService(),
+        super(const AdminUserState()) {
     on<InitializeAdminUsers>(_onInitialize);
     on<FetchAdminUsers>(_onFetchUsers);
     on<LoadMoreAdminUsers>(_onLoadMore);
@@ -25,6 +31,40 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     on<UpdateLocalAdminUser>(_onUpdateLocalUser);
     on<UploadAdminUserKycDocuments>(_onUploadKycDocuments);
     on<ReviewAdminUserKyc>(_onReviewKyc);
+
+    // Live bidirectional WebSocket synchronization
+    _wsSubscription = _webSocketService.userUpdates.listen((event) {
+      final data = event['data'] ?? event;
+      if (data is Map<String, dynamic>) {
+        final targetUserId = data['userId']?.toString() ?? data['id']?.toString();
+        final kycStatus = data['kycStatus']?.toString();
+        if (targetUserId != null && targetUserId.isNotEmpty) {
+          final idx = state.users.indexWhere((u) => u.id == targetUserId);
+          if (idx >= 0) {
+            final current = state.users[idx];
+            final updated = current.copyWith(
+              kycStatus: kycStatus ?? current.kycStatus,
+              isKycComplete: kycStatus == 'APPROVED' ? true : current.isKycComplete,
+              isBlocked: data['isBlocked'] is bool ? data['isBlocked'] as bool : current.isBlocked,
+              isDeleted: data['isDeleted'] is bool ? data['isDeleted'] as bool : current.isDeleted,
+            );
+            add(UpdateLocalAdminUser(updated));
+            return;
+          }
+        }
+      }
+      add(FetchAdminUsers(
+        page: state.currentPage,
+        size: state.pageSize,
+        isBackground: true,
+      ));
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _wsSubscription?.cancel();
+    return super.close();
   }
 
   Future<void> _onInitialize(
@@ -153,6 +193,10 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
         users: updatedList,
         actionSuccessMessage: 'User ${event.blocked ? "blocked" : "unblocked"} successfully',
       ));
+      _webSocketService.broadcastUserUpdate({
+        'userId': updated.id,
+        'isBlocked': updated.isBlocked,
+      });
     } catch (e) {
       emit(state.copyWith(
         isActionInProgress: false,
@@ -304,6 +348,14 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
         actionSuccessMessage: 'KYC documents uploaded successfully for "${updated.displayName}"',
       ));
 
+      _webSocketService.broadcastUserUpdate({
+        'userId': updated.id,
+        'kycStatus': updated.kycStatus,
+        'gstCertificate': updated.gstCertificate,
+        'panCard': updated.panCard,
+        'aadhaarCard': updated.aadhaarCard,
+      });
+
       event.onSuccess?.call(updated);
     } catch (e) {
       final errorMsg = e is ApiException ? e.message : 'Failed to upload KYC documents: $e';
@@ -337,6 +389,12 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
             ? 'Seller KYC approved successfully for "${updated.displayName}"!'
             : 'Seller KYC returned for review',
       ));
+
+      _webSocketService.broadcastUserUpdate({
+        'userId': updated.id,
+        'kycStatus': updated.kycStatus,
+        'isKycComplete': updated.isKycComplete,
+      });
 
       event.onSuccess?.call(updated);
     } catch (e) {

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import '../../core/models/admin_user.dart';
 import '../../domain/repositories/admin_user_repository.dart';
@@ -125,5 +126,18 @@ class AdminUserRepositoryImpl implements AdminUserRepository {
       approved: approved,
     );
     return updated;
+  }
+
+  @override
+  Future<Uint8List> downloadKycDocument({
+    required String userId,
+    required String documentType,
+    int index = 0,
+  }) async {
+    return await remoteDataSource.downloadKycDocument(
+      userId: userId,
+      documentType: documentType,
+      index: index,
+    );
   }
 }

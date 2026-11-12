@@ -1,3 +1,6 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../../core/constants/api_endpoints.dart';
 import '../../core/models/admin_user.dart';
 import '../../core/network/api_client.dart';
@@ -30,6 +33,20 @@ abstract class AdminUserRemoteDataSource {
   Future<AdminUser> createCustomer(Map<String, dynamic> data);
 
   Future<AdminUser> createSeller(Map<String, dynamic> data);
+
+  Future<AdminUser> uploadKycDocuments({
+    required String userId,
+    List<PlatformFile>? licenceFiles,
+    PlatformFile? gstCertificate,
+    PlatformFile? panCard,
+    PlatformFile? aadhaarCard,
+    bool replaceLicenceFiles = false,
+  });
+
+  Future<AdminUser> reviewSellerKyc({
+    required String userId,
+    required bool approved,
+  });
 }
 
 class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
@@ -174,6 +191,100 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
 
     if (!success || resData == null || resData is! Map<String, dynamic>) {
       final msg = response['message']?.toString() ?? 'Failed to create seller account';
+      throw ApiException(message: msg, details: response);
+    }
+
+    return AdminUser.fromJson(resData);
+  }
+
+  @override
+  Future<AdminUser> uploadKycDocuments({
+    required String userId,
+    List<PlatformFile>? licenceFiles,
+    PlatformFile? gstCertificate,
+    PlatformFile? panCard,
+    PlatformFile? aadhaarCard,
+    bool replaceLicenceFiles = false,
+  }) async {
+    final multipartFiles = <http.MultipartFile>[];
+
+    Future<void> addSingleFile(String fieldName, PlatformFile? file) async {
+      if (file == null) return;
+      List<int> bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return;
+
+      final ext = file.name.split('.').last.toLowerCase();
+      MediaType mediaType;
+      if (ext == 'pdf') {
+        mediaType = MediaType('application', 'pdf');
+      } else if (ext == 'png') {
+        mediaType = MediaType('image', 'png');
+      } else if (ext == 'webp') {
+        mediaType = MediaType('image', 'webp');
+      } else {
+        mediaType = MediaType('image', 'jpeg');
+      }
+
+      multipartFiles.add(http.MultipartFile.fromBytes(
+        fieldName,
+        bytes,
+        filename: file.name,
+        contentType: mediaType,
+      ));
+    }
+
+    await addSingleFile('gstCertificate', gstCertificate);
+    await addSingleFile('panCard', panCard);
+    await addSingleFile('aadhaarCard', aadhaarCard);
+
+    if (licenceFiles != null) {
+      for (final lic in licenceFiles) {
+        await addSingleFile('licenceImage', lic);
+      }
+    }
+
+    if (multipartFiles.isEmpty) {
+      throw const ApiException(message: 'Please select at least one document to upload');
+    }
+
+    final fields = <String, String>{
+      'replaceLicenceFiles': replaceLicenceFiles ? 'true' : 'false',
+    };
+
+    final response = await _apiClient.postCustomMultipart(
+      ApiEndpoints.adminSellerKycDocuments(userId),
+      files: multipartFiles,
+      fields: fields,
+      requiresAuth: true,
+    );
+
+    final success = response['success'] == true;
+    final resData = response['data'];
+
+    if (!success || resData == null || resData is! Map<String, dynamic>) {
+      final msg = response['message']?.toString() ?? 'Failed to upload KYC documents';
+      throw ApiException(message: msg, details: response);
+    }
+
+    return AdminUser.fromJson(resData);
+  }
+
+  @override
+  Future<AdminUser> reviewSellerKyc({
+    required String userId,
+    required bool approved,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiEndpoints.adminSellerKycReview(userId),
+      body: {'approved': approved},
+      requiresAuth: true,
+    );
+
+    final success = response['success'] == true;
+    final resData = response['data'];
+
+    if (!success || resData == null || resData is! Map<String, dynamic>) {
+      final msg = response['message']?.toString() ?? 'Failed to review seller KYC';
       throw ApiException(message: msg, details: response);
     }
 

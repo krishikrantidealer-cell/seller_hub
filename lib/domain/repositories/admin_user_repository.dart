@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import '../../core/models/admin_user.dart';
 
 abstract class AdminUserRepository {
@@ -39,4 +40,22 @@ abstract class AdminUserRepository {
   /// Creates a new seller account
   /// POST /api/v1/admin/users/sellers
   Future<AdminUser> createSeller(Map<String, dynamic> data);
+
+  /// Uploads seller KYC documents to private storage
+  /// POST /api/v1/admin/users/{userId}/kyc-documents
+  Future<AdminUser> uploadKycDocuments({
+    required String userId,
+    List<PlatformFile>? licenceFiles,
+    PlatformFile? gstCertificate,
+    PlatformFile? panCard,
+    PlatformFile? aadhaarCard,
+    bool replaceLicenceFiles = false,
+  });
+
+  /// Approves or returns seller KYC for review
+  /// PATCH /api/v1/admin/users/{userId}/kyc
+  Future<AdminUser> reviewSellerKyc({
+    required String userId,
+    required bool approved,
+  });
 }

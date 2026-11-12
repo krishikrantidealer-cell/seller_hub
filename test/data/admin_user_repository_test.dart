@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seller_hub/core/models/admin_user.dart';
 import 'package:seller_hub/data/datasources/admin_user_local_datasource.dart';
@@ -94,6 +95,44 @@ class MockAdminUserRemoteDataSource implements AdminUserRemoteDataSource {
       firstName: data['firstName']?.toString() ?? 'Seller',
       shopName: data['shopName']?.toString() ?? 'Shop',
       role: 'ROLE_SELLER',
+    );
+  }
+
+  @override
+  Future<AdminUser> uploadKycDocuments({
+    required String userId,
+    List<PlatformFile>? licenceFiles,
+    PlatformFile? gstCertificate,
+    PlatformFile? panCard,
+    PlatformFile? aadhaarCard,
+    bool replaceLicenceFiles = false,
+  }) async {
+    if (throwError) throw Exception('Network error');
+    return AdminUser(
+      id: userId,
+      phoneNumber: '9876543210',
+      firstName: 'Seller',
+      role: 'ROLE_SELLER',
+      gstCertificate: gstCertificate != null ? 'gs://bucket/kyc/gst.pdf' : null,
+      panCard: panCard != null ? 'gs://bucket/kyc/pan.pdf' : null,
+      aadhaarCard: aadhaarCard != null ? 'gs://bucket/kyc/aadhaar.pdf' : null,
+      licenceImages: licenceFiles != null ? ['gs://bucket/kyc/lic.pdf'] : const [],
+    );
+  }
+
+  @override
+  Future<AdminUser> reviewSellerKyc({
+    required String userId,
+    required bool approved,
+  }) async {
+    if (throwError) throw Exception('Network error');
+    return AdminUser(
+      id: userId,
+      phoneNumber: '9876543210',
+      firstName: 'Seller',
+      role: 'ROLE_SELLER',
+      kycStatus: approved ? 'APPROVED' : null,
+      isKycComplete: approved,
     );
   }
 }

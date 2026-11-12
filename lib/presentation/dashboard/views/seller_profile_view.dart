@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1021,76 +1022,530 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
           ),
           const SizedBox(height: 16),
           _buildTextField('Warehouse & Dispatch Hub Address', _warehouseAddressController, isDark, borderColor, enabled: _isEditing, maxLines: 2),
-          const SizedBox(height: 20),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 4,
+          const SizedBox(height: 24),
+          _buildKycComplianceSection(context, isDark, borderColor),
+        ],
+      ),
+    );
+  }
+
+  // --- KYC & COMPLIANCE SECTION ---
+  Widget _buildKycComplianceSection(BuildContext context, bool isDark, Color borderColor) {
+    final hasGst = _currentSeller.gstCertificate != null && _currentSeller.gstCertificate!.trim().isNotEmpty;
+    final hasPan = _currentSeller.panCard != null && _currentSeller.panCard!.trim().isNotEmpty;
+    final hasAadhaar = _currentSeller.aadhaarCard != null && _currentSeller.aadhaarCard!.trim().isNotEmpty;
+    final hasLicence = _currentSeller.licenceImages.isNotEmpty || _currentSeller.licenseNumber.trim().isNotEmpty;
+
+    int uploadedCount = 0;
+    if (hasGst) uploadedCount++;
+    if (hasPan) uploadedCount++;
+    if (hasAadhaar) uploadedCount++;
+    if (hasLicence) uploadedCount++;
+
+    final allDocsUploaded = uploadedCount == 4;
+    final isApproved = _currentSeller.isKycComplete;
+
+    final statusColor = isApproved
+        ? const Color(0xFF10B981)
+        : (allDocsUploaded ? const Color(0xFFF59E0B) : const Color(0xFFE11D48));
+
+    final statusText = isApproved
+        ? 'KYC APPROVED & VERIFIED'
+        : (allDocsUploaded ? 'READY FOR APPROVAL (4/4 Documents Uploaded)' : 'KYC INCOMPLETE ($uploadedCount/4 Documents Uploaded)');
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Bar
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'KYC & COMPLIANCE VERIFICATION DOCUMENTS',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.verified_user_rounded, color: statusColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 10,
+                      runSpacing: 4,
+                      children: [
+                        Text(
+                          'KYC & COMPLIANCE VERIFICATION',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: statusColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'All 4 documents (GST, PAN, Aadhaar, Agri License) must be stored in private cloud storage to qualify for marketplace verification.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                'Click any document to inspect verified certificate',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF059669),
+              const SizedBox(width: 12),
+              // Approve / Return KYC Button
+              if (isApproved)
+                OutlinedButton.icon(
+                  onPressed: _toggleKycApproval,
+                  icon: const Icon(Icons.assignment_return_rounded, size: 15),
+                  label: Text('Return for Review', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFD97706),
+                    side: const BorderSide(color: Color(0xFFD97706)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                )
+              else
+                ElevatedButton.icon(
+                  onPressed: _toggleKycApproval,
+                  icon: const Icon(Icons.check_circle_rounded, size: 16),
+                  label: Text(
+                    allDocsUploaded ? 'Approve KYC Verification' : 'Approve KYC (Review)',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: allDocsUploaded ? const Color(0xFF059669) : const Color(0xFF64748B),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+          Divider(height: 1, color: borderColor),
+          const SizedBox(height: 16),
+
+          // 4 Document Slots
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWideLayout = constraints.maxWidth > 650;
+              final slots = [
+                _buildKycDocSlot(
+                  title: '1. GST Registration Certificate',
+                  docKey: 'gstCertificate',
+                  subtitle: 'Official Tax Form REG-06 matching GSTIN',
+                  docNumber: _currentSeller.gstin.isNotEmpty ? _currentSeller.gstin : 'GSTIN Pending',
+                  fileUrl: _currentSeller.gstCertificate,
+                  isUploaded: hasGst,
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+                _buildKycDocSlot(
+                  title: '2. Company / Proprietor PAN Card',
+                  docKey: 'panCard',
+                  subtitle: 'Income Tax Department Business Identity',
+                  docNumber: _currentSeller.panNumber.isNotEmpty ? _currentSeller.panNumber : 'PAN Pending',
+                  fileUrl: _currentSeller.panCard,
+                  isUploaded: hasPan,
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+                _buildKycDocSlot(
+                  title: '3. Signatory Aadhaar Card',
+                  docKey: 'aadhaarCard',
+                  subtitle: 'Authorized Signatory / Proprietor Identity',
+                  docNumber: 'UIDAI Identity Verification',
+                  fileUrl: _currentSeller.aadhaarCard,
+                  isUploaded: hasAadhaar,
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+                _buildKycDocSlot(
+                  title: '4. Agri & Pesticide Licenses',
+                  docKey: 'licenceImage',
+                  subtitle: 'Fertilizer, Insecticide, or Seed Dealership',
+                  docNumber: _currentSeller.licenceImages.isNotEmpty
+                      ? '${_currentSeller.licenceImages.length} License(s) Uploaded'
+                      : (_currentSeller.licenseNumber.isNotEmpty ? _currentSeller.licenseNumber : 'License Pending'),
+                  fileUrl: _currentSeller.licenceImages.isNotEmpty ? _currentSeller.licenceImages.first : _currentSeller.licenseNumber,
+                  isUploaded: hasLicence,
+                  isDark: isDark,
+                  borderColor: borderColor,
+                  isMultiple: true,
+                  count: _currentSeller.licenceImages.length,
+                ),
+              ];
+
+              if (isWideLayout) {
+                return Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: slots[0]),
+                        const SizedBox(width: 14),
+                        Expanded(child: slots[1]),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: slots[2]),
+                        const SizedBox(width: 14),
+                        Expanded(child: slots[3]),
+                      ],
+                    ),
+                  ],
+                );
+              }
+
+              return Column(
+                children: [
+                  slots[0],
+                  const SizedBox(height: 12),
+                  slots[1],
+                  const SizedBox(height: 12),
+                  slots[2],
+                  const SizedBox(height: 12),
+                  slots[3],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKycDocSlot({
+    required String title,
+    required String docKey,
+    required String subtitle,
+    required String docNumber,
+    required String? fileUrl,
+    required bool isUploaded,
+    required bool isDark,
+    required Color borderColor,
+    bool isMultiple = false,
+    int count = 0,
+  }) {
+    final statusColor = isUploaded ? const Color(0xFF10B981) : const Color(0xFFE11D48);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isUploaded ? const Color(0xFF10B981).withValues(alpha: 0.3) : borderColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isUploaded ? Icons.task_alt_rounded : Icons.pending_actions_rounded,
+                size: 16,
+                color: statusColor,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isUploaded ? (isMultiple && count > 1 ? '$count UPLOADED' : 'UPLOADED') : 'REQUIRED',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: statusColor,
+                  ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            docNumber,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: docItems.map((doc) {
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => _showDocumentViewer(
-                    context,
-                    title: doc['title']!,
-                    docType: doc['type']!,
-                    documentNumber: doc['number']!,
-                    fileUrl: doc['url'],
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669).withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF059669)),
-                        const SizedBox(width: 6),
-                        Text(
-                          doc['label']!,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF059669),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.visibility_outlined, size: 13, color: Color(0xFF059669)),
-                      ],
-                    ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (isUploaded) ...[
+                TextButton.icon(
+                  onPressed: () {
+                    _showDocumentViewer(
+                      context,
+                      title: title,
+                      docType: subtitle,
+                      documentNumber: docNumber,
+                      fileUrl: fileUrl,
+                    );
+                  },
+                  icon: const Icon(Icons.visibility_rounded, size: 14),
+                  label: Text('View', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF059669),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
-              );
-            }).toList(),
+                const SizedBox(width: 8),
+              ],
+              ElevatedButton.icon(
+                onPressed: () => _pickAndUploadDocument(docKey),
+                icon: Icon(isUploaded ? Icons.refresh_rounded : Icons.file_upload_outlined, size: 14),
+                label: Text(
+                  isUploaded ? (isMultiple ? 'Add / Replace' : 'Replace') : 'Upload Document',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isUploaded ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)) : const Color(0xFF059669),
+                  foregroundColor: isUploaded ? (isDark ? Colors.white : const Color(0xFF0F172A)) : Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadDocument(String docType) async {
+    try {
+      final isLicence = docType == 'licenceImage';
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'],
+      );
+
+      if (files.isEmpty) return;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Uploading document to secure cloud storage...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      context.read<SellerBloc>().add(
+            UploadAdminUserKycDocuments(
+              userId: _currentSeller.id,
+              gstCertificate: docType == 'gstCertificate' ? files.first : null,
+              panCard: docType == 'panCard' ? files.first : null,
+              aadhaarCard: docType == 'aadhaarCard' ? files.first : null,
+              licenceFiles: isLicence ? files : null,
+              replaceLicenceFiles: false,
+              onSuccess: (updatedUser) {
+                if (!mounted) return;
+                setState(() {
+                  _currentSeller = SellerProfile.fromAdminUser(updatedUser);
+                });
+                widget.onSellerUpdated(_currentSeller);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF059669),
+                    content: Text(
+                      'Document uploaded successfully for "${_currentSeller.tradeName}"',
+                    ),
+                  ),
+                );
+              },
+              onError: (error) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFFE11D48),
+                    content: Text('Upload failed: $error'),
+                  ),
+                );
+              },
+            ),
+          );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('File selection error: $e')),
+      );
+    }
+  }
+
+  void _toggleKycApproval() {
+    final willApprove = !_currentSeller.isKycComplete;
+    final hasAllDocs = (_currentSeller.gstCertificate != null && _currentSeller.gstCertificate!.isNotEmpty) &&
+        (_currentSeller.panCard != null && _currentSeller.panCard!.isNotEmpty) &&
+        (_currentSeller.aadhaarCard != null && _currentSeller.aadhaarCard!.isNotEmpty) &&
+        (_currentSeller.licenceImages.isNotEmpty || _currentSeller.licenseNumber.isNotEmpty);
+
+    if (willApprove && !hasAllDocs) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Missing KYC Documents',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          content: Text(
+            'The seller must have all 4 compliance documents uploaded before KYC can be approved:\n\n'
+            '• GST Registration Certificate\n'
+            '• Company / Proprietor PAN Card\n'
+            '• Authorized Signatory Aadhaar Card\n'
+            '• Agriculture / Pesticide Trade License\n\n'
+            'Please upload the remaining documents first.',
+            style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Understood'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          willApprove ? 'Approve Seller KYC Verification?' : 'Return Seller KYC for Review?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          willApprove
+              ? 'Are you sure you want to approve KYC for "${_currentSeller.tradeName}" (ID: ${_currentSeller.id})?\n\n'
+                'This certifies that all tax and agricultural trade documents have been inspected. The seller will receive the VERIFIED status on the marketplace.'
+              : 'Are you sure you want to return KYC for "${_currentSeller.tradeName}" for review?\n\n'
+                'Their verification badge will revert to pending until re-approved.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.read<SellerBloc>().add(
+                    ReviewAdminUserKyc(
+                      userId: _currentSeller.id,
+                      approved: willApprove,
+                      onSuccess: (updatedUser) {
+                        if (!mounted) return;
+                        setState(() {
+                          _currentSeller = SellerProfile.fromAdminUser(updatedUser);
+                        });
+                        widget.onSellerUpdated(_currentSeller);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: willApprove ? const Color(0xFF059669) : const Color(0xFFD97706),
+                            content: Text(
+                              willApprove
+                                  ? 'Seller KYC approved successfully!'
+                                  : 'Seller KYC returned for review',
+                            ),
+                          ),
+                        );
+                      },
+                      onError: (err) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: const Color(0xFFE11D48),
+                            content: Text('KYC review error: $err'),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: willApprove ? const Color(0xFF059669) : const Color(0xFFD97706),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(willApprove ? 'Approve KYC' : 'Return for Review'),
           ),
         ],
       ),

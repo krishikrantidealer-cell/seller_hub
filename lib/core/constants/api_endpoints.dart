@@ -49,4 +49,8 @@ class ApiEndpoints {
   static String adminUserBlock(String userId) => '/api/v1/admin/users/$userId/block';
   static String adminUserDeletion(String userId) => '/api/v1/admin/users/$userId/deletion';
   static String adminUserPermanentDeletion(String userId) => '/api/v1/admin/users/$userId/permanent';
+  static String adminSellerKycDocuments(String userId) => '/api/v1/admin/users/$userId/kyc-documents';
+  static String adminSellerKycDocumentDownload(String userId, String documentType, int index) =>
+      '/api/v1/admin/users/$userId/kyc-documents/$documentType/$index';
+  static String adminSellerKycReview(String userId) => '/api/v1/admin/users/$userId/kyc';
 }

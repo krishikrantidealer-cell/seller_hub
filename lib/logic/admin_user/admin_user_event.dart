@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../core/models/admin_user.dart';
 
 abstract class AdminUserEvent extends Equatable {
@@ -111,4 +112,53 @@ class UpdateLocalAdminUser extends AdminUserEvent {
 
   @override
   List<Object?> get props => [user];
+}
+
+class UploadAdminUserKycDocuments extends AdminUserEvent {
+  final String userId;
+  final List<PlatformFile>? licenceFiles;
+  final PlatformFile? gstCertificate;
+  final PlatformFile? panCard;
+  final PlatformFile? aadhaarCard;
+  final bool replaceLicenceFiles;
+  final void Function(AdminUser user)? onSuccess;
+  final void Function(String error)? onError;
+
+  const UploadAdminUserKycDocuments({
+    required this.userId,
+    this.licenceFiles,
+    this.gstCertificate,
+    this.panCard,
+    this.aadhaarCard,
+    this.replaceLicenceFiles = false,
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [
+        userId,
+        licenceFiles,
+        gstCertificate,
+        panCard,
+        aadhaarCard,
+        replaceLicenceFiles,
+      ];
+}
+
+class ReviewAdminUserKyc extends AdminUserEvent {
+  final String userId;
+  final bool approved;
+  final void Function(AdminUser user)? onSuccess;
+  final void Function(String error)? onError;
+
+  const ReviewAdminUserKyc({
+    required this.userId,
+    required this.approved,
+    this.onSuccess,
+    this.onError,
+  });
+
+  @override
+  List<Object?> get props => [userId, approved];
 }

@@ -63,6 +63,10 @@ class AdminUser extends Equatable {
   final bool isKycComplete;
   final String? gstNumber;
   final String? licenceImage;
+  final List<String> licenceImages;
+  final String? gstCertificate;
+  final String? panCard;
+  final String? aadhaarCard;
   final String? shopImage;
   final List<UserAddress> shippingAddresses;
   final bool isBlocked;
@@ -92,6 +96,10 @@ class AdminUser extends Equatable {
     this.isKycComplete = false,
     this.gstNumber,
     this.licenceImage,
+    this.licenceImages = const [],
+    this.gstCertificate,
+    this.panCard,
+    this.aadhaarCard,
     this.shopImage,
     this.shippingAddresses = const [],
     this.isBlocked = false,
@@ -129,6 +137,21 @@ class AdminUser extends Equatable {
       parsedAddress = UserAddress.fromJson(rawAddress);
     }
 
+    final rawLicences = json['licenceImage'];
+    List<String> parsedLicences = [];
+    String? singleLicence;
+    if (rawLicences is List) {
+      parsedLicences = rawLicences.map((e) => e.toString()).toList();
+      singleLicence = parsedLicences.isNotEmpty ? parsedLicences.first : null;
+    } else if (rawLicences != null && rawLicences.toString().trim().isNotEmpty) {
+      singleLicence = rawLicences.toString().trim();
+      if (singleLicence != '[]') {
+        parsedLicences = [singleLicence];
+      } else {
+        singleLicence = null;
+      }
+    }
+
     return AdminUser(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       phoneNumber: json['phoneNumber']?.toString() ?? json['phone']?.toString() ?? '',
@@ -143,7 +166,11 @@ class AdminUser extends Equatable {
       kycStatus: json['kycStatus']?.toString(),
       isKycComplete: json['isKycComplete'] == true,
       gstNumber: json['gstNumber']?.toString(),
-      licenceImage: json['licenceImage']?.toString(),
+      licenceImage: singleLicence,
+      licenceImages: parsedLicences,
+      gstCertificate: json['gstCertificate']?.toString(),
+      panCard: json['panCard']?.toString(),
+      aadhaarCard: json['aadhaarCard']?.toString(),
       shopImage: json['shopImage']?.toString(),
       shippingAddresses: shipping,
       isBlocked: json['isBlocked'] == true,
@@ -178,7 +205,11 @@ class AdminUser extends Equatable {
         'kycStatus': kycStatus,
         'isKycComplete': isKycComplete,
         'gstNumber': gstNumber,
-        'licenceImage': licenceImage,
+        'licenceImage': licenceImages.isNotEmpty ? licenceImages : licenceImage,
+        'licenceImages': licenceImages,
+        'gstCertificate': gstCertificate,
+        'panCard': panCard,
+        'aadhaarCard': aadhaarCard,
         'shopImage': shopImage,
         'shippingAddresses': shippingAddresses.map((a) => a.toJson()).toList(),
         'isBlocked': isBlocked,
@@ -245,6 +276,10 @@ class AdminUser extends Equatable {
     bool? isKycComplete,
     String? gstNumber,
     String? licenceImage,
+    List<String>? licenceImages,
+    String? gstCertificate,
+    String? panCard,
+    String? aadhaarCard,
     String? shopImage,
     List<UserAddress>? shippingAddresses,
     bool? isBlocked,
@@ -274,6 +309,10 @@ class AdminUser extends Equatable {
       isKycComplete: isKycComplete ?? this.isKycComplete,
       gstNumber: gstNumber ?? this.gstNumber,
       licenceImage: licenceImage ?? this.licenceImage,
+      licenceImages: licenceImages ?? this.licenceImages,
+      gstCertificate: gstCertificate ?? this.gstCertificate,
+      panCard: panCard ?? this.panCard,
+      aadhaarCard: aadhaarCard ?? this.aadhaarCard,
       shopImage: shopImage ?? this.shopImage,
       shippingAddresses: shippingAddresses ?? this.shippingAddresses,
       isBlocked: isBlocked ?? this.isBlocked,
@@ -305,6 +344,11 @@ class AdminUser extends Equatable {
         kycStatus,
         isKycComplete,
         gstNumber,
+        licenceImage,
+        licenceImages,
+        gstCertificate,
+        panCard,
+        aadhaarCard,
         isBlocked,
         isDeleted,
         createdAt,

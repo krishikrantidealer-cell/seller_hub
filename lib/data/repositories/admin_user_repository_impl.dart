@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import '../../core/models/admin_user.dart';
 import '../../domain/repositories/admin_user_repository.dart';
 import '../datasources/admin_user_local_datasource.dart';
@@ -92,5 +93,37 @@ class AdminUserRepositoryImpl implements AdminUserRepository {
   @override
   Future<AdminUser> createSeller(Map<String, dynamic> data) async {
     return await remoteDataSource.createSeller(data);
+  }
+
+  @override
+  Future<AdminUser> uploadKycDocuments({
+    required String userId,
+    List<PlatformFile>? licenceFiles,
+    PlatformFile? gstCertificate,
+    PlatformFile? panCard,
+    PlatformFile? aadhaarCard,
+    bool replaceLicenceFiles = false,
+  }) async {
+    final updated = await remoteDataSource.uploadKycDocuments(
+      userId: userId,
+      licenceFiles: licenceFiles,
+      gstCertificate: gstCertificate,
+      panCard: panCard,
+      aadhaarCard: aadhaarCard,
+      replaceLicenceFiles: replaceLicenceFiles,
+    );
+    return updated;
+  }
+
+  @override
+  Future<AdminUser> reviewSellerKyc({
+    required String userId,
+    required bool approved,
+  }) async {
+    final updated = await remoteDataSource.reviewSellerKyc(
+      userId: userId,
+      approved: approved,
+    );
+    return updated;
   }
 }

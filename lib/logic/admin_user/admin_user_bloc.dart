@@ -23,6 +23,8 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     on<PermanentlyDeleteAdminUser>(_onPermanentlyDelete);
     on<CreateAdminUser>(_onCreateUser);
     on<UpdateLocalAdminUser>(_onUpdateLocalUser);
+    on<UploadAdminUserKycDocuments>(_onUploadKycDocuments);
+    on<ReviewAdminUserKyc>(_onReviewKyc);
   }
 
   Future<void> _onInitialize(
@@ -275,5 +277,75 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     }).toList();
 
     emit(state.copyWith(users: updatedList));
+  }
+
+  Future<void> _onUploadKycDocuments(
+    UploadAdminUserKycDocuments event,
+    Emitter<AdminUserState> emit,
+  ) async {
+    emit(state.copyWith(isActionInProgress: true, clearError: true, clearActionMessage: true));
+    try {
+      final updated = await repository.uploadKycDocuments(
+        userId: event.userId,
+        licenceFiles: event.licenceFiles,
+        gstCertificate: event.gstCertificate,
+        panCard: event.panCard,
+        aadhaarCard: event.aadhaarCard,
+        replaceLicenceFiles: event.replaceLicenceFiles,
+      );
+
+      final updatedList = state.users.map((u) {
+        return u.id == updated.id ? updated : u;
+      }).toList();
+
+      emit(state.copyWith(
+        isActionInProgress: false,
+        users: updatedList,
+        actionSuccessMessage: 'KYC documents uploaded successfully for "${updated.displayName}"',
+      ));
+
+      event.onSuccess?.call(updated);
+    } catch (e) {
+      final errorMsg = e is ApiException ? e.message : 'Failed to upload KYC documents: $e';
+      emit(state.copyWith(
+        isActionInProgress: false,
+        errorMessage: errorMsg,
+      ));
+      event.onError?.call(errorMsg);
+    }
+  }
+
+  Future<void> _onReviewKyc(
+    ReviewAdminUserKyc event,
+    Emitter<AdminUserState> emit,
+  ) async {
+    emit(state.copyWith(isActionInProgress: true, clearError: true, clearActionMessage: true));
+    try {
+      final updated = await repository.reviewSellerKyc(
+        userId: event.userId,
+        approved: event.approved,
+      );
+
+      final updatedList = state.users.map((u) {
+        return u.id == updated.id ? updated : u;
+      }).toList();
+
+      emit(state.copyWith(
+        isActionInProgress: false,
+        users: updatedList,
+        actionSuccessMessage: event.approved
+            ? 'Seller KYC approved successfully for "${updated.displayName}"!'
+            : 'Seller KYC returned for review',
+      ));
+
+      event.onSuccess?.call(updated);
+    } catch (e) {
+      final errorMsg = e is ApiException ? e.message : 'Failed to update KYC status: $e';
+      emit(state.copyWith(
+        isActionInProgress: false,
+        errorMessage: errorMsg,
+      ));
+      event.onError?.call(errorMsg);
+    }
   }
 }

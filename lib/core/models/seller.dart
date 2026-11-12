@@ -96,6 +96,11 @@ class SellerProfile extends Equatable {
   final DateTime? joinedAt;
   final DateTime? updatedAt;
   final List<String> kycDocuments;
+  final String? gstCertificate;
+  final String? panCard;
+  final String? aadhaarCard;
+  final List<String> licenceImages;
+  final String? kycStatus;
   final int productCodeSequence;
   final int orderNumberSequence;
   final bool isProfileComplete;
@@ -136,6 +141,11 @@ class SellerProfile extends Equatable {
     this.joinedAt,
     this.updatedAt,
     this.kycDocuments = const [],
+    this.gstCertificate,
+    this.panCard,
+    this.aadhaarCard,
+    this.licenceImages = const [],
+    this.kycStatus,
     this.productCodeSequence = 0,
     this.orderNumberSequence = 0,
     this.isProfileComplete = false,
@@ -155,10 +165,27 @@ class SellerProfile extends Equatable {
     }
 
     final docs = <String>[];
-    if (u.gstNumber != null && u.gstNumber!.isNotEmpty) docs.add('GST Certificate (${u.gstNumber})');
-    if (derivedPan.isNotEmpty) docs.add('PAN Card ($derivedPan)');
-    if (u.licenceImage != null && u.licenceImage!.isNotEmpty) docs.add('Fertilizer & Pesticide License');
-    if (u.shopImage != null && u.shopImage!.isNotEmpty) docs.add('Storefront / Shop Verification Photo');
+    if (u.gstCertificate != null && u.gstCertificate!.isNotEmpty) {
+      docs.add('GST Registration Certificate (Verified)');
+    } else if (u.gstNumber != null && u.gstNumber!.isNotEmpty) {
+      docs.add('GST Certificate (${u.gstNumber})');
+    }
+    if (u.panCard != null && u.panCard!.isNotEmpty) {
+      docs.add('Company / Proprietor PAN Card (Verified)');
+    } else if (derivedPan.isNotEmpty) {
+      docs.add('PAN Card ($derivedPan)');
+    }
+    if (u.aadhaarCard != null && u.aadhaarCard!.isNotEmpty) {
+      docs.add('Authorized Signatory Aadhaar Card (Verified)');
+    }
+    if (u.licenceImages.isNotEmpty) {
+      docs.add('Agri & Pesticide Licenses (${u.licenceImages.length} uploaded)');
+    } else if (u.licenceImage != null && u.licenceImage!.isNotEmpty) {
+      docs.add('Fertilizer & Pesticide License');
+    }
+    if (u.shopImage != null && u.shopImage!.isNotEmpty) {
+      docs.add('Storefront / Shop Verification Photo');
+    }
 
     return SellerProfile(
       id: u.id,
@@ -189,6 +216,11 @@ class SellerProfile extends Equatable {
       updatedAt: u.updatedAt,
       licenseNumber: u.licenceImage ?? '',
       kycDocuments: docs,
+      gstCertificate: u.gstCertificate,
+      panCard: u.panCard,
+      aadhaarCard: u.aadhaarCard,
+      licenceImages: u.licenceImages,
+      kycStatus: u.kycStatus,
       productCodeSequence: u.productCodeSequence ?? 0,
       orderNumberSequence: u.orderNumberSequence ?? 0,
       isProfileComplete: u.isProfileComplete,
@@ -378,6 +410,11 @@ class SellerProfile extends Equatable {
     DateTime? joinedAt,
     DateTime? updatedAt,
     List<String>? kycDocuments,
+    String? gstCertificate,
+    String? panCard,
+    String? aadhaarCard,
+    List<String>? licenceImages,
+    String? kycStatus,
     int? productCodeSequence,
     int? orderNumberSequence,
     bool? isProfileComplete,
@@ -418,6 +455,11 @@ class SellerProfile extends Equatable {
       joinedAt: joinedAt ?? this.joinedAt,
       updatedAt: updatedAt ?? this.updatedAt,
       kycDocuments: kycDocuments ?? this.kycDocuments,
+      gstCertificate: gstCertificate ?? this.gstCertificate,
+      panCard: panCard ?? this.panCard,
+      aadhaarCard: aadhaarCard ?? this.aadhaarCard,
+      licenceImages: licenceImages ?? this.licenceImages,
+      kycStatus: kycStatus ?? this.kycStatus,
       productCodeSequence: productCodeSequence ?? this.productCodeSequence,
       orderNumberSequence: orderNumberSequence ?? this.orderNumberSequence,
       isProfileComplete: isProfileComplete ?? this.isProfileComplete,

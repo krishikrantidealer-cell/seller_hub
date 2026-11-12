@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seller_hub/core/models/admin_user.dart';
 import 'package:seller_hub/domain/repositories/admin_user_repository.dart';
@@ -135,6 +136,46 @@ class FakeAdminUserRepository implements AdminUserRepository {
     );
     sellersList.insert(0, newUser);
     return newUser;
+  }
+
+  @override
+  Future<AdminUser> uploadKycDocuments({
+    required String userId,
+    List<PlatformFile>? licenceFiles,
+    PlatformFile? gstCertificate,
+    PlatformFile? panCard,
+    PlatformFile? aadhaarCard,
+    bool replaceLicenceFiles = false,
+  }) async {
+    final idx = sellersList.indexWhere((u) => u.id == userId);
+    final current = idx >= 0
+        ? sellersList[idx]
+        : AdminUser(id: userId, phoneNumber: '9876543210', role: 'ROLE_SELLER');
+    final updated = current.copyWith(
+      gstCertificate: gstCertificate != null ? 'gs://bucket/kyc/gst.pdf' : current.gstCertificate,
+      panCard: panCard != null ? 'gs://bucket/kyc/pan.pdf' : current.panCard,
+      aadhaarCard: aadhaarCard != null ? 'gs://bucket/kyc/aadhaar.pdf' : current.aadhaarCard,
+      licenceImages: licenceFiles != null ? ['gs://bucket/kyc/lic.pdf'] : current.licenceImages,
+    );
+    if (idx >= 0) sellersList[idx] = updated;
+    return updated;
+  }
+
+  @override
+  Future<AdminUser> reviewSellerKyc({
+    required String userId,
+    required bool approved,
+  }) async {
+    final idx = sellersList.indexWhere((u) => u.id == userId);
+    final current = idx >= 0
+        ? sellersList[idx]
+        : AdminUser(id: userId, phoneNumber: '9876543210', role: 'ROLE_SELLER');
+    final updated = current.copyWith(
+      kycStatus: approved ? 'APPROVED' : null,
+      isKycComplete: approved,
+    );
+    if (idx >= 0) sellersList[idx] = updated;
+    return updated;
   }
 }
 

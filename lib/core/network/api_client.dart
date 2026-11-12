@@ -243,6 +243,61 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> postCustomMultipart(
+    String path, {
+    required List<http.MultipartFile> files,
+    Map<String, String>? fields,
+    bool requiresAuth = false,
+  }) async {
+    try {
+      final uri = _buildUri(path);
+      final request = http.MultipartRequest('POST', uri);
+
+      if (requiresAuth) {
+        final token = await _tokenStorage.getAccessToken();
+        if (token != null && token.isNotEmpty) {
+          request.headers['Authorization'] = 'Bearer $token';
+        } else {
+          throw const UnauthorizedException(
+            message: 'Full authentication is required to access this resource. Please sign in.',
+          );
+        }
+      }
+      request.headers['Accept'] = 'application/json';
+
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      request.files.addAll(files);
+
+      final streamedResponse = await _client.send(request).timeout(_timeout);
+      final response = await http.Response.fromStream(streamedResponse);
+      return _processResponse(response);
+    } on SocketException catch (e) {
+      throw NetworkException(
+        message: 'No internet connection or server unreachable: ${e.message}',
+        details: e,
+      );
+    } on TimeoutException {
+      throw const NetworkException(
+        message: 'The server took too long to respond while uploading. Please try again.',
+      );
+    } on http.ClientException catch (e) {
+      throw NetworkException(
+        message: 'Network communication failure during upload: ${e.message}',
+        details: e,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Unexpected error during upload: $e',
+        details: e,
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> delete(
     String path, {
     Map<String, dynamic>? body,

@@ -35,6 +35,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   final _productCodeController = TextEditingController();
   final _hsnCodeController = TextEditingController(text: '3808');
   final _titleController = TextEditingController();
+  final _brandNameController = TextEditingController();
   final _technicalNameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _featuresController = TextEditingController();
@@ -140,6 +141,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
     _productCodeController.dispose();
     _hsnCodeController.dispose();
     _titleController.dispose();
+    _brandNameController.dispose();
     _technicalNameController.dispose();
     _descriptionController.dispose();
     _featuresController.dispose();
@@ -375,6 +377,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
       productCode: codeVal,
       hsnCode: _hsnCodeController.text.trim().isNotEmpty ? _hsnCodeController.text.trim() : '3808',
       title: _titleController.text.trim(),
+      brandName: _brandNameController.text.trim(),
       technicalName: _technicalNameController.text.trim(),
       description: _descriptionController.text.trim().isNotEmpty
           ? _descriptionController.text.trim()
@@ -675,10 +678,17 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           Row(
             children: [
               Expanded(
+                flex: 3,
                 child: _buildFormField('Product Title *', _titleController, 'e.g. AgriShield Pro 20% EC', isDark, isRequired: true),
               ),
               const SizedBox(width: 16),
               Expanded(
+                flex: 2,
+                child: _buildFormField('Brand Name', _brandNameController, 'e.g. Bayer, UPL, Biocrop', isDark),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 3,
                 child: _buildFormField('Technical Name *', _technicalNameController, 'e.g. Chlorpyrifos 20% EC', isDark, isRequired: true),
               ),
             ],

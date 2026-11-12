@@ -409,6 +409,7 @@ class Product extends Equatable {
   final String hsnCode;
   final String sellerId;
   final String title;
+  final String brandName;
   final String technicalName;
   final String vendor;
   final String sellerName;
@@ -469,6 +470,7 @@ class Product extends Equatable {
     this.hsnCode = '3808',
     this.sellerId = '',
     required this.title,
+    this.brandName = '',
     this.technicalName = '',
     String vendor = '',
     String sellerName = '',
@@ -780,6 +782,7 @@ class Product extends Equatable {
     final hsnCode = _parseString(json['hsnCode'] ?? json['HSN Code']);
     final sellerId = _parseString(json['sellerId'] ?? json['seller_id']);
     final title = _parseString(json['title'] ?? json['Title']);
+    final brandName = _parseString(json['brandName'] ?? json['Brand Name'] ?? json['brand_name'] ?? json['brand'] ?? json['Brand']);
     final technicalName = _parseString(json['technicalName'] ?? json['Technical Name']);
     final rawSellerName = _parseString(json['sellerName'] ?? json['Seller Name'] ?? json['seller_name']);
     final rawVendor = _parseString(json['vendor'] ?? json['Vendor']);
@@ -901,6 +904,7 @@ class Product extends Equatable {
       hsnCode: hsnCode,
       sellerId: sellerId,
       title: title,
+      brandName: brandName,
       technicalName: technicalName,
       vendor: effectiveVendor,
       sellerName: effectiveSellerName,
@@ -965,6 +969,7 @@ class Product extends Equatable {
     'hsnCode': hsnCode,
     'sellerId': sellerId,
     'title': title,
+    'brandName': brandName,
     'technicalName': technicalName,
     'vendor': vendor,
     'sellerName': sellerName,
@@ -1008,6 +1013,7 @@ class Product extends Equatable {
     'sellerId': sellerId,
     'hsnCode': hsnCode.isNotEmpty ? hsnCode : '3808',
     'title': title,
+    if (brandName.isNotEmpty) 'brandName': brandName,
     if (technicalName.isNotEmpty) 'technicalName': technicalName,
     'description': description.isNotEmpty ? description : title,
     'categoryId': categoryId.isNotEmpty ? categoryId : '6ab4f6f619ec643fd9bf3621',
@@ -1052,6 +1058,7 @@ class Product extends Equatable {
     }
     if (hsnCode.isNotEmpty) payload['hsnCode'] = hsnCode;
     if (title.isNotEmpty) payload['title'] = title;
+    if (brandName.isNotEmpty) payload['brandName'] = brandName;
     if (technicalName.isNotEmpty) payload['technicalName'] = technicalName;
     if (description.isNotEmpty) payload['description'] = description;
     if (categoryId.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(categoryId)) {
@@ -1080,6 +1087,8 @@ class Product extends Equatable {
     'sellerId': sellerId,
     'Title': title,
     'title': title,
+    'Brand Name': brandName,
+    'brandName': brandName,
     'Technical Name': technicalName,
     'technicalName': technicalName,
     'Vendor': vendor,
@@ -1143,6 +1152,7 @@ class Product extends Equatable {
     String? hsnCode,
     String? sellerId,
     String? title,
+    String? brandName,
     String? technicalName,
     String? vendor,
     String? sellerName,
@@ -1235,6 +1245,7 @@ class Product extends Equatable {
       hsnCode: hsnCode ?? this.hsnCode,
       sellerId: sellerId ?? this.sellerId,
       title: title ?? this.title,
+      brandName: brandName ?? this.brandName,
       technicalName: technicalName ?? this.technicalName,
       vendor: vendor ?? this.vendor,
       sellerName: sellerName ?? this.sellerName,
@@ -1313,6 +1324,7 @@ class Product extends Equatable {
     hsnCode,
     sellerId,
     title,
+    brandName,
     technicalName,
     vendor,
     sellerName,

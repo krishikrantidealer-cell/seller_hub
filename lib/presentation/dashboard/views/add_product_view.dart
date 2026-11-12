@@ -57,6 +57,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
 
   // General Specifications
   final _titleController = TextEditingController();
+  final _brandNameController = TextEditingController();
   final _technicalNameController = TextEditingController();
   final _productCodeController = TextEditingController();
   final _skuController = TextEditingController();
@@ -162,6 +163,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   void dispose() {
     _tabController.dispose();
     _titleController.dispose();
+    _brandNameController.dispose();
     _technicalNameController.dispose();
     _productCodeController.dispose();
     _skuController.dispose();
@@ -445,6 +447,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       productCode: codeVal,
       hsnCode: _hsnCodeController.text.trim().isNotEmpty ? _hsnCodeController.text.trim() : '3808',
       title: _titleController.text.trim(),
+      brandName: _brandNameController.text.trim(),
       technicalName: _technicalNameController.text.trim(),
       description: _descriptionController.text.trim().isNotEmpty
           ? _descriptionController.text.trim()
@@ -1194,6 +1197,16 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         'e.g. Beauveria Bassiana - Bio Pesticide',
                         isDark,
                         isRequired: true,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: _buildFormField(
+                        'Brand Name',
+                        _brandNameController,
+                        'e.g. Bayer, UPL, Biocrop',
+                        isDark,
                       ),
                     ),
                     const SizedBox(width: 12),

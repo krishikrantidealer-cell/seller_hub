@@ -129,7 +129,7 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${p.productCode} • HSN: ${p.hsnCode} • ${p.technicalName}',
+                          '${p.productCode} • ${p.brandName.isNotEmpty ? "${p.brandName} • " : ""}HSN: ${p.hsnCode} • ${p.technicalName}',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
@@ -250,11 +250,12 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildInfoRow('Product Code', p.productCode, 'HSN Code', p.hsnCode, isDark),
-          _buildInfoRow('Technical Name', p.technicalName, 'Vendor / Brand', p.sellerName.isNotEmpty ? p.sellerName : p.vendor, isDark),
+          _buildInfoRow('Brand Name', p.brandName.isNotEmpty ? p.brandName : 'Direct Manufacturer', 'Vendor / Seller', p.sellerName.isNotEmpty ? p.sellerName : p.vendor, isDark),
+          _buildInfoRow('Technical Name', p.technicalName, 'Category', p.category, isDark),
           if (p.technicalContent.isNotEmpty)
-            _buildInfoRow('Technical Content', p.technicalContent, 'Category', p.category, isDark)
+            _buildInfoRow('Technical Content', p.technicalContent, 'Collections', p.collections, isDark)
           else
-            _buildInfoRow('Category', p.category, 'Collections', p.collections, isDark),
+            _buildInfoRow('Collections', p.collections, 'Sub Collections', p.subCollections, isDark),
           if (p.technicalContent.isNotEmpty)
             _buildInfoRow('Collections', p.collections, 'Sub Collections', p.subCollections, isDark)
           else

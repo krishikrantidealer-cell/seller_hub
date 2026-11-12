@@ -85,7 +85,9 @@ class ProductMobileCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        product.technicalName.isNotEmpty ? product.technicalName : 'Agri Chemical Spec Unlisted',
+                        product.brandName.isNotEmpty
+                            ? '${product.brandName} • ${product.technicalName.isNotEmpty ? product.technicalName : "Agri Spec"}'
+                            : (product.technicalName.isNotEmpty ? product.technicalName : 'Agri Chemical Spec Unlisted'),
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 10.5,
                           fontStyle: FontStyle.italic,

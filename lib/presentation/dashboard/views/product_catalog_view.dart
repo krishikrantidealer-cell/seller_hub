@@ -899,6 +899,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
         if (searchWords.isNotEmpty) {
           for (final word in searchWords) {
             if (p.title.toLowerCase().contains(word) ||
+                p.brandName.toLowerCase().contains(word) ||
                 p.sku.toLowerCase().contains(word) ||
                 p.productCode.toLowerCase().contains(word) ||
                 p.technicalName.toLowerCase().contains(word) ||

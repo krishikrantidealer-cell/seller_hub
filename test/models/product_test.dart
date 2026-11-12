@@ -497,5 +497,32 @@ void main() {
       expect(product.variants.length, 1);
       expect(product.displayRate, 510.0);
     });
+
+    test('Product supports brandName serialization, mutation and payload formatting', () {
+      final json = {
+        'id': 'prod-001',
+        'title': 'Coragen Insecticide',
+        'brandName': 'FMC Corporation',
+        'technicalName': 'Chlorantraniliprole 18.5% SC',
+        'sellerName': 'Krishi Kranti Depot',
+        'categoryId': '6ad8582568a1edff7a609fee',
+      };
+
+      final product = Product.fromJson(json);
+      expect(product.title, 'Coragen Insecticide');
+      expect(product.brandName, 'FMC Corporation');
+      expect(product.technicalName, 'Chlorantraniliprole 18.5% SC');
+
+      final adminCreate = product.toAdminCreatePayload();
+      expect(adminCreate['brandName'], 'FMC Corporation');
+      expect(adminCreate['title'], 'Coragen Insecticide');
+
+      final adminPatch = product.toAdminUpdatePayload();
+      expect(adminPatch['brandName'], 'FMC Corporation');
+
+      final copied = product.copyWith(brandName: 'Syngenta');
+      expect(copied.brandName, 'Syngenta');
+      expect(copied.title, 'Coragen Insecticide');
+    });
   });
 }

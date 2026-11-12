@@ -54,6 +54,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
   // Form Controllers for editing
   late TextEditingController _titleController;
+  late TextEditingController _brandNameController;
   late TextEditingController _techNameController;
   late TextEditingController _productCodeController;
   late TextEditingController _hsnCodeController;
@@ -157,6 +158,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _selectedVariantIndex = 0;
 
       _titleController = TextEditingController();
+      _brandNameController = TextEditingController();
       _techNameController = TextEditingController();
       _productCodeController = TextEditingController();
       _hsnCodeController = TextEditingController();
@@ -222,6 +224,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final initialVar = _workingVariants.isNotEmpty ? _workingVariants[_selectedVariantIndex] : null;
 
     _titleController = TextEditingController(text: p.title);
+    _brandNameController = TextEditingController(text: p.brandName);
     _techNameController = TextEditingController(text: p.technicalName);
     _productCodeController = TextEditingController(text: p.productCode);
     _hsnCodeController = TextEditingController(text: p.hsnCode);
@@ -469,6 +472,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   @override
   void dispose() {
     _titleController.dispose();
+    _brandNameController.dispose();
     _techNameController.dispose();
     _productCodeController.dispose();
     _hsnCodeController.dispose();
@@ -736,6 +740,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
     final updatedProduct = _currentProduct.copyWith(
       title: title,
+      brandName: _brandNameController.text.trim(),
       technicalName: _techNameController.text.trim(),
       productCode: _productCodeController.text.trim(),
       hsnCode: _hsnCodeController.text.trim(),
@@ -1200,6 +1205,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               controller: _titleController,
               label: 'Product Title *',
               hint: 'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
+              isDark: isDark,
+              borderColor: borderColor,
+            ),
+            const SizedBox(height: 12),
+            _buildField(
+              controller: _brandNameController,
+              label: 'Brand Name',
+              hint: 'e.g. Bayer, Syngenta, UPL, Biocrop',
               isDark: isDark,
               borderColor: borderColor,
             ),
@@ -1697,6 +1710,26 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               color: isDark ? Colors.white : const Color(0xFF0F172A),
             ),
           ),
+          if (p.brandName.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF2563EB)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Brand: ${p.brandName}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF2563EB),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 6),
           Row(
             children: [

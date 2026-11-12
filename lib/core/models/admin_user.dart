@@ -115,6 +115,20 @@ class AdminUser extends Equatable {
     this.orderNumberSequence,
   });
 
+  factory AdminUser.emptyCustomer() {
+    return const AdminUser(
+      id: '',
+      phoneNumber: '',
+      firstName: '',
+      lastName: '',
+      role: 'ROLE_CUSTOMER',
+      status: 'ACTIVE',
+      address: UserAddress(
+        state: 'Madhya Pradesh',
+      ),
+    );
+  }
+
   factory AdminUser.fromJson(Map<String, dynamic> json) {
     List<UserAddress> shipping = [];
     final rawShipping = json['shippingAddresses'] ?? json['shipping_addresses'];

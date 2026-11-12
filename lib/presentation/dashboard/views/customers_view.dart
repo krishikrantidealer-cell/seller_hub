@@ -10,11 +10,13 @@ import '../widgets/create_customer_dialog.dart';
 class CustomersView extends StatefulWidget {
   final bool isWide;
   final ValueChanged<AdminUser>? onSelectCustomer;
+  final VoidCallback? onOpenCreateCustomer;
 
   const CustomersView({
     super.key,
     required this.isWide,
     this.onSelectCustomer,
+    this.onOpenCreateCustomer,
   });
 
   @override
@@ -228,7 +230,7 @@ class _CustomersViewState extends State<CustomersView> {
         ),
         const Spacer(),
         ElevatedButton.icon(
-          onPressed: () => _openCreateCustomerDialog(context),
+          onPressed: widget.onOpenCreateCustomer ?? () => _openCreateCustomerDialog(context),
           icon: const Icon(Icons.person_add_rounded, size: 16),
           label: Text(
             'Create Customer',

@@ -13,6 +13,7 @@ class SellersView extends StatefulWidget {
   final ValueChanged<SellerProfile> onSelectSeller;
   final ValueChanged<String> onViewSellerProducts;
   final ValueChanged<SellerProfile>? onSellerAdded;
+  final VoidCallback? onOpenCreateSeller;
 
   const SellersView({
     super.key,
@@ -21,6 +22,7 @@ class SellersView extends StatefulWidget {
     required this.onSelectSeller,
     required this.onViewSellerProducts,
     this.onSellerAdded,
+    this.onOpenCreateSeller,
   });
 
   @override
@@ -176,7 +178,7 @@ class _SellersViewState extends State<SellersView> {
             ),
             const Spacer(),
             ElevatedButton.icon(
-              onPressed: () => _openCreateSellerDialog(context),
+              onPressed: widget.onOpenCreateSeller ?? () => _openCreateSellerDialog(context),
               icon: const Icon(Icons.add_rounded, size: 17),
               label: Text(
                 'Create Seller',

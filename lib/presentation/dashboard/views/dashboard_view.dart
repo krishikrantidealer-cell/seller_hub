@@ -473,12 +473,14 @@ class _DashboardViewState extends State<DashboardView> {
         userChild = CustomersView(
           isWide: isWide,
           onSelectCustomer: (customer) => setState(() => _viewingCustomer = customer),
+          onOpenCreateCustomer: () => setState(() => _viewingCustomer = AdminUser.emptyCustomer()),
         );
       } else {
         userChild = SellersView(
           sellers: sellers,
           products: allProducts,
           onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
+          onOpenCreateSeller: () => setState(() => _viewingSeller = SellerProfile.empty()),
           onViewSellerProducts: (sellerTradeName) {
             setState(() {
               _selectedNavIndex = 1;

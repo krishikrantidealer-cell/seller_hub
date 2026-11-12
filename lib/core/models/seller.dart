@@ -158,6 +158,30 @@ class SellerProfile extends Equatable {
 
   String get phoneNumber => phone;
 
+  factory SellerProfile.empty() {
+    return const SellerProfile(
+      id: '',
+      sellerCode: '',
+      companyName: '',
+      tradeName: '',
+      contactPerson: '',
+      email: '',
+      phone: '',
+      gstin: '',
+      panNumber: '',
+      licenseNumber: '',
+      registeredAddress: '',
+      city: '',
+      state: 'Madhya Pradesh',
+      pincode: '',
+      warehouseAddress: '',
+      status: 'ACTIVE',
+      isVerified: false,
+      isBlocked: false,
+      isDeleted: false,
+    );
+  }
+
   factory SellerProfile.fromAdminUser(AdminUser u) {
     String derivedPan = '';
     if (u.gstNumber != null && u.gstNumber!.trim().length == 15) {

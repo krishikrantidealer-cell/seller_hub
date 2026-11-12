@@ -13,6 +13,8 @@ class CustomerProfileView extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<AdminUser> onCustomerUpdated;
   final ValueChanged<MarketplaceOrder>? onSelectOrder;
+  final bool isCreateMode;
+  final ValueChanged<AdminUser>? onCustomerCreated;
 
   const CustomerProfileView({
     super.key,
@@ -21,6 +23,8 @@ class CustomerProfileView extends StatefulWidget {
     required this.onBack,
     required this.onCustomerUpdated,
     this.onSelectOrder,
+    this.isCreateMode = false,
+    this.onCustomerCreated,
   });
 
   @override
@@ -30,6 +34,7 @@ class CustomerProfileView extends StatefulWidget {
 class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late AdminUser _currentCustomer;
+  late bool _isCreating;
   bool _isEditing = false;
 
   // Controllers
@@ -49,6 +54,8 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
   void initState() {
     super.initState();
     _currentCustomer = widget.customer;
+    _isCreating = widget.isCreateMode || _currentCustomer.id.isEmpty;
+    _isEditing = _isCreating;
     _tabController = TabController(length: 4, vsync: this);
     _initControllers();
   }
@@ -87,6 +94,64 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
   }
 
   void _saveChanges() {
+    if (_isCreating) {
+      final phone = _phoneController.text.trim();
+      final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+      final finalPhone = cleanPhone.length > 10 ? cleanPhone.substring(cleanPhone.length - 10) : cleanPhone;
+      if (finalPhone.length != 10) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid 10-digit mobile number')),
+        );
+        return;
+      }
+
+      final firstName = _firstNameController.text.trim();
+      if (firstName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter First Name')),
+        );
+        return;
+      }
+
+      final payload = <String, dynamic>{
+        'firstName': firstName,
+        'lastName': _lastNameController.text.trim().isNotEmpty ? _lastNameController.text.trim() : 'Customer',
+        'phoneNumber': finalPhone,
+        if (_emailController.text.trim().isNotEmpty) 'email': _emailController.text.trim(),
+        if (_shopNameController.text.trim().isNotEmpty) 'shopName': _shopNameController.text.trim(),
+        if (_gstController.text.trim().isNotEmpty) 'gstNumber': _gstController.text.trim().toUpperCase(),
+        'address': {
+          if (_villageAreaController.text.trim().isNotEmpty) 'villageArea': _villageAreaController.text.trim(),
+          if (_address2Controller.text.trim().isNotEmpty) 'address2': _address2Controller.text.trim(),
+          'cityTehsil': _cityController.text.trim().isNotEmpty ? _cityController.text.trim() : 'City',
+          'state': _stateController.text.trim().isNotEmpty ? _stateController.text.trim() : 'Madhya Pradesh',
+          'pincode': _pincodeController.text.trim().isNotEmpty ? _pincodeController.text.trim() : '462001',
+        },
+      };
+
+      context.read<CustomerBloc>().add(
+            CreateAdminUser(
+              userData: payload,
+              onSuccess: (created) {
+                setState(() {
+                  _currentCustomer = created;
+                  _isCreating = false;
+                  _isEditing = false;
+                });
+                widget.onCustomerCreated?.call(created);
+                widget.onCustomerUpdated(created);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF059669),
+                    content: Text('Customer "${created.fullName}" registered successfully!'),
+                  ),
+                );
+              },
+            ),
+          );
+      return;
+    }
+
     final updatedAddress = UserAddress(
       villageArea: _villageAreaController.text.trim(),
       address2: _address2Controller.text.trim(),
@@ -250,9 +315,10 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
         const SizedBox(height: 18),
 
         // KPI Metric Strip
-        _buildCustomerMetricsGrid(context, isDark, surfaceColor, borderColor, customerOrders, isWide),
-
-        const SizedBox(height: 18),
+        if (!_isCreating) ...[
+          _buildCustomerMetricsGrid(context, isDark, surfaceColor, borderColor, customerOrders, isWide),
+          const SizedBox(height: 18),
+        ],
 
         // Tab Bar Section
         Container(
@@ -426,7 +492,30 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
           ),
         ),
         const Spacer(),
-        if (_isEditing) ...[
+        if (_isCreating) ...[
+          OutlinedButton(
+            onPressed: widget.onBack,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+              side: BorderSide(color: borderColor),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Cancel', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: _saveChanges,
+            icon: const Icon(Icons.person_add_rounded, size: 16),
+            label: Text('Create Customer Account', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ] else if (_isEditing) ...[
           OutlinedButton(
             onPressed: () {
               setState(() {
@@ -594,9 +683,13 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
                   children: [
                     Flexible(
                       child: Text(
-                        _currentCustomer.fullName.isNotEmpty
-                            ? _currentCustomer.fullName
-                            : _currentCustomer.displayName,
+                        _isCreating
+                            ? ((_firstNameController.text.trim().isNotEmpty || _lastNameController.text.trim().isNotEmpty)
+                                ? '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'.trim()
+                                : 'Register New Customer')
+                            : (_currentCustomer.fullName.isNotEmpty
+                                ? _currentCustomer.fullName
+                                : _currentCustomer.displayName),
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
@@ -609,22 +702,32 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
+                        color: (_isCreating ? const Color(0xFFF59E0B) : statusColor).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                        border: Border.all(color: (_isCreating ? const Color(0xFFF59E0B) : statusColor).withValues(alpha: 0.3)),
                       ),
                       child: Text(
-                        statusText,
+                        _isCreating ? 'NEW DRAFT' : statusText,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: statusColor,
+                          color: _isCreating ? const Color(0xFFF59E0B) : statusColor,
                         ),
                       ),
                     ),
                   ],
                 ),
-                if (_currentCustomer.shopName != null && _currentCustomer.shopName!.isNotEmpty) ...[
+                if (_isCreating) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    'Fill in buyer name, 10-digit mobile number, and delivery address to create a customer account',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ] else if (_currentCustomer.shopName != null && _currentCustomer.shopName!.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Text(
                     _currentCustomer.shopName!,
@@ -636,28 +739,38 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
                   ),
                 ],
                 const SizedBox(height: 10),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  children: [
-                    _buildCopyableBadge('Customer ID', _currentCustomer.id, isDark, borderColor),
-                    _buildCopyableBadge('Phone', _currentCustomer.phoneNumber, isDark, borderColor),
-                    _buildSimpleBadge(Icons.shield_outlined, _currentCustomer.role, isDark, borderColor),
-                    if (_currentCustomer.address != null && _currentCustomer.address!.cityTehsil.isNotEmpty)
-                      _buildSimpleBadge(
-                        Icons.location_on_rounded,
-                        '${_currentCustomer.address!.cityTehsil}, ${_currentCustomer.address!.state}',
-                        isDark,
-                        borderColor,
-                      ),
-                  ],
-                ),
+                if (_isCreating)
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      _buildSimpleBadge(Icons.person_rounded, 'Role: ROLE_CUSTOMER', isDark, borderColor),
+                      _buildSimpleBadge(Icons.verified_user_outlined, 'Status: Active on creation', isDark, borderColor),
+                    ],
+                  )
+                else
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      _buildCopyableBadge('Customer ID', _currentCustomer.id, isDark, borderColor),
+                      _buildCopyableBadge('Phone', _currentCustomer.phoneNumber, isDark, borderColor),
+                      _buildSimpleBadge(Icons.shield_outlined, _currentCustomer.role, isDark, borderColor),
+                      if (_currentCustomer.address != null && _currentCustomer.address!.cityTehsil.isNotEmpty)
+                        _buildSimpleBadge(
+                          Icons.location_on_rounded,
+                          '${_currentCustomer.address!.cityTehsil}, ${_currentCustomer.address!.state}',
+                          isDark,
+                          borderColor,
+                        ),
+                    ],
+                  ),
               ],
             ),
           ),
 
           // Quick Action Status Toggle
-          if (isWide) ...[
+          if (isWide && !_isCreating) ...[
             const SizedBox(width: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,

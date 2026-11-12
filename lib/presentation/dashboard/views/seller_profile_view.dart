@@ -18,6 +18,8 @@ class SellerProfileView extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<SellerProfile> onSellerUpdated;
   final ValueChanged<String> onViewSellerProducts;
+  final bool isCreateMode;
+  final ValueChanged<SellerProfile>? onSellerCreated;
 
   const SellerProfileView({
     super.key,
@@ -26,6 +28,8 @@ class SellerProfileView extends StatefulWidget {
     required this.onBack,
     required this.onSellerUpdated,
     required this.onViewSellerProducts,
+    this.isCreateMode = false,
+    this.onSellerCreated,
   });
 
   @override
@@ -35,6 +39,7 @@ class SellerProfileView extends StatefulWidget {
 class _SellerProfileViewState extends State<SellerProfileView> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late SellerProfile _currentSeller;
+  late bool _isCreating;
   bool _isEditing = false;
 
   // Edit Controllers
@@ -65,6 +70,8 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   void initState() {
     super.initState();
     _currentSeller = widget.seller;
+    _isCreating = widget.isCreateMode || _currentSeller.id.isEmpty;
+    _isEditing = _isCreating;
     _tabController = TabController(length: 4, vsync: this);
     _initControllers();
   }
@@ -120,6 +127,82 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   }
 
   void _saveChanges() {
+    if (_isCreating) {
+      final tradeName = _tradeNameController.text.trim().isNotEmpty
+          ? _tradeNameController.text.trim()
+          : _companyNameController.text.trim();
+      if (tradeName.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter Trade / Shop Name')),
+        );
+        return;
+      }
+
+      final phone = _phoneController.text.trim();
+      final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+      final finalPhone = cleanPhone.length > 10 ? cleanPhone.substring(cleanPhone.length - 10) : cleanPhone;
+      if (finalPhone.length != 10) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid 10-digit mobile number')),
+        );
+        return;
+      }
+
+      final contactPerson = _contactPersonController.text.trim();
+      final parts = contactPerson.split(' ');
+      final firstName = parts.isNotEmpty && parts.first.isNotEmpty ? parts.first : tradeName;
+      final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : 'Seller';
+
+      final gstin = _gstinController.text.trim().toUpperCase();
+      if (gstin.isNotEmpty && gstin.length != 15) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('GSTIN must be exactly 15 alphanumeric characters')),
+        );
+        return;
+      }
+
+      final payload = <String, dynamic>{
+        'shopName': tradeName,
+        'firstName': firstName,
+        'lastName': lastName,
+        'phoneNumber': finalPhone,
+        if (_emailController.text.trim().isNotEmpty) 'email': _emailController.text.trim(),
+        if (gstin.isNotEmpty) 'gstNumber': gstin,
+        'address': {
+          if (_registeredAddressController.text.trim().isNotEmpty)
+            'villageArea': _registeredAddressController.text.trim(),
+          'cityTehsil': _cityController.text.trim().isNotEmpty ? _cityController.text.trim() : 'City',
+          'state': _stateController.text.trim().isNotEmpty ? _stateController.text.trim() : 'Madhya Pradesh',
+          'pincode': _pincodeController.text.trim().isNotEmpty ? _pincodeController.text.trim() : '462001',
+        },
+      };
+
+      context.read<SellerBloc>().add(
+            CreateAdminUser(
+              userData: payload,
+              onSuccess: (created) {
+                final profile = SellerProfile.fromAdminUser(created);
+                setState(() {
+                  _currentSeller = profile;
+                  _isCreating = false;
+                  _isEditing = false;
+                });
+                widget.onSellerCreated?.call(profile);
+                widget.onSellerUpdated(profile);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF059669),
+                    content: Text(
+                      'Seller "${profile.tradeName}" registered successfully! You can now upload KYC documents below.',
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+      return;
+    }
+
     final updated = _currentSeller.copyWith(
       companyName: _companyNameController.text.trim(),
       tradeName: _tradeNameController.text.trim(),
@@ -302,9 +385,10 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         const SizedBox(height: 18),
 
         // KPI Metric Strip
-        _buildSellerMetricsGrid(context, isDark, surfaceColor, borderColor, sellerProducts.length, isWide),
-
-        const SizedBox(height: 18),
+        if (!_isCreating) ...[
+          _buildSellerMetricsGrid(context, isDark, surfaceColor, borderColor, sellerProducts.length, isWide),
+          const SizedBox(height: 18),
+        ],
 
         // Tab Bar for Profile Sections
         Container(
@@ -485,107 +569,14 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            OutlinedButton.icon(
-              onPressed: () => _openBulkAddProducts(context),
-              icon: const Icon(Icons.playlist_add_rounded, size: 16, color: Color(0xFF7C3AED)),
-              label: Text(
-                'Bulk Add',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF7C3AED)),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF7C3AED)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => _openAddSingleProduct(context),
-              icon: const Icon(Icons.add_rounded, size: 16),
-              label: Text(
-                '+ Add Product',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => widget.onViewSellerProducts(_currentSeller.tradeName),
-              icon: const Icon(Icons.inventory_2_outlined, size: 16),
-              label: Text(
-                'View Products ($productCount)',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _confirmToggleDeleteSeller(context),
-              icon: Icon(
-                _currentSeller.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
-                size: 15,
-                color: _currentSeller.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
-              ),
-              label: Text(
-                _currentSeller.isDeleted ? 'Restore Seller' : 'Deactivate Seller',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _currentSeller.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(
-                  color: (_currentSeller.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48)).withValues(alpha: 0.5),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-            if (_currentSeller.isDeleted)
-              OutlinedButton.icon(
-                onPressed: () => _confirmPermanentDeleteSeller(context),
-                icon: const Icon(
-                  Icons.delete_forever_rounded,
-                  size: 15,
-                  color: Color(0xFFDC2626),
-                ),
-                label: Text(
-                  'Delete Forever',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFDC2626),
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                    color: const Color(0xFFDC2626).withValues(alpha: 0.6),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            if (_isEditing) ...[
+        if (_isCreating) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
               OutlinedButton(
-                onPressed: () {
-                  setState(() {
-                    _isEditing = false;
-                    _initControllers();
-                  });
-                },
+                onPressed: widget.onBack,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
                   side: BorderSide(color: borderColor),
@@ -596,30 +587,154 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
               ),
               ElevatedButton.icon(
                 onPressed: _saveChanges,
-                icon: const Icon(Icons.check_circle_rounded, size: 16),
-                label: Text('Save Profile', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+                icon: const Icon(Icons.add_business_rounded, size: 17),
+                label: Text('Create Seller Account', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ] else ...[
-              OutlinedButton.icon(
-                onPressed: () => setState(() => _isEditing = true),
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: Text('Edit Profile', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
-                  side: BorderSide(color: borderColor),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ],
-          ],
-        ),
+          ),
+        ] else ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _openBulkAddProducts(context),
+                icon: const Icon(Icons.playlist_add_rounded, size: 16, color: Color(0xFF7C3AED)),
+                label: Text(
+                  'Bulk Add',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF7C3AED)),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF7C3AED)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _openAddSingleProduct(context),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: Text(
+                  '+ Add Product',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => widget.onViewSellerProducts(_currentSeller.tradeName),
+                icon: const Icon(Icons.inventory_2_outlined, size: 16),
+                label: Text(
+                  'View Products ($productCount)',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3B82F6),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _confirmToggleDeleteSeller(context),
+                icon: Icon(
+                  _currentSeller.isDeleted ? Icons.restore_from_trash_rounded : Icons.delete_outline_rounded,
+                  size: 15,
+                  color: _currentSeller.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+                ),
+                label: Text(
+                  _currentSeller.isDeleted ? 'Restore Seller' : 'Deactivate Seller',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _currentSeller.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: (_currentSeller.isDeleted ? const Color(0xFF059669) : const Color(0xFFE11D48)).withValues(alpha: 0.5),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              if (_currentSeller.isDeleted)
+                OutlinedButton.icon(
+                  onPressed: () => _confirmPermanentDeleteSeller(context),
+                  icon: const Icon(
+                    Icons.delete_forever_rounded,
+                    size: 15,
+                    color: Color(0xFFDC2626),
+                  ),
+                  label: Text(
+                    'Delete Forever',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFDC2626),
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: const Color(0xFFDC2626).withValues(alpha: 0.6),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              if (_isEditing) ...[
+                OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _isEditing = false;
+                      _initControllers();
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                    side: BorderSide(color: borderColor),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Cancel', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _saveChanges,
+                  icon: const Icon(Icons.check_circle_rounded, size: 16),
+                  label: Text('Save Profile', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ] else ...[
+                OutlinedButton.icon(
+                  onPressed: () => setState(() => _isEditing = true),
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: Text('Edit Profile', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                    side: BorderSide(color: borderColor),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -684,7 +799,9 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   children: [
                     Flexible(
                       child: Text(
-                        _currentSeller.tradeName,
+                        _isCreating
+                            ? (_tradeNameController.text.trim().isNotEmpty ? _tradeNameController.text.trim() : 'Register New Seller')
+                            : _currentSeller.tradeName,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
@@ -697,16 +814,18 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
+                        color: (_isCreating ? const Color(0xFFF59E0B) : statusColor).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                        border: Border.all(color: (_isCreating ? const Color(0xFFF59E0B) : statusColor).withValues(alpha: 0.3)),
                       ),
                       child: Text(
-                        _currentSeller.isDeleted ? 'DEACTIVATED (SOFT DELETED)' : _currentSeller.status.replaceAll('_', ' '),
+                        _isCreating
+                            ? 'NEW SELLER DRAFT'
+                            : (_currentSeller.isDeleted ? 'DEACTIVATED (SOFT DELETED)' : _currentSeller.status.replaceAll('_', ' ')),
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: statusColor,
+                          color: _isCreating ? const Color(0xFFF59E0B) : statusColor,
                         ),
                       ),
                     ),
@@ -714,7 +833,11 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  _currentSeller.companyName,
+                  _isCreating
+                      ? (_companyNameController.text.trim().isNotEmpty
+                          ? _companyNameController.text.trim()
+                          : 'Fill in the merchant details below to register storefront & warehouse')
+                      : _currentSeller.companyName,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
@@ -722,22 +845,33 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   ),
                 ),
                 const SizedBox(height: 10),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  children: [
-                    _buildCopyableBadge('Seller ID', _currentSeller.id, isDark, borderColor),
-                    _buildCopyableBadge('GSTIN', _currentSeller.gstin, isDark, borderColor),
-                    _buildSimpleBadge(Icons.business_rounded, _currentSeller.businessType, isDark, borderColor),
-                    _buildSimpleBadge(Icons.location_on_rounded, '${_currentSeller.city}, ${_currentSeller.state}', isDark, borderColor),
-                  ],
-                ),
+                if (_isCreating)
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      _buildSimpleBadge(Icons.storefront_rounded, 'Role: ROLE_SELLER', isDark, borderColor),
+                      _buildSimpleBadge(Icons.app_registration_rounded, 'Step 1: Registration Form', isDark, borderColor),
+                      _buildSimpleBadge(Icons.cloud_upload_rounded, 'Step 2: KYC Cloud Upload', isDark, borderColor),
+                    ],
+                  )
+                else
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      _buildCopyableBadge('Seller ID', _currentSeller.id, isDark, borderColor),
+                      _buildCopyableBadge('GSTIN', _currentSeller.gstin, isDark, borderColor),
+                      _buildSimpleBadge(Icons.business_rounded, _currentSeller.businessType, isDark, borderColor),
+                      _buildSimpleBadge(Icons.location_on_rounded, '${_currentSeller.city}, ${_currentSeller.state}', isDark, borderColor),
+                    ],
+                  ),
               ],
             ),
           ),
 
           // Quick Action Status Toggle
-          if (isWide) ...[
+          if (isWide && !_isCreating) ...[
             const SizedBox(width: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,

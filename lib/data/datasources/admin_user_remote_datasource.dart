@@ -26,6 +26,10 @@ abstract class AdminUserRemoteDataSource {
   Future<String> permanentlyDeleteUser({
     required String userId,
   });
+
+  Future<AdminUser> createCustomer(Map<String, dynamic> data);
+
+  Future<AdminUser> createSeller(Map<String, dynamic> data);
 }
 
 class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
@@ -136,5 +140,43 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
     }
 
     return data;
+  }
+
+  @override
+  Future<AdminUser> createCustomer(Map<String, dynamic> data) async {
+    final response = await _apiClient.post(
+      ApiEndpoints.adminCreateCustomer,
+      body: data,
+      requiresAuth: true,
+    );
+
+    final success = response['success'] == true;
+    final resData = response['data'];
+
+    if (!success || resData == null || resData is! Map<String, dynamic>) {
+      final msg = response['message']?.toString() ?? 'Failed to create customer account';
+      throw ApiException(message: msg, details: response);
+    }
+
+    return AdminUser.fromJson(resData);
+  }
+
+  @override
+  Future<AdminUser> createSeller(Map<String, dynamic> data) async {
+    final response = await _apiClient.post(
+      ApiEndpoints.adminCreateSeller,
+      body: data,
+      requiresAuth: true,
+    );
+
+    final success = response['success'] == true;
+    final resData = response['data'];
+
+    if (!success || resData == null || resData is! Map<String, dynamic>) {
+      final msg = response['message']?.toString() ?? 'Failed to create seller account';
+      throw ApiException(message: msg, details: response);
+    }
+
+    return AdminUser.fromJson(resData);
   }
 }

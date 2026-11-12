@@ -109,6 +109,33 @@ class FakeAdminUserRepository implements AdminUserRepository {
     customersList.removeWhere((u) => u.id == userId);
     return userId;
   }
+
+  @override
+  Future<AdminUser> createCustomer(Map<String, dynamic> data) async {
+    final newUser = AdminUser(
+      id: 'cust-${DateTime.now().millisecondsSinceEpoch}',
+      phoneNumber: data['phoneNumber']?.toString() ?? '9876543210',
+      firstName: data['firstName']?.toString() ?? 'New',
+      lastName: data['lastName']?.toString() ?? 'Customer',
+      role: 'ROLE_CUSTOMER',
+    );
+    customersList.insert(0, newUser);
+    return newUser;
+  }
+
+  @override
+  Future<AdminUser> createSeller(Map<String, dynamic> data) async {
+    final newUser = AdminUser(
+      id: 'seller-${DateTime.now().millisecondsSinceEpoch}',
+      phoneNumber: data['phoneNumber']?.toString() ?? '9876543210',
+      firstName: data['firstName']?.toString() ?? 'New',
+      lastName: data['lastName']?.toString() ?? 'Seller',
+      shopName: data['shopName']?.toString() ?? 'New Store',
+      role: 'ROLE_SELLER',
+    );
+    sellersList.insert(0, newUser);
+    return newUser;
+  }
 }
 
 void main() {

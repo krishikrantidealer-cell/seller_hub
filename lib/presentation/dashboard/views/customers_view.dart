@@ -5,6 +5,7 @@ import '../../../core/models/admin_user.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/admin_user_state.dart';
 import '../../../logic/admin_user/customer_bloc.dart';
+import '../widgets/create_customer_dialog.dart';
 
 class CustomersView extends StatefulWidget {
   final bool isWide;
@@ -23,6 +24,17 @@ class CustomersView extends StatefulWidget {
 class _CustomersViewState extends State<CustomersView> {
   final TextEditingController _searchController = TextEditingController();
   bool _showTrash = false;
+
+  void _openCreateCustomerDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => CreateCustomerDialog(
+        onCustomerCreated: (created) {
+          widget.onSelectCustomer?.call(created);
+        },
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -212,6 +224,25 @@ class _CustomersViewState extends State<CustomersView> {
                 ),
               ],
             ),
+          ),
+        ),
+        const Spacer(),
+        ElevatedButton.icon(
+          onPressed: () => _openCreateCustomerDialog(context),
+          icon: const Icon(Icons.person_add_rounded, size: 16),
+          label: Text(
+            'Create Customer',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF059669),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           ),
         ),
       ],

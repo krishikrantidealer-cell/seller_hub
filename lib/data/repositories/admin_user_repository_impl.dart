@@ -83,4 +83,14 @@ class AdminUserRepositoryImpl implements AdminUserRepository {
     await localDataSource?.removeUserFromCache(userId);
     return result;
   }
+
+  @override
+  Future<AdminUser> createCustomer(Map<String, dynamic> data) async {
+    return await remoteDataSource.createCustomer(data);
+  }
+
+  @override
+  Future<AdminUser> createSeller(Map<String, dynamic> data) async {
+    return await remoteDataSource.createSeller(data);
+  }
 }

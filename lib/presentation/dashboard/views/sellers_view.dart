@@ -5,6 +5,7 @@ import '../../../core/models/seller.dart';
 import '../../../core/models/product.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
+import '../widgets/create_seller_dialog.dart';
 
 class SellersView extends StatefulWidget {
   final List<SellerProfile> sellers;
@@ -38,6 +39,18 @@ class _SellersViewState extends State<SellersView> {
     'KYC_PENDING',
     'SUSPENDED',
   ];
+
+  void _openCreateSellerDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => CreateSellerDialog(
+        onSellerCreated: (created) {
+          final profile = SellerProfile.fromAdminUser(created);
+          widget.onSellerAdded?.call(profile);
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +172,25 @@ class _SellersViewState extends State<SellersView> {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const Spacer(),
+            ElevatedButton.icon(
+              onPressed: () => _openCreateSellerDialog(context),
+              icon: const Icon(Icons.add_rounded, size: 17),
+              label: Text(
+                'Create Seller',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               ),
             ),
           ],

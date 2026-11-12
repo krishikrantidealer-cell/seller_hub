@@ -31,4 +31,12 @@ abstract class AdminUserRepository {
   /// Permanently deletes a previously deactivated user account
   /// DELETE /api/v1/admin/users/{userId}/permanent
   Future<String> permanentlyDeleteUser(String userId);
+
+  /// Creates a new customer account
+  /// POST /api/v1/admin/users/customers
+  Future<AdminUser> createCustomer(Map<String, dynamic> data);
+
+  /// Creates a new seller account
+  /// POST /api/v1/admin/users/sellers
+  Future<AdminUser> createSeller(Map<String, dynamic> data);
 }

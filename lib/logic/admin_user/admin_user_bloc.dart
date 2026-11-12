@@ -21,6 +21,7 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     on<ToggleBlockAdminUser>(_onToggleBlock);
     on<ToggleDeleteAdminUser>(_onToggleDelete);
     on<PermanentlyDeleteAdminUser>(_onPermanentlyDelete);
+    on<CreateAdminUser>(_onCreateUser);
     on<UpdateLocalAdminUser>(_onUpdateLocalUser);
   }
 
@@ -229,6 +230,39 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
         isActionInProgress: false,
         errorMessage: e is ApiException ? e.message : 'Failed to permanently delete user',
       ));
+    }
+  }
+
+  Future<void> _onCreateUser(
+    CreateAdminUser event,
+    Emitter<AdminUserState> emit,
+  ) async {
+    emit(state.copyWith(isActionInProgress: true, clearError: true, clearActionMessage: true));
+
+    try {
+      final isSeller = role == 'SELLERS';
+      final created = isSeller
+          ? await repository.createSeller(event.userData)
+          : await repository.createCustomer(event.userData);
+
+      final updatedList = [created, ...state.users.where((u) => u.id != created.id)];
+      final newTotal = state.totalElements + 1;
+
+      emit(state.copyWith(
+        isActionInProgress: false,
+        users: updatedList,
+        totalElements: newTotal,
+        actionSuccessMessage: '${isSeller ? "Seller" : "Customer"} "${created.displayName}" created successfully!',
+      ));
+
+      event.onSuccess?.call(created);
+    } catch (e) {
+      final errorMsg = e is ApiException ? e.message : 'Failed to create user: $e';
+      emit(state.copyWith(
+        isActionInProgress: false,
+        errorMessage: errorMsg,
+      ));
+      rethrow;
     }
   }
 

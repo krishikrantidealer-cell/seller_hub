@@ -73,6 +73,29 @@ class MockAdminUserRemoteDataSource implements AdminUserRemoteDataSource {
     if (throwError) throw Exception('Network error');
     return userId;
   }
+
+  @override
+  Future<AdminUser> createCustomer(Map<String, dynamic> data) async {
+    if (throwError) throw Exception('Network error');
+    return AdminUser(
+      id: 'cust-new',
+      phoneNumber: data['phoneNumber']?.toString() ?? '9876543210',
+      firstName: data['firstName']?.toString() ?? 'Customer',
+      role: 'ROLE_CUSTOMER',
+    );
+  }
+
+  @override
+  Future<AdminUser> createSeller(Map<String, dynamic> data) async {
+    if (throwError) throw Exception('Network error');
+    return AdminUser(
+      id: 'seller-new',
+      phoneNumber: data['phoneNumber']?.toString() ?? '9876543210',
+      firstName: data['firstName']?.toString() ?? 'Seller',
+      shopName: data['shopName']?.toString() ?? 'Shop',
+      role: 'ROLE_SELLER',
+    );
+  }
 }
 
 class MockAdminUserLocalDataSource implements AdminUserLocalDataSource {

@@ -2,7 +2,7 @@ class ApiEndpoints {
   /// Base URL for the backend API, configurable via --dart-define=API_BASE_URL=https://...
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://ebs-biocrop-backend-925275374871.asia-south1.run.app',
+    defaultValue: 'http://localhost:8080',
   );
 
   /// Authentication
@@ -44,6 +44,8 @@ class ApiEndpoints {
 
   /// Admin Users (Sellers & Customers)
   static const String adminUsers = '/api/v1/admin/users';
+  static const String adminCreateCustomer = '/api/v1/admin/users/customers';
+  static const String adminCreateSeller = '/api/v1/admin/users/sellers';
   static String adminUserBlock(String userId) => '/api/v1/admin/users/$userId/block';
   static String adminUserDeletion(String userId) => '/api/v1/admin/users/$userId/deletion';
   static String adminUserPermanentDeletion(String userId) => '/api/v1/admin/users/$userId/permanent';

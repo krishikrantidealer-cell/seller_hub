@@ -92,6 +92,19 @@ class PermanentlyDeleteAdminUser extends AdminUserEvent {
   List<Object?> get props => [userId];
 }
 
+class CreateAdminUser extends AdminUserEvent {
+  final Map<String, dynamic> userData;
+  final void Function(AdminUser user)? onSuccess;
+
+  const CreateAdminUser({
+    required this.userData,
+    this.onSuccess,
+  });
+
+  @override
+  List<Object?> get props => [userData];
+}
+
 class UpdateLocalAdminUser extends AdminUserEvent {
   final AdminUser user;
   const UpdateLocalAdminUser(this.user);

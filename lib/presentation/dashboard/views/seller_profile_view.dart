@@ -162,18 +162,58 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   }
 
   void _toggleStatus() {
-    final nextStatus = _currentSeller.status == 'ACTIVE'
-        ? 'SUSPENDED'
-        : (_currentSeller.status == 'SUSPENDED' ? 'ACTIVE' : 'ACTIVE');
-    final updated = _currentSeller.copyWith(status: nextStatus, updatedAt: DateTime.now());
-    setState(() => _currentSeller = updated);
-    widget.onSellerUpdated(updated);
+    final willSuspend = _currentSeller.status == 'ACTIVE' ||
+        _currentSeller.status == 'VERIFIED' ||
+        !_currentSeller.isBlocked;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Seller status updated to $nextStatus'),
-        backgroundColor: nextStatus == 'ACTIVE' ? const Color(0xFF059669) : const Color(0xFFEF4444),
-        behavior: SnackBarBehavior.floating,
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(willSuspend ? 'Suspend Seller?' : 'Activate Seller?'),
+        content: Text(
+          willSuspend
+              ? 'Suspending "${_currentSeller.tradeName}" will block their login, deactivate all their public product listings from the storefront, and prevent new orders.'
+              : 'Activating "${_currentSeller.tradeName}" will restore their account access and allow them to manage listings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              final nextStatus = willSuspend ? 'SUSPENDED' : 'ACTIVE';
+              final updated = _currentSeller.copyWith(
+                status: nextStatus,
+                isBlocked: willSuspend,
+                updatedAt: DateTime.now(),
+              );
+              setState(() => _currentSeller = updated);
+              widget.onSellerUpdated(updated);
+
+              context.read<SellerBloc>().add(
+                    ToggleBlockAdminUser(
+                      userId: _currentSeller.id,
+                      blocked: willSuspend,
+                    ),
+                  );
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Seller status updated to $nextStatus'),
+                  backgroundColor: willSuspend ? const Color(0xFFEF4444) : const Color(0xFF059669),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: willSuspend ? const Color(0xFFDC2626) : const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(willSuspend ? 'Suspend' : 'Activate'),
+          ),
+        ],
       ),
     );
   }

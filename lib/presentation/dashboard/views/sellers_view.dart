@@ -645,6 +645,31 @@ class _SellersViewState extends State<SellersView> {
                         ),
                       ),
                       const SizedBox(width: 6),
+                      // Suspend / Activate (Block / Unblock) Button
+                      Tooltip(
+                        message: s.isBlocked ? 'Activate / Unblock Seller' : 'Suspend / Block Seller',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: () => _confirmToggleBlockSeller(context, s),
+                          child: Container(
+                            width: 32,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: (s.isBlocked ? const Color(0xFF059669) : const Color(0xFFD97706)).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: (s.isBlocked ? const Color(0xFF059669) : const Color(0xFFD97706)).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Icon(
+                              s.isBlocked ? Icons.check_circle_outline_rounded : Icons.block_rounded,
+                              size: 15,
+                              color: s.isBlocked ? const Color(0xFF059669) : const Color(0xFFD97706),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       // Deactivate / Soft Delete Button
                       Tooltip(
                         message: s.isDeleted ? 'Restore Seller' : 'Deactivate / Soft-Delete Seller',
@@ -787,6 +812,26 @@ class _SellersViewState extends State<SellersView> {
                     ),
                     const SizedBox(width: 8),
                     OutlinedButton(
+                      onPressed: () => _confirmToggleBlockSeller(context, s),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        side: BorderSide(
+                          color: s.isBlocked ? const Color(0xFF059669) : const Color(0xFFD97706),
+                        ),
+                      ),
+                      child: Text(
+                        s.isBlocked ? 'Activate' : 'Suspend',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: s.isBlocked ? const Color(0xFF059669) : const Color(0xFFD97706),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
                       onPressed: () => _confirmToggleDeleteSeller(context, s),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -846,6 +891,52 @@ class _SellersViewState extends State<SellersView> {
           letterSpacing: 0.6,
           color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
         ),
+      ),
+    );
+  }
+
+  void _confirmToggleBlockSeller(BuildContext context, SellerProfile s) {
+    final willBlock = !s.isBlocked;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text(
+          willBlock ? 'Suspend Seller Account?' : 'Activate / Unblock Seller?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          willBlock
+              ? 'Are you sure you want to suspend / block "${s.tradeName}" (ID: ${s.id})?\n\n'
+                '• Sets isBlocked to true in the database\n'
+                '• All seller listings on ebskrishidukaan.com are immediately deactivated & hidden from buyers\n'
+                '• Active seller login sessions are revoked\n'
+                '• Prevents new order placement\n'
+                '• Historical orders and ledger records remain safely preserved'
+              : 'Are you sure you want to reactivate "${s.tradeName}" (ID: ${s.id})?\n\n'
+                '• Sets isBlocked to false\n'
+                '• Seller can log in and manage their storefront again\n'
+                '• Products can be activated and ordered again',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<SellerBloc>().add(
+                    ToggleBlockAdminUser(userId: s.id, blocked: willBlock),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: willBlock ? const Color(0xFFD97706) : const Color(0xFF059669),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(willBlock ? 'Suspend Seller' : 'Activate Seller'),
+          ),
+        ],
       ),
     );
   }

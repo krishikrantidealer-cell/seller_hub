@@ -55,6 +55,7 @@ class AdminUser extends Equatable {
   final String firstName;
   final String lastName;
   final String? shopName;
+  final String? sellerCode;
   final String role;
   final UserAddress? address;
   final bool isVerified;
@@ -88,6 +89,7 @@ class AdminUser extends Equatable {
     this.firstName = '',
     this.lastName = '',
     this.shopName,
+    this.sellerCode,
     required this.role,
     this.address,
     this.isVerified = false,
@@ -173,6 +175,7 @@ class AdminUser extends Equatable {
       firstName: json['firstName']?.toString() ?? '',
       lastName: json['lastName']?.toString() ?? '',
       shopName: json['shopName']?.toString(),
+      sellerCode: json['sellerCode']?.toString(),
       role: json['role']?.toString() ?? 'ROLE_CUSTOMER',
       address: parsedAddress,
       isVerified: json['isVerified'] == true,
@@ -212,6 +215,7 @@ class AdminUser extends Equatable {
         'firstName': firstName,
         'lastName': lastName,
         'shopName': shopName,
+        if (sellerCode != null) 'sellerCode': sellerCode,
         'role': role,
         'address': address?.toJson(),
         'isVerified': isVerified,
@@ -282,6 +286,7 @@ class AdminUser extends Equatable {
     String? firstName,
     String? lastName,
     String? shopName,
+    String? sellerCode,
     String? role,
     UserAddress? address,
     bool? isVerified,
@@ -315,6 +320,7 @@ class AdminUser extends Equatable {
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       shopName: shopName ?? this.shopName,
+      sellerCode: sellerCode ?? this.sellerCode,
       role: role ?? this.role,
       address: address ?? this.address,
       isVerified: isVerified ?? this.isVerified,
@@ -351,6 +357,7 @@ class AdminUser extends Equatable {
         firstName,
         lastName,
         shopName,
+        sellerCode,
         role,
         address,
         isVerified,

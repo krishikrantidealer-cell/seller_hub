@@ -158,6 +158,12 @@ class SellerProfile extends Equatable {
 
   String get phoneNumber => phone;
 
+  String get sellerNumber {
+    if (sellerCode.isNotEmpty && sellerCode != id) return sellerCode;
+    if (phone.isNotEmpty) return phone;
+    return id.length > 8 ? id.substring(0, 8) : id;
+  }
+
   factory SellerProfile.empty() {
     return const SellerProfile(
       id: '',
@@ -213,7 +219,9 @@ class SellerProfile extends Equatable {
 
     return SellerProfile(
       id: u.id,
-      sellerCode: u.id,
+      sellerCode: (u.sellerCode != null && u.sellerCode!.isNotEmpty)
+          ? u.sellerCode!
+          : (u.phoneNumber.isNotEmpty ? u.phoneNumber : u.id),
       companyName: u.displayName,
       tradeName: u.displayName,
       contactPerson: u.fullName,
@@ -314,7 +322,8 @@ class SellerProfile extends Equatable {
 
     return SellerProfile(
       id: id,
-      sellerCode: json['sellerCode']?.toString() ?? (id.isNotEmpty ? id : ''),
+      sellerCode: json['sellerCode']?.toString() ??
+          (json['phoneNumber']?.toString() ?? (id.isNotEmpty ? id : '')),
       companyName: computedName,
       tradeName: computedName,
       contactPerson: fullName.isNotEmpty ? fullName : (json['contactPerson']?.toString() ?? ''),

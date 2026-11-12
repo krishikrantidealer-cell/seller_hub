@@ -1053,8 +1053,8 @@ void main() {
     expect(find.text('Krishi Kranti Organics'), findsWidgets);
     expect(find.text('Bharat Agro Chemicals Ltd'), findsWidgets);
 
-    // Tap View Profile on the first seller
-    await tester.tap(find.byIcon(Icons.visibility_rounded).first);
+    // Tap the first seller row to open profile
+    await tester.tap(find.text('Krishi Kranti Organics').first);
     await tester.pumpAndSettle();
 
     // Verify Seller Profile View opens

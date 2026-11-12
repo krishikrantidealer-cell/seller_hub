@@ -463,10 +463,10 @@ class _SellersViewState extends State<SellersView> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  'ID: ${s.id.length > 12 ? '${s.id.substring(0, 10)}...' : s.id} • ${s.companyName}',
+                                  '${s.sellerNumber} • ${s.companyName}',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 10.5,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w600,
                                     color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                                   ),
                                   overflow: TextOverflow.ellipsis,
@@ -617,31 +617,6 @@ class _SellersViewState extends State<SellersView> {
                               Icons.inventory_2_outlined,
                               size: 15,
                               color: Color(0xFF2563EB),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      // View Profile Button
-                      Tooltip(
-                        message: 'View Seller Profile',
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(6),
-                          onTap: () => widget.onSelectSeller(s),
-                          child: Container(
-                            width: 32,
-                            height: 30,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF059669).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: const Color(0xFF059669).withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.visibility_rounded,
-                              size: 15,
-                              color: Color(0xFF059669),
                             ),
                           ),
                         ),

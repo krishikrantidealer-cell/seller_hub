@@ -1225,14 +1225,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               borderColor: borderColor,
             ),
             const SizedBox(height: 12),
-            _buildField(
-              controller: _techContentController,
-              label: 'Chemical Composition & Technical Content',
-              hint: 'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -1760,17 +1752,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ),
             ],
           ),
-          if (p.technicalContent.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Composition: ${p.technicalContent}',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-              ),
-            ),
-          ],
           const SizedBox(height: 14),
           Wrap(
             spacing: 8,

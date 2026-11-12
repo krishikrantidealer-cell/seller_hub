@@ -252,15 +252,10 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
           _buildInfoRow('Product Code', p.productCode, 'HSN Code', p.hsnCode, isDark),
           _buildInfoRow('Brand Name', p.brandName.isNotEmpty ? p.brandName : 'Direct Manufacturer', 'Vendor / Seller', p.sellerName.isNotEmpty ? p.sellerName : p.vendor, isDark),
           _buildInfoRow('Technical Name', p.technicalName, 'Category', p.category, isDark),
-          if (p.technicalContent.isNotEmpty)
-            _buildInfoRow('Technical Content', p.technicalContent, 'Collections', p.collections, isDark)
-          else
-            _buildInfoRow('Collections', p.collections, 'Sub Collections', p.subCollections, isDark),
-          if (p.technicalContent.isNotEmpty)
-            _buildInfoRow('Collections', p.collections, 'Sub Collections', p.subCollections, isDark)
-          else
-            _buildInfoRow('Sub Collections', p.subCollections, 'Variant', p.variant, isDark),
-          _buildInfoRow('Pack Size', '${p.packSize} ${p.unit}', 'Refund Policy', p.refundPolicy, isDark),
+          _buildInfoRow('Collections', p.collections, 'Sub Collections', p.subCollections, isDark),
+          _buildInfoRow('Pack Size', '${p.packSize} ${p.unit}', 'Variant', p.variant, isDark),
+          if (p.refundPolicy.isNotEmpty)
+            _buildInfoRow('Refund Policy', p.refundPolicy, '', '', isDark),
           const SizedBox(height: 16),
           Text(
             'Product Description & Commercial Narrative',

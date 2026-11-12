@@ -1201,28 +1201,12 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                   ],
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildFormField(
-                        'Product Code',
-                        _productCodeController,
-                        'e.g. EBS-ADM-SKU-001',
-                        isDark,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildFormField(
-                        'HSN Code *',
-                        _hsnCodeController,
-                        'e.g. 3808',
-                        isDark,
-                        isRequired: true,
-                      ),
-                    ),
-                  ],
+                _buildFormField(
+                  'HSN Code *',
+                  _hsnCodeController,
+                  'e.g. 3808',
+                  isDark,
+                  isRequired: true,
                 ),
                 const SizedBox(height: 14),
                 AppHtmlEditor(

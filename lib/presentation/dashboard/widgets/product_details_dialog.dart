@@ -249,7 +249,7 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildInfoRow('Product Code', p.productCode, 'HSN Code', p.hsnCode, isDark),
+          _buildInfoRow('SKU', p.sku.isNotEmpty ? p.sku : p.productCode, 'HSN Code', p.hsnCode, isDark),
           _buildInfoRow('Brand Name', p.brandName.isNotEmpty ? p.brandName : 'Direct Manufacturer', 'Vendor / Seller', p.sellerName.isNotEmpty ? p.sellerName : p.vendor, isDark),
           _buildInfoRow('Technical Name', p.technicalName, 'Category', p.category, isDark),
           _buildInfoRow('Collections', p.collections, 'Sub Collections', p.subCollections, isDark),

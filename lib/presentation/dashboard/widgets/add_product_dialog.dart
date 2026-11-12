@@ -693,17 +693,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           ),
           const SizedBox(height: 16),
 
-          Row(
-            children: [
-              Expanded(
-                child: _buildFormField('Product Code', _productCodeController, 'e.g. PRD-AGRI-005', isDark),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildFormField('HSN Code *', _hsnCodeController, 'e.g. 3808', isDark, isRequired: true),
-              ),
-            ],
-          ),
+          _buildFormField('HSN Code *', _hsnCodeController, 'e.g. 3808', isDark, isRequired: true),
           const SizedBox(height: 16),
 
           // Taxonomy Dropdowns (Category, Collection, Sub Collection)

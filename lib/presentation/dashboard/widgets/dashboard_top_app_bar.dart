@@ -44,7 +44,7 @@ class DashboardTopAppBar extends StatelessWidget {
       if (viewingProduct != null) {
         title = 'Product Specification Sheet';
         final parts = <String>[
-          if (viewingProduct!.productCode.isNotEmpty) viewingProduct!.productCode,
+          if (viewingProduct!.sku.isNotEmpty) viewingProduct!.sku,
           if (viewingProduct!.hsnCode.isNotEmpty) 'HSN: ${viewingProduct!.hsnCode}',
           if (viewingProduct!.technicalName.isNotEmpty) viewingProduct!.technicalName,
         ];

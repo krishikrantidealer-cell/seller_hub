@@ -1225,28 +1225,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               borderColor: borderColor,
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _productCodeController,
-                    label: 'Product Code *',
-                    hint: 'e.g. AGRI-INS-001',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _hsnCodeController,
-                    label: 'HSN Code *',
-                    hint: 'e.g. 38089190',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-              ],
+            _buildField(
+              controller: _hsnCodeController,
+              label: 'HSN Code *',
+              hint: 'e.g. 38089190',
+              isDark: isDark,
+              borderColor: borderColor,
             ),
             const SizedBox(height: 12),
             Row(
@@ -1758,9 +1742,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             runSpacing: 8,
             children: [
               _buildBadgePill('Seller', p.sellerName.isNotEmpty ? p.sellerName : (p.vendor.isNotEmpty ? p.vendor : 'Essential BioCrop'), isDark, borderColor),
-              if (p.sku.isNotEmpty && p.sku != p.productCode)
+              if (p.sku.isNotEmpty)
                 _buildBadgePill('SKU', p.sku, isDark, borderColor),
-              _buildBadgePill('Product Code', p.productCode, isDark, borderColor),
               _buildBadgePill('HSN Code', p.hsnCode, isDark, borderColor),
               if (p.subCollections.isNotEmpty)
                 _buildBadgePill('Sub Collection', p.subCollections, isDark, borderColor),

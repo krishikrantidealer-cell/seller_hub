@@ -2648,29 +2648,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // SECTION 1: PACKAGING & SPECIFICATION
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Packaging Label (Searchable Dropdown with Search Bar)
-                    Expanded(
-                      flex: 4,
-                      child: _buildPackagingLabelField(isDark, borderColor),
-                    ),
-                    const SizedBox(width: 14),
-                    // Variant SKU
-                    Expanded(
-                      flex: 3,
-                      child: _buildField(
-                        controller: _variantSkuController,
-                        label: 'Variant SKU',
-                        hint: 'e.g. S0001-P000004-V01',
-                        isDark: isDark,
-                        borderColor: borderColor,
-                        onChanged: (_) => _onVariantFieldChanged(),
-                      ),
-                    ),
-                  ],
-                ),
+                _buildPackagingLabelField(isDark, borderColor),
                 const SizedBox(height: 14),
 
                 // PACK METRICS ROW
@@ -2813,56 +2791,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-
-                // SECTION 3: COMMERCIAL INTELLIGENCE STRIP
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildMetricTile(
-                          icon: Icons.scale_rounded,
-                          label: 'Net Total Volume',
-                          value: '${v.totalBaseQuantity} ${v.totalBaseUnit}',
-                          accentColor: const Color(0xFF6366F1),
-                          isDark: isDark,
-                        ),
-                        Container(width: 1, height: 32, margin: const EdgeInsets.symmetric(horizontal: 8), color: borderColor),
-                        _buildMetricTile(
-                          icon: Icons.savings_rounded,
-                          label: 'Customer Discount',
-                          value: '₹${v.discountRs.toStringAsFixed(0)} (${v.discountPercentage.toStringAsFixed(1)}%)',
-                          accentColor: const Color(0xFF10B981),
-                          isDark: isDark,
-                        ),
-                        Container(width: 1, height: 32, margin: const EdgeInsets.symmetric(horizontal: 8), color: borderColor),
-                        _buildMetricTile(
-                          icon: Icons.price_check_rounded,
-                          label: 'Rate / Base Unit',
-                          value: v.pricePerBaseUnit > 0 ? '₹${v.pricePerBaseUnit.toStringAsFixed(3)} / ${v.totalBaseUnit}' : 'N/A',
-                          accentColor: const Color(0xFF0EA5E9),
-                          isDark: isDark,
-                        ),
-                        Container(width: 1, height: 32, margin: const EdgeInsets.symmetric(horizontal: 8), color: borderColor),
-                        _buildMetricTile(
-                          icon: Icons.trending_up_rounded,
-                          label: 'Estimated Gross Margin',
-                          value: '₹${(v.displayRate - v.costPrice).toStringAsFixed(2)}',
-                          accentColor: const Color(0xFF059669),
-                          isDark: isDark,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -2949,55 +2877,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildMetricTile({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color accentColor,
-    required bool isDark,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, size: 16, color: accentColor),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 

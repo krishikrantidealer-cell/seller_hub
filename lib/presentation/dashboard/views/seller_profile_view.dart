@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/seller.dart';
 import '../../../core/models/product.dart';
+import '../../../core/utils/file_download_helper.dart';
 import '../../../logic/product/product_bloc.dart';
 import '../../../logic/product/product_event.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
@@ -42,6 +43,12 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   late SellerProfile _currentSeller;
   late bool _isCreating;
   bool _isEditing = false;
+
+  // Staged compliance documents during registration (Create Mode)
+  PlatformFile? _stagedGstFile;
+  PlatformFile? _stagedPanFile;
+  PlatformFile? _stagedAadhaarFile;
+  final List<PlatformFile> _stagedLicenceFiles = [];
 
   // Edit Controllers
   late TextEditingController _companyNameController;
@@ -190,14 +197,66 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 });
                 widget.onSellerCreated?.call(profile);
                 widget.onSellerUpdated(profile);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: const Color(0xFF059669),
-                    content: Text(
-                      'Seller "${profile.tradeName}" registered successfully! You can now upload KYC documents below.',
+
+                final hasStagedDocs = _stagedGstFile != null ||
+                    _stagedPanFile != null ||
+                    _stagedAadhaarFile != null ||
+                    _stagedLicenceFiles.isNotEmpty;
+
+                if (hasStagedDocs) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Seller registered! Uploading staged compliance documents to secure storage...'),
+                      duration: Duration(seconds: 3),
                     ),
-                  ),
-                );
+                  );
+                  context.read<SellerBloc>().add(
+                        UploadAdminUserKycDocuments(
+                          userId: created.id,
+                          gstCertificate: _stagedGstFile,
+                          panCard: _stagedPanFile,
+                          aadhaarCard: _stagedAadhaarFile,
+                          licenceFiles: _stagedLicenceFiles.isNotEmpty ? List.from(_stagedLicenceFiles) : null,
+                          onSuccess: (updated) {
+                            if (!mounted) return;
+                            setState(() {
+                              _currentSeller = SellerProfile.fromAdminUser(updated);
+                              _stagedGstFile = null;
+                              _stagedPanFile = null;
+                              _stagedAadhaarFile = null;
+                              _stagedLicenceFiles.clear();
+                            });
+                            widget.onSellerUpdated(_currentSeller);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: const Color(0xFF059669),
+                                content: Text(
+                                  'Seller "${profile.tradeName}" registered and all compliance documents uploaded successfully!',
+                                ),
+                              ),
+                            );
+                          },
+                          onError: (err) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: const Color(0xFFE11D48),
+                                content: Text('Seller registered, but document upload failed: $err'),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: const Color(0xFF059669),
+                      content: Text(
+                        'Seller "${profile.tradeName}" registered successfully! You can now upload KYC documents below.',
+                      ),
+                    ),
+                  );
+                }
               },
             ),
           );
@@ -1140,27 +1199,36 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
 
   // --- KYC & COMPLIANCE SECTION ---
   Widget _buildKycComplianceSection(BuildContext context, bool isDark, Color borderColor) {
-    final hasGst = _currentSeller.gstCertificate != null && _currentSeller.gstCertificate!.trim().isNotEmpty;
-    final hasPan = _currentSeller.panCard != null && _currentSeller.panCard!.trim().isNotEmpty;
-    final hasAadhaar = _currentSeller.aadhaarCard != null && _currentSeller.aadhaarCard!.trim().isNotEmpty;
-    final hasLicence = _currentSeller.licenceImages.isNotEmpty || _currentSeller.licenseNumber.trim().isNotEmpty;
+    final hasGst = _stagedGstFile != null || (_currentSeller.gstCertificate != null && _currentSeller.gstCertificate!.trim().isNotEmpty);
+    final hasPan = _stagedPanFile != null || (_currentSeller.panCard != null && _currentSeller.panCard!.trim().isNotEmpty);
+    final hasAadhaar = _stagedAadhaarFile != null || (_currentSeller.aadhaarCard != null && _currentSeller.aadhaarCard!.trim().isNotEmpty);
+    final hasLicence = _stagedLicenceFiles.isNotEmpty || _currentSeller.licenceImages.isNotEmpty || _currentSeller.licenseNumber.trim().isNotEmpty;
 
-    int uploadedCount = 0;
-    if (hasGst) uploadedCount++;
-    if (hasPan) uploadedCount++;
-    if (hasAadhaar) uploadedCount++;
-    if (hasLicence) uploadedCount++;
+    int readyCount = 0;
+    if (hasGst) readyCount++;
+    if (hasPan) readyCount++;
+    if (hasAadhaar) readyCount++;
+    if (hasLicence) readyCount++;
 
-    final allDocsUploaded = uploadedCount == 4;
+    final allDocsReady = readyCount == 4;
     final isApproved = _currentSeller.isKycComplete;
 
     final statusColor = isApproved
         ? const Color(0xFF10B981)
-        : (allDocsUploaded ? const Color(0xFFF59E0B) : const Color(0xFFE11D48));
+        : (allDocsReady ? const Color(0xFFF59E0B) : const Color(0xFFE11D48));
 
-    final statusText = isApproved
-        ? 'KYC APPROVED & VERIFIED'
-        : (allDocsUploaded ? 'READY FOR APPROVAL (4/4 Documents Uploaded)' : 'KYC INCOMPLETE ($uploadedCount/4 Documents Uploaded)');
+    String statusText;
+    if (isApproved) {
+      statusText = 'KYC APPROVED & VERIFIED';
+    } else if (_isCreating) {
+      statusText = allDocsReady
+          ? '4/4 COMPLIANCE DOCS STAGED'
+          : 'ONBOARDING DRAFT ($readyCount/4 Docs Staged)';
+    } else {
+      statusText = allDocsReady
+          ? 'READY FOR APPROVAL (4/4 Documents Uploaded)'
+          : 'KYC INCOMPLETE ($readyCount/4 Documents Uploaded)';
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1223,7 +1291,9 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'All 4 documents (GST, PAN, Aadhaar, Agri License) must be stored in private cloud storage to qualify for marketplace verification.',
+                      _isCreating
+                          ? 'Select all 4 compliance documents below. They will be uploaded automatically to secure cloud storage when you create the account.'
+                          : 'All 4 documents (GST, PAN, Aadhaar, Agri License) must be stored in private cloud storage to qualify for marketplace verification.',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -1234,32 +1304,34 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
               ),
               const SizedBox(width: 12),
               // Approve / Return KYC Button
-              if (isApproved)
-                OutlinedButton.icon(
-                  onPressed: _toggleKycApproval,
-                  icon: const Icon(Icons.assignment_return_rounded, size: 15),
-                  label: Text('Return for Review', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFD97706),
-                    side: const BorderSide(color: Color(0xFFD97706)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              if (!_isCreating) ...[
+                if (isApproved)
+                  OutlinedButton.icon(
+                    onPressed: _toggleKycApproval,
+                    icon: const Icon(Icons.assignment_return_rounded, size: 15),
+                    label: Text('Return for Review', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFD97706),
+                      side: const BorderSide(color: Color(0xFFD97706)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: _toggleKycApproval,
+                    icon: const Icon(Icons.check_circle_rounded, size: 16),
+                    label: Text(
+                      allDocsReady ? 'Approve KYC Verification' : 'Approve KYC (Review)',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: allDocsReady ? const Color(0xFF059669) : const Color(0xFF64748B),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    ),
                   ),
-                )
-              else
-                ElevatedButton.icon(
-                  onPressed: _toggleKycApproval,
-                  icon: const Icon(Icons.check_circle_rounded, size: 16),
-                  label: Text(
-                    allDocsUploaded ? 'Approve KYC Verification' : 'Approve KYC (Review)',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: allDocsUploaded ? const Color(0xFF059669) : const Color(0xFF64748B),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  ),
-                ),
+              ],
             ],
           ),
 
@@ -1279,7 +1351,8 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   subtitle: 'Official Tax Form REG-06 matching GSTIN',
                   docNumber: _currentSeller.gstin.isNotEmpty ? _currentSeller.gstin : 'GSTIN Pending',
                   fileUrl: _currentSeller.gstCertificate,
-                  isUploaded: hasGst,
+                  isUploaded: _currentSeller.gstCertificate != null && _currentSeller.gstCertificate!.trim().isNotEmpty,
+                  stagedFile: _stagedGstFile,
                   isDark: isDark,
                   borderColor: borderColor,
                 ),
@@ -1290,7 +1363,8 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   subtitle: 'Income Tax Department Business Identity',
                   docNumber: _currentSeller.panNumber.isNotEmpty ? _currentSeller.panNumber : 'PAN Pending',
                   fileUrl: _currentSeller.panCard,
-                  isUploaded: hasPan,
+                  isUploaded: _currentSeller.panCard != null && _currentSeller.panCard!.trim().isNotEmpty,
+                  stagedFile: _stagedPanFile,
                   isDark: isDark,
                   borderColor: borderColor,
                 ),
@@ -1301,7 +1375,8 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   subtitle: 'Authorized Signatory / Proprietor Identity',
                   docNumber: 'UIDAI Identity Verification',
                   fileUrl: _currentSeller.aadhaarCard,
-                  isUploaded: hasAadhaar,
+                  isUploaded: _currentSeller.aadhaarCard != null && _currentSeller.aadhaarCard!.trim().isNotEmpty,
+                  stagedFile: _stagedAadhaarFile,
                   isDark: isDark,
                   borderColor: borderColor,
                 ),
@@ -1314,7 +1389,8 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                       ? '${_currentSeller.licenceImages.length} License(s) Uploaded'
                       : (_currentSeller.licenseNumber.isNotEmpty ? _currentSeller.licenseNumber : 'License Pending'),
                   fileUrl: _currentSeller.licenceImages.isNotEmpty ? _currentSeller.licenceImages.first : _currentSeller.licenseNumber,
-                  isUploaded: hasLicence,
+                  isUploaded: _currentSeller.licenceImages.isNotEmpty,
+                  stagedFiles: _stagedLicenceFiles,
                   isDark: isDark,
                   borderColor: borderColor,
                   isMultiple: true,
@@ -1376,8 +1452,39 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     String? backendDocType,
     bool isMultiple = false,
     int count = 0,
+    PlatformFile? stagedFile,
+    List<PlatformFile>? stagedFiles,
   }) {
-    final statusColor = isUploaded ? const Color(0xFF10B981) : const Color(0xFFE11D48);
+    final isStaged = stagedFile != null || (stagedFiles != null && stagedFiles.isNotEmpty);
+    final isReady = isUploaded || isStaged;
+    final statusColor = isReady ? const Color(0xFF10B981) : const Color(0xFFE11D48);
+
+    String statusBadge;
+    if (isStaged) {
+      statusBadge = isMultiple && (stagedFiles?.length ?? 0) > 1
+          ? '${stagedFiles!.length} STAGED'
+          : 'STAGED';
+    } else if (isUploaded) {
+      statusBadge = isMultiple && count > 1 ? '$count UPLOADED' : 'UPLOADED';
+    } else {
+      statusBadge = 'REQUIRED';
+    }
+
+    String displayInfo;
+    if (isStaged) {
+      if (isMultiple && (stagedFiles?.length ?? 0) > 1) {
+        displayInfo = '${stagedFiles!.length} document(s) staged for registration';
+      } else {
+        final f = stagedFile ?? stagedFiles?.first;
+        final sizeSync = f?.lengthSync() ?? 0;
+        final sizeText = sizeSync > 0 ? ' (${(sizeSync / 1024).toStringAsFixed(1)} KB)' : '';
+        displayInfo = 'Staged: ${f?.name ?? ''}$sizeText';
+      }
+    } else if (isUploaded && fileUrl != null && fileUrl.isNotEmpty) {
+      displayInfo = '$docNumber • ${fileUrl.split('/').last}';
+    } else {
+      displayInfo = docNumber;
+    }
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1385,7 +1492,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isUploaded ? const Color(0xFF10B981).withValues(alpha: 0.3) : borderColor,
+          color: isReady ? const Color(0xFF10B981).withValues(alpha: 0.3) : borderColor,
         ),
       ),
       child: Column(
@@ -1394,7 +1501,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
           Row(
             children: [
               Icon(
-                isUploaded ? Icons.task_alt_rounded : Icons.pending_actions_rounded,
+                isReady ? Icons.task_alt_rounded : Icons.pending_actions_rounded,
                 size: 16,
                 color: statusColor,
               ),
@@ -1413,15 +1520,15 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
+                  color: (isStaged ? const Color(0xFF3B82F6) : statusColor).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  isUploaded ? (isMultiple && count > 1 ? '$count UPLOADED' : 'UPLOADED') : 'REQUIRED',
+                  statusBadge,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
-                    color: statusColor,
+                    color: isStaged ? const Color(0xFF3B82F6) : statusColor,
                   ),
                 ),
               ),
@@ -1437,7 +1544,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
           ),
           const SizedBox(height: 6),
           Text(
-            docNumber,
+            displayInfo,
             style: GoogleFonts.jetBrainsMono(
               fontSize: 11,
               fontWeight: FontWeight.w600,
@@ -1449,20 +1556,21 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (isUploaded) ...[
+              if (isReady) ...[
                 TextButton.icon(
                   onPressed: () {
-                    _showDocumentViewer(
+                    _showProperDocumentReview(
                       context,
                       title: title,
                       docType: subtitle,
                       documentNumber: docNumber,
                       fileUrl: fileUrl,
                       backendDocType: backendDocType,
+                      stagedFile: stagedFile ?? (stagedFiles != null && stagedFiles.isNotEmpty ? stagedFiles.first : null),
                     );
                   },
-                  icon: const Icon(Icons.visibility_rounded, size: 14),
-                  label: Text('View', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600)),
+                  icon: const Icon(Icons.remove_red_eye_outlined, size: 14),
+                  label: Text('Review Document', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700)),
                   style: TextButton.styleFrom(
                     foregroundColor: const Color(0xFF059669),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1470,18 +1578,32 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
+                if (isStaged) ...[
+                  const SizedBox(width: 4),
+                  TextButton.icon(
+                    onPressed: () => _removeStagedDocument(docKey),
+                    icon: const Icon(Icons.close_rounded, size: 14),
+                    label: Text('Remove', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFEF4444),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 8),
               ],
               ElevatedButton.icon(
                 onPressed: () => _pickAndUploadDocument(docKey),
-                icon: Icon(isUploaded ? Icons.refresh_rounded : Icons.file_upload_outlined, size: 14),
+                icon: Icon(isReady ? Icons.refresh_rounded : Icons.file_upload_outlined, size: 14),
                 label: Text(
-                  isUploaded ? (isMultiple ? 'Add / Replace' : 'Replace') : 'Upload Document',
+                  isReady ? (isMultiple ? 'Add / Replace' : 'Replace') : 'Upload Document',
                   style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isUploaded ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)) : const Color(0xFF059669),
-                  foregroundColor: isUploaded ? (isDark ? Colors.white : const Color(0xFF0F172A)) : Colors.white,
+                  backgroundColor: isReady ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)) : const Color(0xFF059669),
+                  foregroundColor: isReady ? (isDark ? Colors.white : const Color(0xFF0F172A)) : Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   minimumSize: Size.zero,
@@ -1495,6 +1617,20 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     );
   }
 
+  void _removeStagedDocument(String docKey) {
+    setState(() {
+      if (docKey == 'gstCertificate') {
+        _stagedGstFile = null;
+      } else if (docKey == 'panCard') {
+        _stagedPanFile = null;
+      } else if (docKey == 'aadhaarCard') {
+        _stagedAadhaarFile = null;
+      } else if (docKey == 'licenceImage') {
+        _stagedLicenceFiles.clear();
+      }
+    });
+  }
+
   Future<void> _pickAndUploadDocument(String docType) async {
     try {
       final isLicence = docType == 'licenceImage';
@@ -1504,6 +1640,41 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
       );
 
       if (files.isEmpty) return;
+
+      if (_isCreating) {
+        setState(() {
+          if (docType == 'gstCertificate') {
+            _stagedGstFile = files.first;
+          } else if (docType == 'panCard') {
+            _stagedPanFile = files.first;
+          } else if (docType == 'aadhaarCard') {
+            _stagedAadhaarFile = files.first;
+          } else if (isLicence) {
+            _stagedLicenceFiles.addAll(files);
+          }
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF059669),
+            content: Text(
+              '${files.first.name} staged! It will be uploaded automatically when you create the seller.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      if (_currentSeller.id.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFFE11D48),
+            content: Text('Please save the seller profile first before uploading documents.'),
+          ),
+        );
+        return;
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2551,34 +2722,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     );
   }
 
-  Widget _buildDocDetailRow(String label, String value, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 9.5,
-            fontWeight: FontWeight.w600,
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value.isNotEmpty ? value : 'N/A',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-
-  void _showDocumentViewer(
+  void _showProperDocumentReview(
     BuildContext context, {
     required String title,
     required String docType,
@@ -2586,329 +2730,24 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     String? fileUrl,
     String? backendDocType,
     int index = 0,
+    PlatformFile? stagedFile,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
-
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 620),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  border: Border(bottom: BorderSide(color: borderColor)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF059669).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.verified_user_rounded, color: Color(0xFF059669), size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          Text(
-                            '$docType • Entity: ${_currentSeller.tradeName}',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 20),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isDark
-                              ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                              : [const Color(0xFFF1F5F9), Colors.white],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.35), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.account_balance_rounded, size: 22, color: Color(0xFF059669)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'GOVERNMENT OF INDIA • COMPLIANCE RECORD',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.8,
-                                    color: const Color(0xFF059669),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
-                                ),
-                                child: Text(
-                                  'VERIFIED',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF10B981),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'DOCUMENT IDENTIFIER / REGISTRATION NO.',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      documentNumber.isNotEmpty ? documentNumber : 'REG-VERIFIED-2026',
-                                      style: GoogleFonts.jetBrainsMono(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
-                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF059669)),
-                                tooltip: 'Copy Document Number',
-                                onPressed: () {
-                                  Clipboard.setData(ClipboardData(text: documentNumber));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Copied $documentNumber to clipboard')),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildDocDetailRow('Registered Business Entity', _currentSeller.tradeName, isDark),
-                              ),
-                              Expanded(
-                                child: _buildDocDetailRow('Legal Jurisdiction', '${_currentSeller.city}, ${_currentSeller.state}', isDark),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildDocDetailRow('Authorized Signatory', _currentSeller.contactPerson, isDark),
-                              ),
-                              Expanded(
-                                child: _buildDocDetailRow('KYC Verification Status', _currentSeller.status, isDark),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (fileUrl != null && fileUrl.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: surfaceColor,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: (fileUrl.endsWith('.pdf') ? const Color(0xFFEF4444) : const Color(0xFF3B82F6)).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(
-                                fileUrl.endsWith('.pdf') ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
-                                color: fileUrl.endsWith('.pdf') ? const Color(0xFFEF4444) : const Color(0xFF3B82F6),
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    fileUrl.split('/').last,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    'Secure Cloud Document Storage • Verified SHA-256',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10.5,
-                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            TextButton.icon(
-                              onPressed: () {
-                                Clipboard.setData(ClipboardData(text: fileUrl));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Document URL copied to clipboard')),
-                                );
-                              },
-                              icon: const Icon(Icons.copy_rounded, size: 14),
-                              label: const Text('Copy Link'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                  border: Border(top: BorderSide(color: borderColor)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (backendDocType != null && _currentSeller.id.isNotEmpty) ...[
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          try {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Fetching document from private secure storage...'),
-                                duration: Duration(seconds: 2),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                            final bytes = await context.read<AdminUserRepository>().downloadKycDocument(
-                              userId: _currentSeller.id,
-                              documentType: backendDocType,
-                              index: index,
-                            );
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Document successfully retrieved (${bytes.lengthInBytes} bytes)'),
-                                  backgroundColor: const Color(0xFF059669),
-                                  duration: const Duration(seconds: 3),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to download document: $e'),
-                                  backgroundColor: const Color(0xFFEF4444),
-                                  duration: const Duration(seconds: 3),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          }
-                        },
-                        icon: const Icon(Icons.download_rounded, size: 15),
-                        label: const Text('Download Official File'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF059669),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Close'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+      barrierDismissible: true,
+      builder: (ctx) => _KycDocumentReviewDialog(
+        title: title,
+        docType: docType,
+        documentNumber: documentNumber,
+        fileUrl: fileUrl,
+        backendDocType: backendDocType,
+        initialIndex: index,
+        sellerId: _currentSeller.id,
+        sellerName: _currentSeller.tradeName,
+        sellerNumber: _currentSeller.sellerNumber,
+        isKycComplete: _currentSeller.isKycComplete,
+        availableLicences: _currentSeller.licenceImages,
+        stagedFile: stagedFile,
       ),
     );
   }
@@ -3120,5 +2959,539 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   String _formatDate(DateTime? dt) {
     if (dt == null) return 'N/A';
     return '${dt.day}/${dt.month}/${dt.year}';
+  }
+}
+
+class _KycDocumentReviewDialog extends StatefulWidget {
+  final String title;
+  final String docType;
+  final String documentNumber;
+  final String? fileUrl;
+  final String? backendDocType;
+  final int initialIndex;
+  final String sellerId;
+  final String sellerName;
+  final String sellerNumber;
+  final bool isKycComplete;
+  final List<String> availableLicences;
+  final PlatformFile? stagedFile;
+
+  const _KycDocumentReviewDialog({
+    required this.title,
+    required this.docType,
+    required this.documentNumber,
+    this.fileUrl,
+    this.backendDocType,
+    this.initialIndex = 0,
+    required this.sellerId,
+    required this.sellerName,
+    required this.sellerNumber,
+    required this.isKycComplete,
+    this.availableLicences = const [],
+    this.stagedFile,
+  });
+
+  @override
+  State<_KycDocumentReviewDialog> createState() => _KycDocumentReviewDialogState();
+}
+
+class _KycDocumentReviewDialogState extends State<_KycDocumentReviewDialog> {
+  late int _currentIndex;
+  Uint8List? _fileBytes;
+  String? _filename;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _loadDocument();
+  }
+
+  Future<void> _loadDocument() async {
+    if (widget.stagedFile != null) {
+      final file = widget.stagedFile!;
+      final bytes = await file.readAsBytes();
+      if (mounted) {
+        setState(() {
+          _fileBytes = bytes;
+          _filename = file.name;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      }
+      return;
+    }
+
+    if (widget.backendDocType == null || widget.sellerId.isEmpty) {
+      setState(() {
+        _errorMessage = 'No document reference found in storage';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final bytes = await context.read<AdminUserRepository>().downloadKycDocument(
+            userId: widget.sellerId,
+            documentType: widget.backendDocType!,
+            index: _currentIndex,
+          );
+      if (!mounted) return;
+      final resolvedUrl = widget.backendDocType == 'licence' && widget.availableLicences.length > _currentIndex
+          ? widget.availableLicences[_currentIndex]
+          : widget.fileUrl;
+      setState(() {
+        _fileBytes = bytes;
+        _filename = resolvedUrl?.split('/').last ?? '${widget.backendDocType}-$_currentIndex';
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  bool get _isPdf {
+    if (_filename != null && _filename!.toLowerCase().endsWith('.pdf')) return true;
+    if (_fileBytes != null && _fileBytes!.length >= 4) {
+      if (_fileBytes![0] == 0x25 && _fileBytes![1] == 0x50 && _fileBytes![2] == 0x44 && _fileBytes![3] == 0x46) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
+    final viewerBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
+    final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
+
+    final isStaged = widget.stagedFile != null;
+    final statusColor = isStaged
+        ? const Color(0xFF3B82F6)
+        : (widget.isKycComplete ? const Color(0xFF10B981) : const Color(0xFFF59E0B));
+    final statusText = isStaged
+        ? 'STAGED FOR ONBOARDING'
+        : (widget.isKycComplete ? 'VERIFIED & APPROVED' : 'ATTACHED • PENDING APPROVAL');
+
+    return Dialog(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                border: Border(bottom: BorderSide(color: borderColor)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      isStaged ? Icons.file_present_rounded : Icons.verified_user_rounded,
+                      color: statusColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${widget.sellerNumber} • ${widget.sellerName} | ${widget.docType}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+
+            // Metadata Strip
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: viewerBg,
+                border: Border(bottom: BorderSide(color: borderColor)),
+              ),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Document ID: ',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                      ),
+                      Text(
+                        widget.documentNumber.isNotEmpty ? widget.documentNumber : 'N/A',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      if (widget.documentNumber.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: widget.documentNumber));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Copied ${widget.documentNumber} to clipboard'),
+                                duration: const Duration(seconds: 1),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: const Icon(Icons.copy_rounded, size: 12, color: Color(0xFF059669)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (_filename != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
+                          size: 13,
+                          color: _isPdf ? const Color(0xFFEF4444) : const Color(0xFF3B82F6),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _filename!,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  if (_fileBytes != null)
+                    Text(
+                      '${(_fileBytes!.lengthInBytes / 1024).toStringAsFixed(1)} KB • ${_isPdf ? "PDF Document" : "Image"}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  if (widget.backendDocType == 'licence' && widget.availableLicences.length > 1)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('License: ', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600)),
+                        for (int i = 0; i < widget.availableLicences.length; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: ChoiceChip(
+                              label: Text('${i + 1}', style: const TextStyle(fontSize: 10)),
+                              selected: _currentIndex == i,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setState(() => _currentIndex = i);
+                                  _loadDocument();
+                                }
+                              },
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+
+            // Document Display Body
+            Flexible(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                color: isDark ? const Color(0xFF0B132B) : const Color(0xFFF8FAFC),
+                child: Center(
+                  child: _isLoading
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(color: Color(0xFF059669)),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Retrieving encrypted file from secure cloud storage...',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        )
+                      : _errorMessage != null
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 40),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Could not load document preview',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                ElevatedButton.icon(
+                                  onPressed: _loadDocument,
+                                  icon: const Icon(Icons.refresh_rounded, size: 14),
+                                  label: const Text('Retry'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF059669),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : _fileBytes == null || _fileBytes!.isEmpty
+                              ? Text(
+                                  'No document preview available',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                )
+                              : _isPdf
+                                  ? Container(
+                                      constraints: const BoxConstraints(maxWidth: 480),
+                                      padding: const EdgeInsets.all(24),
+                                      decoration: BoxDecoration(
+                                        color: surfaceColor,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: borderColor),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.05),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.picture_as_pdf_rounded,
+                                              color: Color(0xFFEF4444),
+                                              size: 44,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 14),
+                                          Text(
+                                            _filename ?? 'Document.pdf',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                            ),
+                                            textAlign: TextAlign.center,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Official Multi-Page PDF Document • ${(_fileBytes!.lengthInBytes / 1024).toStringAsFixed(1)} KB',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11,
+                                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          const SizedBox(height: 20),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              ElevatedButton.icon(
+                                                onPressed: () => openInNewTab(_fileBytes!, 'application/pdf'),
+                                                icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                                                label: const Text('Open in New Window'),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: const Color(0xFF059669),
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              OutlinedButton.icon(
+                                                onPressed: () => downloadBytes(_fileBytes!, _filename ?? 'document.pdf'),
+                                                icon: const Icon(Icons.download_rounded, size: 15),
+                                                label: const Text('Download PDF'),
+                                                style: OutlinedButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : Container(
+                                      constraints: const BoxConstraints(maxHeight: 460),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: borderColor),
+                                      ),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: InteractiveViewer(
+                                        maxScale: 4.0,
+                                        child: Image.memory(
+                                          _fileBytes!,
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                                    ),
+                ),
+              ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                border: Border(top: BorderSide(color: borderColor)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lock_outline_rounded,
+                    size: 14,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isStaged ? 'Staged in local memory • Will commit to GCS on save' : 'Private GCS Cloud Storage • SHA-256 Validated',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_fileBytes != null && _fileBytes!.isNotEmpty) ...[
+                    ElevatedButton.icon(
+                      onPressed: () => downloadBytes(_fileBytes!, _filename ?? 'kyc-document'),
+                      icon: const Icon(Icons.download_rounded, size: 14),
+                      label: const Text('Download Document'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Close'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

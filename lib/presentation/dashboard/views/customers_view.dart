@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/admin_user.dart';
@@ -792,24 +793,52 @@ class _CustomersViewState extends State<CustomersView> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.phone_outlined,
-                                    size: 13,
-                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    user.phoneNumber,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                               Tooltip(
+                                 message: 'Click to copy ${user.phoneNumber}',
+                                 child: InkWell(
+                                   borderRadius: BorderRadius.circular(4),
+                                   onTap: () {
+                                     Clipboard.setData(ClipboardData(text: user.phoneNumber));
+                                     ScaffoldMessenger.of(context).showSnackBar(
+                                       SnackBar(
+                                         content: Text('Copied customer phone ${user.phoneNumber} to clipboard'),
+                                         duration: const Duration(seconds: 2),
+                                         behavior: SnackBarBehavior.floating,
+                                       ),
+                                     );
+                                   },
+                                   child: Padding(
+                                     padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                                     child: Row(
+                                       mainAxisSize: MainAxisSize.min,
+                                       children: [
+                                         const Icon(
+                                           Icons.phone_outlined,
+                                           size: 13,
+                                           color: Color(0xFF059669),
+                                         ),
+                                         const SizedBox(width: 5),
+                                         Text(
+                                           user.phoneNumber,
+                                           style: GoogleFonts.plusJakartaSans(
+                                             fontSize: 12,
+                                             fontWeight: FontWeight.w700,
+                                             color: const Color(0xFF059669),
+                                             decoration: TextDecoration.underline,
+                                             decorationStyle: TextDecorationStyle.dotted,
+                                           ),
+                                         ),
+                                         const SizedBox(width: 4),
+                                         Icon(
+                                           Icons.copy_rounded,
+                                           size: 11,
+                                           color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                         ),
+                                       ],
+                                     ),
+                                   ),
+                                 ),
+                               ),
                               if (user.email != null && user.email!.isNotEmpty) ...[
                                 const SizedBox(height: 2),
                                 Row(

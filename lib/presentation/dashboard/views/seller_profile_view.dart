@@ -860,8 +860,11 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                     spacing: 12,
                     runSpacing: 6,
                     children: [
-                      _buildCopyableBadge('Seller ID', _currentSeller.id, isDark, borderColor),
-                      _buildCopyableBadge('GSTIN', _currentSeller.gstin, isDark, borderColor),
+                      _buildCopyableBadge('Seller No', _currentSeller.sellerNumber, isDark, borderColor),
+                      if (_currentSeller.phone.isNotEmpty)
+                        _buildCopyableBadge('Mobile', _currentSeller.phone, isDark, borderColor),
+                      if (_currentSeller.gstin.isNotEmpty)
+                        _buildCopyableBadge('GSTIN', _currentSeller.gstin, isDark, borderColor),
                       _buildSimpleBadge(Icons.business_rounded, _currentSeller.businessType, isDark, borderColor),
                       _buildSimpleBadge(Icons.location_on_rounded, '${_currentSeller.city}, ${_currentSeller.state}', isDark, borderColor),
                     ],
@@ -1708,7 +1711,17 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
           Row(
             children: [
               Expanded(
-                child: _buildTextField('Mobile / Phone Number', _phoneController, isDark, borderColor, enabled: _isEditing),
+                child: _buildTextField(
+                  'Mobile / Phone Number',
+                  _phoneController,
+                  isDark,
+                  borderColor,
+                  enabled: _isEditing,
+                  suffixAction: _buildCopyButton(
+                    'Mobile',
+                    _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : _currentSeller.phone,
+                  ),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -2434,6 +2447,41 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildCopyButton(String label, String value) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(4),
+      onTap: () {
+        if (value.trim().isEmpty) return;
+        Clipboard.setData(ClipboardData(text: value.trim()));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Copied $label: $value to clipboard'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.copy_rounded, size: 12, color: Color(0xFF059669)),
+            const SizedBox(width: 4),
+            Text(
+              'Copy',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF059669),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

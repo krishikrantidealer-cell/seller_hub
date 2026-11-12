@@ -998,7 +998,7 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
               Expanded(
                 child: _isEditing
                     ? _buildEditableField('Phone Number', _phoneController, isDark, borderColor)
-                    : _buildReadOnlyField('Phone Number', _currentCustomer.phoneNumber, isDark, borderColor),
+                    : _buildReadOnlyField('Phone Number', _currentCustomer.phoneNumber, isDark, borderColor, copyable: true),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1373,17 +1373,54 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
     );
   }
 
-  Widget _buildReadOnlyField(String label, String value, bool isDark, Color borderColor) {
+  Widget _buildReadOnlyField(String label, String value, bool isDark, Color borderColor, {bool copyable = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            if (copyable && value.isNotEmpty && value != '—')
+              InkWell(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: value));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Copied $label: $value to clipboard'),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.copy_rounded, size: 11, color: Color(0xFF059669)),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Copy',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 5),
         Container(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/seller.dart';
@@ -461,9 +462,54 @@ class _SellersViewState extends State<SellersView> {
                           const SizedBox(height: 2),
                           Row(
                             children: [
+                              Tooltip(
+                                message: 'Click to copy ${s.sellerNumber}',
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(4),
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: s.sellerNumber));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Copied seller number ${s.sellerNumber} to clipboard'),
+                                        duration: const Duration(seconds: 2),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          s.sellerNumber,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF059669),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Icon(
+                                          Icons.copy_rounded,
+                                          size: 10,
+                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                ' • ',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10.5,
+                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                ),
+                              ),
                               Flexible(
                                 child: Text(
-                                  '${s.sellerNumber} • ${s.companyName}',
+                                  s.companyName,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w600,
@@ -488,7 +534,7 @@ class _SellersViewState extends State<SellersView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${s.contactPerson} • ${s.phone}',
+                      s.contactPerson.isNotEmpty ? s.contactPerson : s.tradeName,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -497,6 +543,55 @@ class _SellersViewState extends State<SellersView> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
+                    if (s.phone.isNotEmpty) ...[
+                      Tooltip(
+                        message: 'Click to copy ${s.phone}',
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: s.phone));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Copied seller phone ${s.phone} to clipboard'),
+                                duration: const Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.phone_outlined,
+                                  size: 11,
+                                  color: Color(0xFF059669),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  s.phone,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF059669),
+                                    decoration: TextDecoration.underline,
+                                    decorationStyle: TextDecorationStyle.dotted,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.copy_rounded,
+                                  size: 10,
+                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
                     Text(
                       '${s.city}, ${s.state}',
                       style: GoogleFonts.plusJakartaSans(
@@ -750,9 +845,57 @@ class _SellersViewState extends State<SellersView> {
               ],
             ),
             const SizedBox(height: 3),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${s.contactPerson} • ${s.city}, ${s.state}',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (s.phone.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: s.phone));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Copied seller phone ${s.phone} to clipboard'),
+                          duration: const Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.phone_outlined, size: 11, color: Color(0xFF059669)),
+                          const SizedBox(width: 3),
+                          Text(
+                            s.phone,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF059669),
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          Icon(Icons.copy_rounded, size: 10, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 2),
             Text(
-              '${s.contactPerson} • ${s.city}, ${s.state} • GST: ${s.gstin}',
-              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              '${s.sellerNumber} • GST: ${s.gstin}',
+              style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 8),

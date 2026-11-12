@@ -134,9 +134,10 @@ class _DashboardViewState extends State<DashboardView> {
     final customerBloc = context.watch<CustomerBloc>();
     final customersCount = customerBloc.state.totalCount;
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: backgroundColor,
+    return SelectionArea(
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: backgroundColor,
       drawer: isWide
           ? null
           : Drawer(
@@ -242,7 +243,8 @@ class _DashboardViewState extends State<DashboardView> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildActiveContent(

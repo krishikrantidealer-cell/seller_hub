@@ -909,9 +909,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
 
     if (widget.isCreateMode) {
-      final created = await widget.onProductCreated?.call(updatedProduct, _pendingImages) ?? false;
-      if (mounted && !created) {
-        setState(() => _isSaving = false);
+      try {
+        await widget.onProductCreated?.call(updatedProduct, _pendingImages);
+      } finally {
+        if (mounted) {
+          setState(() => _isSaving = false);
+        }
       }
       return;
     }

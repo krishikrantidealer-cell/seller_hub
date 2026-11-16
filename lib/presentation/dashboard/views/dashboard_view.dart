@@ -253,6 +253,7 @@ class _DashboardViewState extends State<DashboardView> {
     Widget? detailOverlay;
     if (_selectedNavIndex == 1 && _viewingProduct != null) {
       detailOverlay = ProductDetailsView(
+        key: ValueKey('view_${_viewingProduct!.id}_$_openInEditMode'),
         product: _viewingProduct!,
         startInEditMode: _openInEditMode,
         onBack: () => setState(() {
@@ -295,6 +296,7 @@ class _DashboardViewState extends State<DashboardView> {
       );
     } else if (_selectedNavIndex == 1 && _isAddingProduct) {
       detailOverlay = ProductDetailsView(
+        key: const ValueKey('create_product'),
         product: Product(
           id: '',
           title: '',

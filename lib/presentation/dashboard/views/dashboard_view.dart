@@ -314,22 +314,38 @@ class _DashboardViewState extends State<DashboardView> {
           final completer = Completer<bool>();
           context.read<ProductBloc>().add(CreateProduct(
             newProduct,
-            onSuccess: (created) {
+            onSuccess: (created) async {
+              var finalProduct = created;
+              String? imageUploadError;
               if (pendingImages != null && pendingImages.isNotEmpty) {
+                final imgCompleter = Completer<Product?>();
                 context.read<ProductBloc>().add(UploadProductImages(
                   productId: created.id,
                   filesBytes: pendingImages.map((e) => e.bytes).toList(),
                   fileNames: pendingImages.map((e) => e.name).toList(),
+                  onSuccess: (withImages) {
+                    if (!imgCompleter.isCompleted) imgCompleter.complete(withImages);
+                  },
+                  onError: (err) {
+                    imageUploadError = err;
+                    if (!imgCompleter.isCompleted) imgCompleter.complete(null);
+                  },
                 ));
+                final uploaded = await imgCompleter.future;
+                if (uploaded != null) finalProduct = uploaded;
               }
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      'Created "${created.title}" successfully!',
+                      imageUploadError != null
+                          ? 'Created "${finalProduct.title}", but image upload failed: $imageUploadError'
+                          : 'Created "${finalProduct.title}" successfully!',
                       style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
                     ),
-                    backgroundColor: const Color(0xFF059669),
+                    backgroundColor: imageUploadError != null
+                        ? const Color(0xFFD97706)
+                        : const Color(0xFF059669),
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     margin: const EdgeInsets.all(20),
@@ -337,7 +353,7 @@ class _DashboardViewState extends State<DashboardView> {
                 );
                 setState(() {
                   _isAddingProduct = false;
-                  _viewingProduct = created;
+                  _viewingProduct = finalProduct;
                   _openInEditMode = false;
                 });
               }

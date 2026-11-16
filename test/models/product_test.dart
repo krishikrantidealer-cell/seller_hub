@@ -522,5 +522,76 @@ void main() {
       expect(copied.brandName, 'Syngenta');
       expect(copied.title, 'Coragen Insecticide');
     });
+
+    test('toAdminCreatePayload includes all updated product & variant fields without perUnitPrice', () {
+      const variant = ProductVariant(
+        isDefault: true,
+        label: '1 KG (1 Kg x 1 Qty)',
+        unit: 'kg',
+        packSize: 1,
+        packSizeUnit: 'kg',
+        packQuantity: 1,
+        shippedBy: 'essentialbiocropscience',
+        shippingThrough: 'Shipping through Courier',
+        displayRate: 882,
+        printedMrp: 1200,
+        courierCharges: 163,
+        codCharge: 60,
+        paymentMethod: 'PREPAID',
+        commissionPercentage: 15,
+        swg: 500,
+        stock: 100,
+        dimensions: ProductDimensions(length: 20, width: 10, height: 10, unit: 'cm'),
+      );
+
+      final product = Product(
+        id: '',
+        sku: '',
+        productCode: '',
+        hsnCode: '3808',
+        sellerId: '6ae2d682477dabe731e2c1f2',
+        title: 'Test Agro Product',
+        brandName: 'EBS',
+        technicalName: 'Chlorantraniliprole 18.5% SC',
+        description: '<p>Full description</p>',
+        images: const [],
+        categoryId: '6ab4f6f619ec643fd9bf3621',
+        refundPolicy: '7-day sealed bottle return',
+        productWeight: 1000,
+        productWeightUnit: 'g',
+        gst: 18,
+        ratings: 4.8,
+        variants: const [variant],
+      );
+
+      final payload = product.toAdminCreatePayload();
+      expect(payload['sellerId'], '6ae2d682477dabe731e2c1f2');
+      expect(payload['hsnCode'], '3808');
+      expect(payload['gst'], 18.0);
+      expect(payload['title'], 'Test Agro Product');
+      expect(payload['brandName'], 'EBS');
+      expect(payload['technicalName'], 'Chlorantraniliprole 18.5% SC');
+      expect(payload['description'], '<p>Full description</p>');
+      expect(payload['categoryId'], '6ab4f6f619ec643fd9bf3621');
+      expect(payload['refundPolicy'], '7-day sealed bottle return');
+      expect(payload['productWeight'], 1000.0);
+      expect(payload['productWeightUnit'], 'g');
+      expect(payload['averageRating'], 4.8);
+
+      final variants = payload['variants'] as List;
+      expect(variants.length, 1);
+      final vMap = variants.first as Map<String, dynamic>;
+      expect(vMap.containsKey('perUnitPrice'), isFalse);
+      expect(vMap['label'], '1 KG (1 Kg x 1 Qty)');
+      expect(vMap['shippingThrough'], 'Shipping through Courier');
+      expect(vMap['displayRate'], 882.0);
+      expect(vMap['printedMrp'], 1200.0);
+      expect(vMap['courierCharges'], 163.0);
+      expect(vMap['codCharge'], 60.0);
+      expect(vMap['paymentMethod'], 'PREPAID');
+      expect(vMap['commissionPercentage'], 15.0);
+      expect(vMap['swg'], 500.0);
+      expect(vMap['stock'], 100);
+    });
   });
 }

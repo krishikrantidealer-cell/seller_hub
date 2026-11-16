@@ -83,7 +83,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late TextEditingController _unitController;
   late TextEditingController _packQuantityController;
   late TextEditingController _displayRateController;
-  late TextEditingController _perUnitPriceController;
   late TextEditingController _printedMrpController;
   late TextEditingController _courierChargesController;
   late TextEditingController _codChargeController;
@@ -191,10 +190,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _unitController = TextEditingController();
       _packQuantityController = TextEditingController();
       _displayRateController = TextEditingController();
-      _perUnitPriceController = TextEditingController();
       _printedMrpController = TextEditingController();
       _courierChargesController = TextEditingController();
-      _codChargeController = TextEditingController(text: '30');
+      _codChargeController = TextEditingController(text: '60');
       _paymentMethodController = TextEditingController();
       _commissionController = TextEditingController();
       _gstController = TextEditingController();
@@ -202,7 +200,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _shippingThroughController = TextEditingController();
       _swgController = TextEditingController();
       _stockController = TextEditingController();
-      _ratingsController = TextEditingController(text: '0.0');
+      _ratingsController = TextEditingController();
       _refundPolicyController = TextEditingController();
       _weightController = TextEditingController();
       _weightUnitController = TextEditingController();
@@ -261,27 +259,16 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _packSizeController = TextEditingController(text: (initialVar != null ? initialVar.packSize : (int.tryParse(p.packSize) ?? 1)).toString());
     _unitController = TextEditingController(text: initialVar?.unit ?? p.unit);
     _packQuantityController = TextEditingController(text: (initialVar?.packQuantity ?? 0).toString());
-    _displayRateController = TextEditingController(text: (initialVar?.displayRate ?? p.displayRate).toStringAsFixed(2));
-    _perUnitPriceController = TextEditingController(
-      text: (initialVar != null && initialVar.perUnitPrice > 0)
-          ? (initialVar.perUnitPrice % 1 == 0
-              ? initialVar.perUnitPrice.toStringAsFixed(0)
-              : initialVar.perUnitPrice.toStringAsFixed(2))
-          : '',
-    );
-    _printedMrpController = TextEditingController(text: (initialVar?.printedMrp ?? p.printedMrp).toStringAsFixed(2));
+    final initRate = initialVar?.displayRate ?? p.displayRate;
+    final initMrp = initialVar?.printedMrp ?? p.printedMrp;
+    _displayRateController = TextEditingController(text: initRate > 0 ? initRate.round().toString() : '');
+    _printedMrpController = TextEditingController(text: initMrp > 0 ? initMrp.round().toString() : '');
     _courierChargesController = TextEditingController(
       text: (initialVar != null && initialVar.courierCharges > 0)
-          ? (initialVar.courierCharges % 1 == 0
-              ? initialVar.courierCharges.toStringAsFixed(0)
-              : initialVar.courierCharges.toStringAsFixed(2))
+          ? initialVar.courierCharges.round().toString()
           : '',
     );
-    _codChargeController = TextEditingController(
-      text: ((initialVar?.codCharge ?? 30.0) % 1 == 0)
-          ? (initialVar?.codCharge ?? 30.0).toStringAsFixed(0)
-          : (initialVar?.codCharge ?? 30.0).toStringAsFixed(2),
-    );
+    _codChargeController = TextEditingController(text: '60');
     _paymentMethodController = TextEditingController(
       text: kPaymentMethodOptions.contains(initialVar?.paymentMethod)
           ? initialVar!.paymentMethod
@@ -294,12 +281,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
     _commissionController = TextEditingController(
       text: (initialVar != null && initialVar.commissionPercentage > 0)
-          ? (initialVar.commissionPercentage % 1 == 0
-              ? initialVar.commissionPercentage.toStringAsFixed(0)
-              : initialVar.commissionPercentage.toStringAsFixed(1))
+          ? initialVar.commissionPercentage.round().toString()
           : '',
     );
-    _gstController = TextEditingController(text: (initialVar?.gstPercentage ?? p.gst).toStringAsFixed(0));
+    _gstController = TextEditingController(text: (initialVar?.gstPercentage ?? p.gst).round().toString());
     _shippedByController = TextEditingController(
       text: (initialVar?.shippedBy == 'essentialbiocropscience')
           ? initialVar!.shippedBy
@@ -307,14 +292,16 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
     _swgController = TextEditingController(
       text: (initialVar != null && initialVar.swg > 0)
-          ? (initialVar.swg % 1 == 0 ? initialVar.swg.toStringAsFixed(0) : initialVar.swg.toStringAsFixed(2))
+          ? initialVar.swg.round().toString()
           : p.swg,
     );
     _stockController = TextEditingController(text: (initialVar?.stock ?? p.stock).toString());
-    _ratingsController = TextEditingController(text: (p.ratings >= 0 ? p.ratings : 0.0).toStringAsFixed(1));
+    _ratingsController = TextEditingController(text: p.ratings > 0 ? p.ratings.toStringAsFixed(1) : '');
     _refundPolicyController = TextEditingController(text: p.refundPolicy);
-    _weightController = TextEditingController(text: p.productWeight.toStringAsFixed(2));
-    _weightUnitController = TextEditingController(text: p.productWeightUnit);
+    _weightController = TextEditingController(
+      text: p.productWeight > 0 ? p.productWeight.round().toString() : '',
+    );
+    _weightUnitController = TextEditingController(text: 'g');
     _dimensionsController = TextEditingController(text: p.dimensions);
 
     _selectedSellerId = p.sellerId;
@@ -336,6 +323,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     }
     _selectedSubCollectionId = p.subCollectionIds.isNotEmpty ? p.subCollectionIds.first : '';
     _selectedSubCollectionName = p.subCollections;
+    _recalculateCourierFromWeight();
+    _recalculateSellingRate();
 
     _editIsAvailable = p.isAvailable;
     // _editIsFeatured = p.isFeatured;
@@ -349,10 +338,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     if (_workingVariants.isEmpty || _selectedVariantIndex >= _workingVariants.length) return;
     final cur = _workingVariants[_selectedVariantIndex];
     final disp = double.tryParse(_displayRateController.text.trim()) ?? 0.0;
-    final perUnit = double.tryParse(_perUnitPriceController.text.trim()) ?? 0.0;
     final mrp = double.tryParse(_printedMrpController.text.trim()) ?? 0.0;
     final courier = double.tryParse(_courierChargesController.text.trim()) ?? 0.0;
-    final cod = double.tryParse(_codChargeController.text.trim()) ?? 30.0;
+    const cod = LivePriceCalculation.fixedCodAndBankCharge;
     final commission = double.tryParse(_commissionController.text.trim()) ?? 0.0;
     final st = int.tryParse(_stockController.text.trim()) ?? 0;
     final ps = int.tryParse(_packSizeController.text.trim()) ?? 0;
@@ -375,7 +363,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       totalBaseUnit: unit,
       pricePerBaseUnit: pricePerBase,
       displayRate: disp,
-      perUnitPrice: perUnit,
       printedMrp: mrp,
       courierCharges: courier,
       codCharge: cod,
@@ -398,15 +385,34 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
   }
 
-  void _recalculateSellingPriceFromPerUnit() {
-    final perUnit = double.tryParse(_perUnitPriceController.text.trim());
-    final qty = int.tryParse(_packQuantityController.text.trim()) ?? 1;
-    if (perUnit != null && perUnit > 0) {
-      final effectiveQty = qty > 0 ? qty : 1;
-      final calculated = perUnit * effectiveQty;
-      _displayRateController.text =
-          calculated % 1 == 0 ? calculated.toStringAsFixed(0) : calculated.toStringAsFixed(2);
+  void _recalculateCourierFromWeight() {
+    final weight = double.tryParse(_weightController.text.trim()) ?? 0.0;
+    if (weight > 0) {
+      final courier = LivePriceCalculation.computeCourierChargeFromWeightGrams(weight);
+      _courierChargesController.text = courier.round().toString();
+    } else {
+      _courierChargesController.text = '';
     }
+  }
+
+  void _recalculateSellingRate() {
+    final swg = double.tryParse(_swgController.text.trim()) ?? 0.0;
+    final comm = double.tryParse(_commissionController.text.trim()) ?? 0.0;
+    final courier = double.tryParse(_courierChargesController.text.trim()) ?? 0.0;
+    if (swg > 0) {
+      final calculated = LivePriceCalculation.computeSellingRate(
+        swg: swg,
+        commissionPercentage: comm,
+        courierCharges: courier,
+      );
+      _displayRateController.text = calculated.round().toString();
+    } else {
+      _displayRateController.text = '';
+    }
+  }
+
+  void _recalculateSellingPriceFromPerUnit() {
+    _recalculateSellingRate();
     _onVariantFieldChanged();
   }
 
@@ -428,17 +434,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _packSizeController.text = v.packSize > 0 ? v.packSize.toString() : '';
       _unitController.text = _normalizeUnit(v.unit);
       _packQuantityController.text = v.packQuantity > 0 ? v.packQuantity.toString() : '';
-      _displayRateController.text = v.displayRate > 0 ? v.displayRate.toStringAsFixed(2) : '';
-      _perUnitPriceController.text = v.perUnitPrice > 0
-          ? (v.perUnitPrice % 1 == 0 ? v.perUnitPrice.toStringAsFixed(0) : v.perUnitPrice.toStringAsFixed(2))
-          : '';
-      _printedMrpController.text = v.printedMrp > 0 ? v.printedMrp.toStringAsFixed(2) : '';
+      _displayRateController.text = v.displayRate > 0 ? v.displayRate.round().toString() : '';
+      _printedMrpController.text = v.printedMrp > 0 ? v.printedMrp.round().toString() : '';
       _courierChargesController.text = v.courierCharges > 0
-          ? (v.courierCharges % 1 == 0 ? v.courierCharges.toStringAsFixed(0) : v.courierCharges.toStringAsFixed(2))
+          ? v.courierCharges.round().toString()
           : '';
-      _codChargeController.text = v.codCharge % 1 == 0
-          ? v.codCharge.toStringAsFixed(0)
-          : v.codCharge.toStringAsFixed(2);
+      _codChargeController.text = '60';
       _paymentMethodController.text = kPaymentMethodOptions.contains(v.paymentMethod)
           ? v.paymentMethod
           : '';
@@ -446,18 +447,17 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ? v.shippingThrough
           : '';
       _commissionController.text = v.commissionPercentage > 0
-          ? (v.commissionPercentage % 1 == 0
-              ? v.commissionPercentage.toStringAsFixed(0)
-              : v.commissionPercentage.toStringAsFixed(1))
+          ? v.commissionPercentage.round().toString()
           : '';
       _swgController.text = v.swg > 0
-          ? (v.swg % 1 == 0 ? v.swg.toStringAsFixed(0) : v.swg.toStringAsFixed(2))
+          ? v.swg.round().toString()
           : '';
       _stockController.text = v.stock > 0 ? v.stock.toString() : '';
       _shippedByController.text = (v.shippedBy.isNotEmpty)
           ? v.shippedBy
           : 'essentialbiocropscience';
-      _gstController.text = v.gstPercentage > 0 ? v.gstPercentage.toStringAsFixed(0) : '';
+      _recalculateCourierFromWeight();
+      _recalculateSellingRate();
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -594,7 +594,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _unitController.dispose();
     _packQuantityController.dispose();
     _displayRateController.dispose();
-    _perUnitPriceController.dispose();
     _printedMrpController.dispose();
     _courierChargesController.dispose();
     _codChargeController.dispose();
@@ -697,6 +696,80 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
   */
 
+  void _showValidationError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: const Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  String? _validateBeforeSave() {
+    if (_titleController.text.trim().isEmpty) {
+      return 'Product Title cannot be empty';
+    }
+    if (widget.isCreateMode &&
+        _selectedCategoryId.isEmpty &&
+        _categoryController.text.trim().isEmpty) {
+      return 'Please select a Category for this product';
+    }
+    if (_hsnCodeController.text.trim().isEmpty) {
+      return 'HSN Code cannot be empty';
+    }
+    final gstRaw = _gstController.text.trim();
+    if (gstRaw.isNotEmpty) {
+      final parsedGst = double.tryParse(gstRaw);
+      if (parsedGst == null || parsedGst < 0 || parsedGst > 100) {
+        return 'GST (%) must be between 0 and 100';
+      }
+    }
+    final ratingRaw = _ratingsController.text.trim();
+    if (ratingRaw.isNotEmpty) {
+      final parsedRating = double.tryParse(ratingRaw);
+      if (parsedRating == null || parsedRating < 0 || parsedRating > 5.0) {
+        return 'Rating must be between 0.0 and 5.0';
+      }
+    }
+    final weightVal = double.tryParse(_weightController.text.trim()) ?? 0.0;
+    if (weightVal <= 0) {
+      return 'Please enter Product Weight in Gram';
+    }
+    if (_workingVariants.isEmpty) {
+      return 'At least one packaging variant is required';
+    }
+    for (int i = 0; i < _workingVariants.length; i++) {
+      final v = _workingVariants[i];
+      final skuNum = i + 1;
+      if (v.label.trim().isEmpty || v.packSize <= 0) {
+        return 'Please select a Variant Label for SKU #$skuNum';
+      }
+      if (v.shippingThrough.trim().isEmpty) {
+        return 'Please select Shipping Through for SKU #$skuNum';
+      }
+      if (v.displayRate <= 0) {
+        return 'Please enter Seller Will Get (SWG) for SKU #$skuNum to calculate Selling Rate';
+      }
+      if (v.printedMrp <= 0) {
+        return 'Please enter Printed MRP for SKU #$skuNum';
+      }
+      if (v.printedMrp < v.displayRate) {
+        return 'Printed MRP cannot be less than Selling Rate for SKU #$skuNum';
+      }
+      if (v.paymentMethod.trim().isEmpty) {
+        return 'Please select Payment Method for SKU #$skuNum';
+      }
+      if (v.stock < 0) {
+        return 'Stock Quantity cannot be negative for SKU #$skuNum';
+      }
+    }
+    return null;
+  }
+
   Future<void> _saveChanges() async {
     if (_isSaving) return;
     final now = DateTime.now();
@@ -705,40 +778,18 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     }
     _lastSaveClickTime = now;
 
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Product Title cannot be empty',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-          ),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    if (widget.isCreateMode && _selectedCategoryId.isEmpty && _categoryController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please select a Category for this product',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-          ),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isSaving = true);
-
     if (_isEditing) {
       _syncCurrentVariantFromControllers();
     }
+
+    final validationError = _validateBeforeSave();
+    if (validationError != null) {
+      _showValidationError(validationError);
+      return;
+    }
+
+    final title = _titleController.text.trim();
+    setState(() => _isSaving = true);
 
     final displayRate = double.tryParse(_displayRateController.text) ?? _currentProduct.displayRate;
     final printedMrp = double.tryParse(_printedMrpController.text) ?? _currentProduct.printedMrp;
@@ -796,7 +847,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       ratings: ratings,
       refundPolicy: _refundPolicyController.text.trim(),
       productWeight: weight,
-      productWeightUnit: _weightUnitController.text.trim(),
+      productWeightUnit: 'g',
       dimensions: _dimensionsController.text.trim(),
       images: _currentProduct.images,
       isAvailable: _editIsAvailable,
@@ -1207,16 +1258,35 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                               );
                             }
                           }
+                          _recalculateSellingRate();
                         });
                       },
                     ),
                     const SizedBox(height: 12),
-                    _buildField(
-                      controller: _hsnCodeController,
-                      label: 'HSN Code *',
-                      hint: 'e.g. 38089190',
-                      isDark: isDark,
-                      borderColor: borderColor,
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: _buildField(
+                            controller: _hsnCodeController,
+                            label: 'HSN Code *',
+                            hint: 'e.g. 38089190',
+                            isDark: isDark,
+                            borderColor: borderColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildField(
+                            controller: _gstController,
+                            label: 'GST (%)',
+                            hint: 'e.g. 18',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            isDark: isDark,
+                            borderColor: borderColor,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 );
@@ -1556,7 +1626,18 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     height: 40,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                      TextInputFormatter.withFunction((oldValue, newValue) {
+                        final text = newValue.text;
+                        if (text.isEmpty) return newValue;
+                        if (!RegExp(r'^\d(\.\d?)?$').hasMatch(text) && text != '.') {
+                          return oldValue;
+                        }
+                        final parsed = double.tryParse(text);
+                        if (parsed != null && parsed > 5.0) {
+                          return oldValue;
+                        }
+                        return newValue;
+                      }),
                     ],
                     prefixIcon: const Icon(
                       Icons.star_rounded,
@@ -1565,15 +1646,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     ),
                     isDark: isDark,
                     borderColor: borderColor,
-                    onChanged: (val) {
-                      final parsed = double.tryParse(val.trim());
-                      if (parsed != null && parsed > 5.0) {
-                        _ratingsController.text = '5.0';
-                        _ratingsController.selection = TextSelection.fromPosition(
-                          const TextPosition(offset: 3),
-                        );
-                      }
-                    },
                   ),
                 ),
               ],
@@ -2652,7 +2724,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '₹${v.displayRate.toStringAsFixed(2)}',
+                        '₹${v.displayRate.round()}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
@@ -2680,7 +2752,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerRight,
                       child: Text(
-                        '₹${v.printedMrp.toStringAsFixed(2)}',
+                        '₹${v.printedMrp.round()}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -2697,18 +2769,20 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         ),
         _buildGridValueRow(
           'Discount',
-          '₹${discRs.toStringAsFixed(2)} (${discPct.toStringAsFixed(1)}% off)',
+          '₹${discRs.round()} (${discPct.round()}% off)',
           isDark,
           valueColor: const Color(0xFF059669),
         ),
-        _buildGridValueRow('Commission (%)', '${v.commissionPercentage.toStringAsFixed(1)}%', isDark),
-        if (v.perUnitPrice > 0)
-          _buildGridValueRow('Per Unit Price', '₹${v.perUnitPrice.toStringAsFixed(2)}', isDark),
+        _buildGridValueRow('Commission (%)', '${v.commissionPercentage.round()}%', isDark),
         if (v.swg > 0)
-          _buildGridValueRow('Seller Will Get (SWG)', '₹${v.swg.toStringAsFixed(2)}', isDark),
+          _buildGridValueRow('Seller Will Get (SWG)', '₹${v.swg.round()}', isDark),
         if (v.courierCharges > 0)
-          _buildGridValueRow('Courier Charge', '₹${v.courierCharges.toStringAsFixed(2)}', isDark),
-        _buildGridValueRow('COD & Bank Charge', '₹${v.codCharge.toStringAsFixed(2)}', isDark),
+          _buildGridValueRow('Courier Charge', '₹${v.courierCharges.round()}', isDark),
+        _buildGridValueRow(
+          'COD & Bank Charge',
+          '₹${LivePriceCalculation.fixedCodAndBankCharge.round()}',
+          isDark,
+        ),
         if (v.paymentMethod.isNotEmpty)
           _buildGridValueRow('Payment Method', v.paymentMethod, isDark),
         if (v.shippingThrough.isNotEmpty)
@@ -3081,7 +3155,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       child: _buildDropdownField(
                         label: 'Unit *',
                         value: _normalizeUnit(_unitController.text),
-                        items: const ['ml', 'Ltr', 'g', 'kg', 'mg', 'gm', 'pouch', 'tablet', 'pcs', 'packs'],
+                        items: const ['ml', 'Ltr', 'g', 'kg', 'pcs'],
                         hint: 'Auto from Variant Label',
                         allowNull: true,
                         prefixIcon: Icons.straighten_rounded,
@@ -3126,25 +3200,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                   children: [
                     Expanded(
                       child: _buildField(
-                        controller: _perUnitPriceController,
-                        label: 'Per Unit Price (₹)',
-                        hint: 'e.g. 450',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        isDark: isDark,
-                        borderColor: borderColor,
-                        onChanged: (_) => _recalculateSellingPriceFromPerUnit(),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildField(
                         controller: _displayRateController,
                         label: 'Selling Rate (₹) *',
-                        hint: '510.00',
+                        hint: 'Auto: SWG + Comm + Courier + ₹60',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                        onChanged: (_) => _onVariantFieldChanged(),
+                        readOnly: true,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -3185,7 +3247,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                        onChanged: (_) => _onVariantFieldChanged(),
+                        onChanged: (_) {
+                          _recalculateSellingRate();
+                          _onVariantFieldChanged();
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -3193,11 +3258,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       child: _buildField(
                         controller: _courierChargesController,
                         label: 'Courier Charge (₹)',
-                        hint: 'e.g. 50',
+                        hint: 'Auto from Weight (g)',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                        onChanged: (_) => _onVariantFieldChanged(),
+                        readOnly: true,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -3222,11 +3287,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       child: _buildField(
                         controller: _codChargeController,
                         label: 'COD & Bank Charge (₹)',
-                        hint: 'e.g. 30',
+                        hint: '60',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                        onChanged: (_) => _onVariantFieldChanged(),
+                        readOnly: true,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -3254,7 +3319,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                   builder: (_) {
                     final rateVal = double.tryParse(_displayRateController.text.trim());
                     final mrpVal = double.tryParse(_printedMrpController.text.trim());
-                    final perUnitVal = double.tryParse(_perUnitPriceController.text.trim());
                     final courierVal = double.tryParse(_courierChargesController.text.trim());
                     final swgVal = double.tryParse(_swgController.text.trim());
                     final commVal = double.tryParse(_commissionController.text.trim()) ?? 0.0;
@@ -3283,7 +3347,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                             rate: rateVal,
                             mrp: mrpVal,
                             swg: swgVal,
-                            perUnitPrice: perUnitVal,
                             packQuantity: packQtyVal,
                             courierCharges: courierVal,
                             commissionPercentage: commVal,
@@ -3313,28 +3376,16 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     Expanded(
                       child: _buildField(
                         controller: _weightController,
-                        label: 'Product Weight',
-                        hint: '0.62',
+                        label: 'Product Weight in Gram',
+                        hint: '500',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildDropdownField(
-                        label: 'Weight Unit',
-                        value: _weightUnitController.text.trim().isNotEmpty
-                            ? _weightUnitController.text.trim().toLowerCase()
-                            : 'kg',
-                        items: const ['g', 'kg', 'mg', 'gm'],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _weightUnitController.text = val);
-                          }
+                        onChanged: (_) {
+                          _recalculateCourierFromWeight();
+                          _recalculateSellingRate();
+                          _onVariantFieldChanged();
                         },
-                        isDark: isDark,
-                        borderColor: borderColor,
                       ),
                     ),
                   ],
@@ -3782,14 +3833,20 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       return 'Ltr';
     }
     if (lower == 'g' || lower == 'gm' || lower == 'gms' || lower == 'gram' || lower == 'grams') {
-      return 'gm';
+      return 'g';
     }
     if (lower == 'kg' || lower == 'kgs') return 'kg';
     if (lower == 'ml') return 'ml';
-    if (lower == 'mg') return 'mg';
-    if (lower == 'pouch' || lower == 'pouches') return 'pouch';
-    if (lower == 'tablet' || lower == 'tablets') return 'tablet';
-    if (lower == 'pcs' || lower == 'packs') return lower;
+    if (lower == 'pcs' ||
+        lower == 'pc' ||
+        lower == 'piece' ||
+        lower == 'pieces' ||
+        lower == 'pouch' ||
+        lower == 'pouches' ||
+        lower == 'tablet' ||
+        lower == 'tablets') {
+      return 'pcs';
+    }
     return trimmed;
   }
 

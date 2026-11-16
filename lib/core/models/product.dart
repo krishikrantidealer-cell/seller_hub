@@ -184,9 +184,8 @@ const List<String> kShippingThroughOptions = [
 ];
 
 const List<String> kPaymentMethodOptions = [
-  'ONLINE',
-  'COD',
-  'BOTH',
+  'PREPAID',
+  'PARTIAL',
 ];
 
 class ProductVariant extends Equatable {
@@ -207,7 +206,6 @@ class ProductVariant extends Equatable {
   final String totalBaseUnit;
   final ProductDimensions dimensions;
   final double displayRate;
-  final double perUnitPrice;
   final double printedMrp;
   final double courierCharges;
   final double codCharge;
@@ -237,10 +235,9 @@ class ProductVariant extends Equatable {
     this.totalBaseUnit = 'ml',
     this.dimensions = const ProductDimensions(),
     this.displayRate = 0.0,
-    this.perUnitPrice = 0.0,
     this.printedMrp = 0.0,
     this.courierCharges = 0.0,
-    this.codCharge = 30.0,
+    this.codCharge = 60.0,
     this.paymentMethod = '',
     this.discountRs = 0.0,
     this.gstPercentage = 18.0,
@@ -285,13 +282,12 @@ class ProductVariant extends Equatable {
       totalBaseUnit: _parseString(json['totalBaseUnit'] ?? 'ml'),
       dimensions: ProductDimensions.fromJson(json['dimensions'] ?? json['Dimmensions']),
       displayRate: disp,
-      perUnitPrice: _parseDouble(json['perUnitPrice'] ?? json['Per Unit Price']),
       printedMrp: mrp,
       courierCharges: _parseDouble(json['courierCharges'] ?? json['Courier Charges']),
-      codCharge: _parseDouble(json['codCharge'] ?? json['COD Charge'] ?? 30.0, 30.0),
+      codCharge: _parseDouble(json['codCharge'] ?? json['COD Charge'] ?? 60.0, 60.0),
       paymentMethod: _parseString(json['paymentMethod'] ?? '').toUpperCase(),
       discountRs: disc,
-      gstPercentage: _parseDouble(json['gstPercentage'] ?? json['GST'] ?? 5.0, 5.0),
+      gstPercentage: _parseDouble(json['gstPercentage'] ?? json['gst'] ?? json['GST'] ?? 5.0, 5.0),
       commissionPercentage: _parseDouble(json['commissionPercentage'] ?? json['Commission Percentage']),
       discountPercentage: discPct,
       stock: _parseInt(json['stock'] ?? json['Stock']),
@@ -318,7 +314,6 @@ class ProductVariant extends Equatable {
     'totalBaseUnit': totalBaseUnit,
     'dimensions': dimensions.toJson(),
     'displayRate': displayRate,
-    'perUnitPrice': perUnitPrice,
     'printedMrp': printedMrp,
     'courierCharges': courierCharges,
     'codCharge': codCharge,
@@ -350,7 +345,6 @@ class ProductVariant extends Equatable {
       'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'essentialbiocropscience',
       if (shippingThrough.isNotEmpty) 'shippingThrough': shippingThrough,
       'displayRate': effectiveDisplayRate,
-      if (perUnitPrice > 0) 'perUnitPrice': perUnitPrice,
       'printedMrp': effectiveMrp,
       if (courierCharges > 0) 'courierCharges': courierCharges,
       'codCharge': codCharge >= 0 ? codCharge : 0.0,
@@ -390,7 +384,6 @@ class ProductVariant extends Equatable {
     String? totalBaseUnit,
     ProductDimensions? dimensions,
     double? displayRate,
-    double? perUnitPrice,
     double? printedMrp,
     double? courierCharges,
     double? codCharge,
@@ -420,7 +413,6 @@ class ProductVariant extends Equatable {
       totalBaseUnit: totalBaseUnit ?? this.totalBaseUnit,
       dimensions: dimensions ?? this.dimensions,
       displayRate: displayRate ?? this.displayRate,
-      perUnitPrice: perUnitPrice ?? this.perUnitPrice,
       printedMrp: printedMrp ?? this.printedMrp,
       courierCharges: courierCharges ?? this.courierCharges,
       codCharge: codCharge ?? this.codCharge,
@@ -443,12 +435,12 @@ class ProductVariant extends Equatable {
     label,
     packSize,
     displayRate,
-    perUnitPrice,
     printedMrp,
     courierCharges,
     shippingThrough,
     codCharge,
     paymentMethod,
+    gstPercentage,
     swg,
     stock,
     pricePerBaseUnit,
@@ -806,12 +798,12 @@ class Product extends Equatable {
   double get displayRate => defaultVariant != null ? defaultVariant!.displayRate : _flatDisplayRate;
   double get printedMrp => defaultVariant != null ? defaultVariant!.printedMrp : _flatPrintedMrp;
   double get discountRs => defaultVariant != null ? defaultVariant!.discountRs : _flatDiscountRs;
-  double get gst => defaultVariant != null ? defaultVariant!.gstPercentage : _flatGst;
+  double get gst => _flatGst > 0 ? _flatGst : (defaultVariant?.gstPercentage ?? 0.0);
   double get discountPercentage => defaultVariant != null ? defaultVariant!.discountPercentage : _flatDiscountPercentage;
   int get stock => defaultVariant != null ? defaultVariant!.stock : _flatStock;
   String get shippedBy => defaultVariant?.shippedBy.isNotEmpty == true ? defaultVariant!.shippedBy : _flatShippedBy;
   String get shippingThrough => defaultVariant?.shippingThrough ?? '';
-  double get codCharge => defaultVariant != null ? defaultVariant!.codCharge : 30.0;
+  double get codCharge => defaultVariant != null ? defaultVariant!.codCharge : 60.0;
   String get paymentMethod => defaultVariant?.paymentMethod ?? '';
   String get swg => defaultVariant?.swg != null ? defaultVariant!.swg.toString() : _flatSwg;
   String get dimensions => defaultVariant?.dimensions.formatted.isNotEmpty == true
@@ -1064,6 +1056,7 @@ class Product extends Equatable {
     if (sellerId.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(sellerId))
       'sellerId': sellerId,
     'hsnCode': hsnCode.isNotEmpty ? hsnCode : '3808',
+    'gst': gst >= 0 ? gst : 0.0,
     'title': title,
     if (brandName.isNotEmpty) 'brandName': brandName,
     if (technicalName.isNotEmpty) 'technicalName': technicalName,
@@ -1072,6 +1065,7 @@ class Product extends Equatable {
     if (refundPolicy.isNotEmpty) 'refundPolicy': refundPolicy,
     'productWeight': productWeight > 0 ? productWeight : 500.0,
     'productWeightUnit': productWeightUnit.isNotEmpty ? productWeightUnit : 'g',
+    if (ratings > 0) 'averageRating': ratings,
     'variants': variants.isNotEmpty
         ? variants.map((v) => v.toAdminPayload()).toList()
         : [
@@ -1108,6 +1102,7 @@ class Product extends Equatable {
       payload['sellerId'] = sellerId;
     }
     if (hsnCode.isNotEmpty) payload['hsnCode'] = hsnCode;
+    if (gst >= 0) payload['gst'] = gst;
     if (title.isNotEmpty) payload['title'] = title;
     if (brandName.isNotEmpty) payload['brandName'] = brandName;
     if (technicalName.isNotEmpty) payload['technicalName'] = technicalName;
@@ -1118,6 +1113,7 @@ class Product extends Equatable {
     if (refundPolicy.isNotEmpty) payload['refundPolicy'] = refundPolicy;
     if (productWeight > 0) payload['productWeight'] = productWeight;
     if (productWeightUnit.isNotEmpty) payload['productWeightUnit'] = productWeightUnit;
+    if (ratings > 0) payload['averageRating'] = ratings;
 
     if (variants.isNotEmpty) {
       payload['variants'] = variants.map((v) => v.toAdminPayload()).toList();
@@ -1177,6 +1173,7 @@ class Product extends Equatable {
     'Printed MRP': printedMrp,
     'DiscountRS': discountRs,
     'Unit': unit,
+    'gst': gst,
     'GST': gst,
     'Discount Percentage': discountPercentage,
     'Shipped By': shippedBy,

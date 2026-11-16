@@ -89,10 +89,109 @@ class LiveDiscountPill extends StatelessWidget {
 
 /// Displays a live GST, discount, SWG, and margin breakdown for a variant price.
 class LivePriceCalculation extends StatelessWidget {
+  static const double fixedCodAndBankCharge = 60.0;
+
+  static const List<(int, double)> _weightCourierSlabs = [
+    (100, 82.13),
+    (200, 135.23),
+    (900, 188.33),
+    (1000, 163.4),
+    (1100, 167.86),
+    (1200, 172.32),
+    (1300, 176.78),
+    (1400, 181.24),
+    (1500, 185.7),
+    (1600, 190.17),
+    (1700, 194.63),
+    (1800, 199.09),
+    (1900, 203.55),
+    (2000, 208.01),
+    (2100, 212.31),
+    (2200, 216.62),
+    (2300, 220.92),
+    (2400, 225.23),
+    (2500, 229.53),
+    (2600, 233.83),
+    (2700, 238.14),
+    (2800, 242.44),
+    (2900, 246.75),
+    (4000, 251.05),
+    (4100, 266.63),
+    (4200, 282.2),
+    (4300, 297.78),
+    (4400, 313.35),
+    (4500, 328.93),
+    (4600, 344.51),
+    (4700, 360.08),
+    (4800, 375.66),
+    (4900, 391.23),
+    (5000, 406.81),
+    (5100, 408.65),
+    (5200, 410.5),
+    (5300, 412.34),
+    (5400, 414.19),
+    (5500, 416.03),
+    (5600, 417.87),
+    (5700, 419.72),
+    (5800, 421.56),
+    (5900, 423.4),
+    (6000, 425.25),
+    (6100, 427.09),
+    (6200, 428.94),
+    (6300, 430.78),
+    (6400, 432.62),
+    (6500, 434.47),
+    (6600, 436.31),
+    (6700, 438.15),
+    (6800, 440.0),
+    (6900, 441.84),
+    (7000, 443.69),
+    (7100, 445.53),
+    (7200, 447.37),
+    (7300, 449.22),
+    (7400, 451.06),
+    (7500, 452.9),
+    (7600, 454.75),
+    (7700, 456.59),
+    (7800, 458.44),
+    (7900, 460.28),
+    (8000, 462.12),
+    (8100, 463.97),
+    (8200, 465.81),
+    (8300, 467.66),
+    (8400, 469.5),
+    (11000, 499.0),
+    (13900, 567.0),
+    (14900, 600.18),
+    (15900, 612.92),
+    (16900, 674.88),
+    (17900, 702.84),
+    (20000, 758.76),
+  ];
+
+  static double computeCourierChargeFromWeightGrams(double weightGrams) {
+    if (weightGrams <= 0) return 0.0;
+    for (final slab in _weightCourierSlabs) {
+      if (weightGrams <= slab.$1) return slab.$2;
+    }
+    return _weightCourierSlabs.last.$2;
+  }
+
+  static double computeSellingRate({
+    required double swg,
+    required double commissionPercentage,
+    required double courierCharges,
+    double codCharge = fixedCodAndBankCharge,
+  }) {
+    if (swg <= 0) return 0.0;
+    final factor = 1.0 - (commissionPercentage / 100.0);
+    if (factor <= 0) return 0.0;
+    return (swg + courierCharges + codCharge) / factor;
+  }
+
   final double rate;
   final double? mrp;
   final double? swg;
-  final double? perUnitPrice;
   final int packQuantity;
   final double? courierCharges;
   final double gstPercentage;
@@ -106,7 +205,6 @@ class LivePriceCalculation extends StatelessWidget {
     required this.rate,
     required this.mrp,
     required this.swg,
-    this.perUnitPrice,
     this.packQuantity = 1,
     this.courierCharges,
     this.gstPercentage = 0.0,
@@ -118,9 +216,9 @@ class LivePriceCalculation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final commissionAmt = commissionPercentage > 0 ? (rate * commissionPercentage / 100) : null;
+    final commissionAmt =
+        commissionPercentage > 0 ? (rate * commissionPercentage / 100) : null;
     final margin = (swg != null && swg! > 0) ? (rate - swg!) : null;
-    final effectiveQty = packQuantity > 0 ? packQuantity : 1;
 
     return Container(
       width: double.infinity,
@@ -152,12 +250,6 @@ class LivePriceCalculation extends StatelessWidget {
             spacing: 24,
             runSpacing: 10,
             children: [
-              if (perUnitPrice != null && perUnitPrice! > 0)
-                _PriceMetric(
-                  'Per Unit × Qty',
-                  '₹${perUnitPrice!.toStringAsFixed(2)} × $effectiveQty',
-                  isDark,
-                ),
               _PriceMetric('Customer Pays', '₹${rate.toStringAsFixed(2)}', isDark, highlight: true),
               if (commissionAmt != null)
                 _PriceMetric(
@@ -167,6 +259,11 @@ class LivePriceCalculation extends StatelessWidget {
                 ),
               if (courierCharges != null && courierCharges! > 0)
                 _PriceMetric('Courier Charge', '₹${courierCharges!.toStringAsFixed(2)}', isDark),
+              _PriceMetric(
+                'COD & Bank Charge',
+                '₹${fixedCodAndBankCharge.toStringAsFixed(2)}',
+                isDark,
+              ),
               if (mrp != null && mrp! > 0 && discountRs > 0)
                 _PriceMetric(
                   'Discount (${discountPct.toStringAsFixed(1)}%)',

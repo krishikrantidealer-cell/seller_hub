@@ -82,7 +82,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
 
   // Shipping & Logistics
   final _weightController = TextEditingController();
-  String _selectedWeightUnit = 'g';
   final _dimensionsLengthController = TextEditingController();
   final _dimensionsWidthController = TextEditingController();
   final _dimensionsHeightController = TextEditingController();
@@ -99,10 +98,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   final _variantPackSizeController = TextEditingController();
   final _variantPackQuantityController = TextEditingController();
   final _variantDisplayRateController = TextEditingController();
-  final _variantPerUnitPriceController = TextEditingController();
   final _variantPrintedMrpController = TextEditingController();
   final _variantCourierChargesController = TextEditingController();
-  final _variantCodChargeController = TextEditingController(text: '30');
+  final _variantCodChargeController = TextEditingController(text: '60');
+  final _variantGstController = TextEditingController();
   final _variantCommissionController = TextEditingController();
   final _variantSwgController = TextEditingController();
   final _variantStockController = TextEditingController();
@@ -127,6 +126,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
           _variants[i] = _variants[i].copyWith(commissionPercentage: comm);
         }
       }
+      _recalculateSellingRate();
     });
   }
 
@@ -215,10 +215,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     _variantPackSizeController.dispose();
     _variantPackQuantityController.dispose();
     _variantDisplayRateController.dispose();
-    _variantPerUnitPriceController.dispose();
     _variantPrintedMrpController.dispose();
     _variantCourierChargesController.dispose();
     _variantCodChargeController.dispose();
+    _variantGstController.dispose();
     _variantCommissionController.dispose();
     _variantSwgController.dispose();
     _variantStockController.dispose();
@@ -230,27 +230,20 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     _variantLabelController.text = v.label;
     _variantPackSizeController.text = v.packSize > 0 ? v.packSize.toString() : '';
     _variantPackQuantityController.text = v.packQuantity > 0 ? v.packQuantity.toString() : '';
-    _variantDisplayRateController.text = v.displayRate > 0 ? v.displayRate.toStringAsFixed(0) : '';
-    _variantPerUnitPriceController.text = v.perUnitPrice > 0
-        ? (v.perUnitPrice % 1 == 0 ? v.perUnitPrice.toStringAsFixed(0) : v.perUnitPrice.toString())
-        : '';
-    _variantPrintedMrpController.text = v.printedMrp > 0 ? v.printedMrp.toStringAsFixed(0) : '';
+    _variantDisplayRateController.text = v.displayRate > 0 ? v.displayRate.round().toString() : '';
+    _variantPrintedMrpController.text = v.printedMrp > 0 ? v.printedMrp.round().toString() : '';
     _variantCourierChargesController.text = v.courierCharges > 0
-        ? (v.courierCharges % 1 == 0 ? v.courierCharges.toStringAsFixed(0) : v.courierCharges.toString())
+        ? v.courierCharges.round().toString()
         : '';
-    _variantCodChargeController.text = v.codCharge > 0
-        ? (v.codCharge % 1 == 0 ? v.codCharge.toStringAsFixed(0) : v.codCharge.toString())
-        : '0';
+    _variantCodChargeController.text = '60';
     _selectedPaymentMethod = kPaymentMethodOptions.contains(v.paymentMethod)
         ? v.paymentMethod
         : '';
     _variantCommissionController.text = v.commissionPercentage > 0
-        ? (v.commissionPercentage % 1 == 0
-            ? v.commissionPercentage.toStringAsFixed(0)
-            : v.commissionPercentage.toString())
+        ? v.commissionPercentage.round().toString()
         : '';
     _variantSwgController.text = v.swg > 0
-        ? (v.swg % 1 == 0 ? v.swg.toStringAsFixed(0) : v.swg.toString())
+        ? v.swg.round().toString()
         : '';
     _variantStockController.text = v.stock > 0 ? v.stock.toString() : '';
     _variantShippedByController.text = (v.shippedBy == 'essentialbiocropscience')
@@ -262,6 +255,13 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     _selectedVariantUnit = v.unit.isNotEmpty ? v.unit : 'ml';
     _selectedPackUnit = v.packUnit.isNotEmpty ? v.packUnit : 'bottle';
     _selectedVariantGst = v.gstPercentage > 0 ? v.gstPercentage : 5.0;
+    _variantGstController.text = v.gstPercentage > 0
+        ? (v.gstPercentage % 1 == 0
+            ? v.gstPercentage.toStringAsFixed(0)
+            : v.gstPercentage.toString())
+        : '';
+    _recalculateCourierFromWeight();
+    _recalculateSellingRate();
   }
 
   void _syncCurrentVariantFromControllers() {
@@ -269,16 +269,18 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     final cur = _variants[_activeVariantIndex];
 
     final disp = double.tryParse(_variantDisplayRateController.text.trim()) ?? cur.displayRate;
-    final perUnit = double.tryParse(_variantPerUnitPriceController.text.trim()) ?? cur.perUnitPrice;
     final mrp = double.tryParse(_variantPrintedMrpController.text.trim()) ?? cur.printedMrp;
     final courier = double.tryParse(_variantCourierChargesController.text.trim()) ?? cur.courierCharges;
-    final cod = double.tryParse(_variantCodChargeController.text.trim()) ?? cur.codCharge;
+    const cod = LivePriceCalculation.fixedCodAndBankCharge;
     final swgVal = double.tryParse(_variantSwgController.text.trim()) ?? cur.swg;
     final st = int.tryParse(_variantStockController.text.trim()) ?? cur.stock;
     final ps = int.tryParse(_variantPackSizeController.text.trim()) ?? cur.packSize;
     final pq = int.tryParse(_variantPackQuantityController.text.trim()) ?? cur.packQuantity;
     final disc = (mrp > disp) ? (mrp - disp) : 0.0;
     final discPct = (mrp > 0 && disc > 0) ? ((disc / mrp) * 100) : 0.0;
+
+    final gstVal = double.tryParse(_variantGstController.text.trim()) ?? _selectedVariantGst;
+    _selectedVariantGst = gstVal.clamp(0.0, 100.0);
 
     _variants[_activeVariantIndex] = cur.copyWith(
       label: _variantLabelController.text.trim().isNotEmpty
@@ -294,7 +296,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
           : 'essentialbiocropscience',
       shippingThrough: _selectedShippingThrough,
       displayRate: disp,
-      perUnitPrice: perUnit,
       printedMrp: mrp,
       courierCharges: courier,
       codCharge: cod,
@@ -518,7 +519,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       printedMrp: defaultVariant.printedMrp,
       discountRs: defaultVariant.discountRs,
       unit: defaultVariant.unit,
-      gst: defaultVariant.gstPercentage,
+      gst: (double.tryParse(_variantGstController.text.trim()) ?? _selectedVariantGst).clamp(0.0, 100.0),
       discountPercentage: defaultVariant.discountPercentage,
       shippedBy: defaultVariant.shippedBy,
       swg: defaultVariant.swg > 0 ? defaultVariant.swg.toString() : '',
@@ -526,7 +527,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       ratings: 0.0,
       refundPolicy: _refundPolicyController.text.trim(),
       productWeight: weightVal,
-      productWeightUnit: _selectedWeightUnit,
+      productWeightUnit: 'g',
       dimensions: '${lenVal.toInt()} x ${widthVal.toInt()} x ${heightVal.toInt()} $_selectedDimensionUnit',
       productDimensions: dimensionsObj,
       variants: List.from(_variants),
@@ -1263,12 +1264,30 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                   ],
                 ),
                 const SizedBox(height: 10),
-                _buildFormField(
-                  'HSN Code *',
-                  _hsnCodeController,
-                  'e.g. 3808',
-                  isDark,
-                  isRequired: true,
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: _buildFormField(
+                        'HSN Code *',
+                        _hsnCodeController,
+                        'e.g. 3808',
+                        isDark,
+                        isRequired: true,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _buildFormField(
+                        'GST (%)',
+                        _variantGstController,
+                        'e.g. 18',
+                        isDark,
+                        isNumber: true,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 AppHtmlEditor(
@@ -1289,15 +1308,34 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     );
   }
 
-  void _recalculateSellingPriceFromPerUnit() {
-    final perUnit = double.tryParse(_variantPerUnitPriceController.text.trim());
-    final qty = int.tryParse(_variantPackQuantityController.text.trim()) ?? 1;
-    if (perUnit != null && perUnit > 0) {
-      final effectiveQty = qty > 0 ? qty : 1;
-      final calculated = perUnit * effectiveQty;
-      _variantDisplayRateController.text =
-          calculated % 1 == 0 ? calculated.toStringAsFixed(0) : calculated.toStringAsFixed(2);
+  void _recalculateCourierFromWeight() {
+    final weight = double.tryParse(_weightController.text.trim()) ?? 0.0;
+    if (weight > 0) {
+      final courier = LivePriceCalculation.computeCourierChargeFromWeightGrams(weight);
+      _variantCourierChargesController.text = courier.round().toString();
+    } else {
+      _variantCourierChargesController.text = '';
     }
+  }
+
+  void _recalculateSellingRate() {
+    final swg = double.tryParse(_variantSwgController.text.trim()) ?? 0.0;
+    final comm = double.tryParse(_variantCommissionController.text.trim()) ?? 0.0;
+    final courier = double.tryParse(_variantCourierChargesController.text.trim()) ?? 0.0;
+    if (swg > 0) {
+      final calculated = LivePriceCalculation.computeSellingRate(
+        swg: swg,
+        commissionPercentage: comm,
+        courierCharges: courier,
+      );
+      _variantDisplayRateController.text = calculated.round().toString();
+    } else {
+      _variantDisplayRateController.text = '';
+    }
+  }
+
+  void _recalculateSellingPriceFromPerUnit() {
+    _recalculateSellingRate();
     setState(() {});
   }
 
@@ -1308,7 +1346,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
 
     final mrp = double.tryParse(_variantPrintedMrpController.text.trim());
     final rate = double.tryParse(_variantDisplayRateController.text.trim());
-    final perUnit = double.tryParse(_variantPerUnitPriceController.text.trim());
     final courier = double.tryParse(_variantCourierChargesController.text.trim());
     final packQty = int.tryParse(_variantPackQuantityController.text.trim()) ?? 1;
     final swg = double.tryParse(_variantSwgController.text.trim());
@@ -1524,7 +1561,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildDropdownField(
                           label: 'Unit *',
                           value: _selectedVariantUnit,
-                          items: const ['ml', 'Ltr', 'g', 'kg', 'mg', 'gm', 'pouch', 'tablet'],
+                          items: const ['ml', 'Ltr', 'g', 'kg', 'pcs'],
                           isDark: isDark,
                           borderColor: borderColor,
                           readOnly: true,
@@ -1589,30 +1626,19 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                   ),
                   const SizedBox(height: 16),
 
-                  // Row 3: Commercial Pricing (Per Unit Price, Display Rate, MRP, GST)
+                  // Row 3: Commercial Pricing (Display Rate, MRP, Commission)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: _buildFormField(
-                          'Per Unit Price (₹)',
-                          _variantPerUnitPriceController,
-                          'e.g. 450',
-                          isDark,
-                          isNumber: true,
-                          onChanged: (_) => _recalculateSellingPriceFromPerUnit(),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _buildFormField(
                           'Display Rate (Selling Price ₹) *',
                           _variantDisplayRateController,
-                          'e.g. 450',
+                          'Auto: SWG + Comm + Courier + ₹60',
                           isDark,
                           isNumber: true,
                           isRequired: true,
-                          onChanged: (_) => setState(() {}),
+                          readOnly: true,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1664,7 +1690,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                           'e.g. 400',
                           isDark,
                           isNumber: true,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: (_) {
+                            _recalculateSellingRate();
+                            setState(() {});
+                          },
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1672,10 +1701,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildFormField(
                           'Courier Charge (₹)',
                           _variantCourierChargesController,
-                          'e.g. 50',
+                          'Auto from Weight (g)',
                           isDark,
                           isNumber: true,
-                          onChanged: (_) => setState(() {}),
+                          readOnly: true,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1704,10 +1733,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildFormField(
                           'COD & Bank Charge (₹)',
                           _variantCodChargeController,
-                          'e.g. 30',
+                          '60',
                           isDark,
                           isNumber: true,
-                          onChanged: (_) => setState(() {}),
+                          readOnly: true,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1735,11 +1764,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                       rate: rate,
                       mrp: mrp,
                       swg: swg,
-                      perUnitPrice: perUnit,
                       packQuantity: packQty,
                       courierCharges: courier,
                       commissionPercentage: double.tryParse(_variantCommissionController.text.trim()) ?? 0.0,
-                      gstPercentage: _selectedVariantGst,
+                      gstPercentage: (double.tryParse(_variantGstController.text.trim()) ?? _selectedVariantGst).clamp(0.0, 100.0),
                       discountRs: discountRs,
                       discountPct: discountPct,
                       isDark: isDark,
@@ -1937,23 +1965,17 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                   children: [
                     Expanded(
                       child: _buildFormField(
-                        'Product Weight *',
+                        'Product Weight in Gram *',
                         _weightController,
                         'e.g. 500',
                         isDark,
                         isNumber: true,
                         isRequired: true,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildDropdownField(
-                        label: 'Weight Unit',
-                        value: _selectedWeightUnit,
-                        items: const ['g', 'kg', 'mg', 'gm'],
-                        isDark: isDark,
-                        borderColor: borderColor,
-                        onChanged: (val) => setState(() => _selectedWeightUnit = val!),
+                        onChanged: (_) {
+                          _recalculateCourierFromWeight();
+                          _recalculateSellingRate();
+                          setState(() {});
+                        },
                       ),
                     ),
                   ],

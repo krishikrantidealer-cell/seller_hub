@@ -9,10 +9,7 @@ const List<String> kVariantUnits = [
   'Ltr',
   'g',
   'kg',
-  'mg',
-  'gm',
-  'pouch',
-  'tablet',
+  'pcs',
 ];
 
 String formatVariantPackLabel({
@@ -52,13 +49,20 @@ class VariantLabelItem {
       return 'Ltr';
     }
     if (lower == 'g' || lower == 'gm' || lower == 'gms' || lower == 'gram' || lower == 'grams') {
-      return 'gm';
+      return 'g';
     }
     if (lower == 'kg' || lower == 'kgs') return 'kg';
     if (lower == 'ml') return 'ml';
-    if (lower == 'mg') return 'mg';
-    if (lower == 'pouch' || lower == 'pouches') return 'pouch';
-    if (lower == 'tablet' || lower == 'tablets') return 'tablet';
+    if (lower == 'pcs' ||
+        lower == 'pc' ||
+        lower == 'piece' ||
+        lower == 'pieces' ||
+        lower == 'pouch' ||
+        lower == 'pouches' ||
+        lower == 'tablet' ||
+        lower == 'tablets') {
+      return 'pcs';
+    }
     return lower;
   }
 

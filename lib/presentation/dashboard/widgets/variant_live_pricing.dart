@@ -93,10 +93,10 @@ class LivePriceCalculation extends StatelessWidget {
 
   static const List<(int, double)> _weightCourierSlabs = [
     (100, 82.13),
-    (200, 135.23),
-    (900, 188.33),
-    (1000, 163.4),
-    (1100, 167.86),
+    (400, 135.23),
+    (700, 145.0),
+    (900, 165.0),
+    (1100, 190.0),
     (1200, 172.32),
     (1300, 176.78),
     (1400, 181.24),

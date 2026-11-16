@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:html/dom.dart' as dom;
+import 'app_html_editor.dart' show AppHtmlWidgetFactory, buildAppHtmlCustomStyles;
 
 /// Renders HTML content (headings, paragraphs, bold tags, unordered/ordered lists)
 /// with typography and dark/light mode themes tailored for enterprise dashboard views.
@@ -61,6 +63,25 @@ class _AppHtmlViewState extends State<AppHtmlView> {
 
     final htmlContent = HtmlWidget(
       trimmed,
+      factoryBuilder: () => AppHtmlWidgetFactory(
+        resolveFontStyle: (fontName, {TextStyle? textStyle}) {
+          final lower = fontName.toLowerCase();
+          if (lower.contains('inter')) return GoogleFonts.inter(textStyle: textStyle);
+          if (lower.contains('roboto')) return GoogleFonts.roboto(textStyle: textStyle);
+          if (lower.contains('lato')) return GoogleFonts.lato(textStyle: textStyle);
+          if (lower.contains('poppins')) return GoogleFonts.poppins(textStyle: textStyle);
+          if (lower.contains('montserrat')) return GoogleFonts.montserrat(textStyle: textStyle);
+          if (lower.contains('open sans') || lower.contains('opensans')) {
+            return GoogleFonts.openSans(textStyle: textStyle);
+          }
+          if (lower.contains('merriweather')) return GoogleFonts.merriweather(textStyle: textStyle);
+          if (lower.contains('playfair')) return GoogleFonts.playfairDisplay(textStyle: textStyle);
+          if (lower.contains('jetbrains') || lower.contains('mono')) {
+            return GoogleFonts.jetBrainsMono(textStyle: textStyle);
+          }
+          return GoogleFonts.plusJakartaSans(textStyle: textStyle);
+        },
+      ),
       textStyle: widget.style ??
           GoogleFonts.plusJakartaSans(
             fontSize: widget.fontSize,
@@ -68,46 +89,45 @@ class _AppHtmlViewState extends State<AppHtmlView> {
             color: defaultTextColor,
           ),
       customStylesBuilder: (element) {
+        bool hasExplicitTextColor(dom.Element el) {
+          dom.Element? cur = el;
+          while (cur != null) {
+            final style = cur.attributes['style']?.toLowerCase() ?? '';
+            if (RegExp(r'(^|;)\s*color\s*:').hasMatch(style)) {
+              return true;
+            }
+            cur = cur.parent;
+          }
+          return false;
+        }
+
+        final shared = buildAppHtmlCustomStyles(element, isDark);
+
         switch (element.localName) {
           case 'h1':
           case 'h2':
           case 'h3':
           case 'h4':
             return {
-              'color': headingColorHex,
-              'font-weight': '700',
-              'margin-top': '8px',
-              'margin-bottom': '4px',
+              ...?shared,
+              if (!hasExplicitTextColor(element)) 'color': headingColorHex,
             };
           case 'strong':
           case 'b':
             return {
-              'color': boldColorHex,
+              ...?shared,
+              if (!hasExplicitTextColor(element)) 'color': boldColorHex,
               'font-weight': '700',
-            };
-          case 'p':
-            return {
-              'margin-bottom': '6px',
-            };
-          case 'ul':
-          case 'ol':
-            return {
-              'padding-left': '18px',
-              'margin-top': '4px',
-              'margin-bottom': '8px',
-            };
-          case 'li':
-            return {
-              'margin-bottom': '3px',
             };
           case 'a':
             return {
+              ...?shared,
               'color': accentGreenHex,
               'text-decoration': 'none',
               'font-weight': '600',
             };
           default:
-            return null;
+            return shared;
         }
       },
     );

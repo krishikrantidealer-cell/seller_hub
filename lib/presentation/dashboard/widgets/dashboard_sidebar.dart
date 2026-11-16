@@ -189,6 +189,7 @@ class DashboardSidebar extends StatelessWidget {
                   else
                     const SizedBox(height: 4),
 
+                  /*
                   // Sidebar Nav Item: Dashboard
                   _buildSidebarNavItem(
                     context: context,
@@ -197,6 +198,7 @@ class DashboardSidebar extends StatelessWidget {
                     icon: Icons.grid_view_rounded,
                     isDark: isDark,
                   ),
+                  */
 
                   // Sidebar Nav Item: Catalog (Products, Collections & Categories)
                   _buildSidebarNavItem(
@@ -218,6 +220,7 @@ class DashboardSidebar extends StatelessWidget {
                     isSelected: selectedIndex == 4 || selectedIndex == 6,
                   ),
 
+                  /*
                   // Sidebar Nav Item: Orders
                   _buildSidebarNavItem(
                     context: context,
@@ -227,6 +230,7 @@ class DashboardSidebar extends StatelessWidget {
                     isDark: isDark,
                     badgeText: ordersCount > 0 ? '$ordersCount' : null,
                   ),
+                  */
                 ],
               ),
             ),

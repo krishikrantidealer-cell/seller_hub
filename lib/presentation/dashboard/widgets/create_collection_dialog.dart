@@ -12,10 +12,12 @@ import '../widgets/app_product_image.dart';
 
 class CreateCollectionDialog extends StatefulWidget {
   final void Function(CollectionItem createdItem)? onCollectionCreated;
+  final VoidCallback? onClose;
 
   const CreateCollectionDialog({
     super.key,
     this.onCollectionCreated,
+    this.onClose,
   });
 
   @override
@@ -241,6 +243,14 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
         );
   }
 
+  void _closeView([CollectionItem? created]) {
+    if (widget.onClose != null) {
+      widget.onClose!();
+    } else {
+      Navigator.of(context).pop(created);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -255,7 +265,7 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
       listener: (context, state) {
         final created = state.createdCollection!;
         widget.onCollectionCreated?.call(created);
-        Navigator.of(context).pop(created);
+        _closeView(created);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -277,82 +287,105 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
           final isCreating = state.isCreating;
           final errorMessage = state.createError;
 
-          return Dialog(
-            backgroundColor: surfaceColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: borderColor),
-            ),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: 560,
-                maxHeight: MediaQuery.sizeOf(context).height * 0.92,
-              ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF059669).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.add_photo_alternate_rounded,
-                              color: Color(0xFF059669),
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Create New Collection',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'POST /api/v1/admin/collections',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 11,
-                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: isCreating ? null : () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close_rounded, size: 20),
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(height: 1, color: borderColor),
+          final pageBgColor =
+              isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
 
-                    // Scrollable form fields
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          final content = Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Top Workspace Header
+                Container(
+                  color: surfaceColor,
+                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
+                  child: Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: isCreating ? null : () => _closeView(),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 17),
+                        label: Text(
+                          'Back to Collections',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark
+                              ? const Color(0xFFCBD5E1)
+                              : const Color(0xFF334155),
+                          side: BorderSide(color: borderColor),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Container(
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF059669).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.add_photo_alternate_rounded,
+                          color: Color(0xFF059669),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Create New Collection',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'POST /api/v1/admin/collections',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 11,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: borderColor),
+
+                // Scrollable Full-Width Form Workspace
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: surfaceColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             if (errorMessage != null) ...[
                               Container(
@@ -883,7 +916,7 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
                                   ),
                                   const SizedBox(width: 8),
                                   ElevatedButton(
-                                    onPressed: _handleAddSubCollection,
+                                    onPressed: _isUploadingSubImage ? null : _handleAddSubCollection,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF7C3AED),
                                       foregroundColor: Colors.white,
@@ -891,7 +924,7 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                                     ),
                                     child: Text(
-                                      'Add Node',
+                                      _isUploadingSubImage ? 'Uploading...' : 'Add Node',
                                       style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
                                     ),
                                   ),
@@ -918,143 +951,174 @@ class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
                         )
                       else
                         Container(
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             border: Border.all(color: borderColor),
                             borderRadius: BorderRadius.circular(10),
+                            color: cardBgColor,
                           ),
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _subCollections.length,
-                            separatorBuilder: (_, index) => Divider(height: 1, color: borderColor),
-                            itemBuilder: (context, idx) {
-                              final sub = _subCollections[idx];
-                              return ListTile(
-                                dense: true,
-                                visualDensity: VisualDensity.compact,
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: SizedBox(
-                                    width: 28,
-                                    height: 28,
-                                    child: sub.image != null && sub.image!.isNotEmpty
-                                        ? AppProductImage(
-                                            imageUrl: sub.image!,
-                                            width: 28,
-                                            height: 28,
-                                            borderRadius: 6,
-                                            fit: BoxFit.cover,
-                                          )
-                                        : Container(
-                                            color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
-                                            child: const Center(
-                                              child: Icon(Icons.grain_rounded, size: 16, color: Color(0xFF7C3AED)),
-                                            ),
-                                          ),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 260),
+                            child: GridView.builder(
+                              shrinkWrap: true,
+                              itemCount: _subCollections.length,
+                              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 260,
+                                mainAxisExtent: 48,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                              ),
+                              itemBuilder: (context, idx) {
+                                final sub = _subCollections[idx];
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: surfaceColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: borderColor),
                                   ),
-                                ),
-                                title: Row(
-                                  children: [
-                                    Text(
-                                      sub.name,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        '/${sub.slug}',
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 10.5,
-                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  child: Row(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: SizedBox(
+                                          width: 26,
+                                          height: 26,
+                                          child: sub.image != null && sub.image!.isNotEmpty
+                                              ? AppProductImage(
+                                                  imageUrl: sub.image!,
+                                                  width: 26,
+                                                  height: 26,
+                                                  borderRadius: 6,
+                                                  fit: BoxFit.cover,
+                                                )
+                                              : Container(
+                                                  color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                                                  child: const Center(
+                                                    child: Icon(Icons.grain_rounded, size: 14, color: Color(0xFF7C3AED)),
+                                                  ),
+                                                ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 16),
-                                  tooltip: 'Remove',
-                                  color: const Color(0xFFEF4444),
-                                  onPressed: isCreating ? null : () => _handleRemoveSubCollection(idx),
-                                ),
-                              );
-                            },
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              sub.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            Text(
+                                              '/${sub.slug}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 10,
+                                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(4),
+                                        onTap: isCreating ? null : () => _handleRemoveSubCollection(idx),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(4),
+                                          child: Icon(
+                                            Icons.close_rounded,
+                                            size: 16,
+                                            color: Color(0xFFEF4444),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
-
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Divider(height: 1, color: borderColor),
-
-                    // Pinned Actions Bar
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          OutlinedButton(
-                            onPressed: isCreating ? null : () => Navigator.of(context).pop(),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                              side: BorderSide(color: borderColor),
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton.icon(
-                            onPressed: isCreating ? null : _handleSubmit,
-                            icon: isCreating
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.check_rounded, size: 18),
-                            label: Text(
-                              isCreating ? 'Creating Collection...' : 'Create Collection',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF059669),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+
+                Divider(height: 1, color: borderColor),
+
+                // Pinned Actions Bar
+                Container(
+                  color: surfaceColor,
+                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: isCreating ? null : () => _closeView(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          side: BorderSide(color: borderColor),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: isCreating ? null : _handleSubmit,
+                        icon: isCreating
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 18),
+                        label: Text(
+                          isCreating ? 'Creating Collection...' : 'Create Collection',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF059669),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
+          );
+
+          if (widget.onClose != null) {
+            return Container(color: pageBgColor, child: content);
+          }
+          return Scaffold(
+            backgroundColor: pageBgColor,
+            body: SafeArea(child: content),
           );
         },
       ),

@@ -233,8 +233,13 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
       emit(state.copyWith(
         status: CollectionStatus.loaded,
         data: updatedData,
+        updateError: null,
       ));
-    } catch (_) {
+    } on ApiException catch (e) {
+      emit(state.copyWith(updateError: e.message));
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    } catch (e) {
+      emit(state.copyWith(updateError: 'Failed to add sub-collection: $e'));
       add(const FetchCollections(isRefresh: true, isBackground: true));
     }
   }
@@ -260,8 +265,13 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
       emit(state.copyWith(
         status: CollectionStatus.loaded,
         data: updatedData,
+        updateError: null,
       ));
-    } catch (_) {
+    } on ApiException catch (e) {
+      emit(state.copyWith(updateError: e.message));
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    } catch (e) {
+      emit(state.copyWith(updateError: 'Failed to add sub-collection: $e'));
       add(const FetchCollections(isRefresh: true, isBackground: true));
     }
   }
@@ -369,8 +379,13 @@ class CollectionBloc extends Bloc<CollectionEvent, CollectionState> {
       emit(state.copyWith(
         status: CollectionStatus.loaded,
         data: updatedData,
+        updateError: null,
       ));
-    } catch (_) {
+    } on ApiException catch (e) {
+      emit(state.copyWith(updateError: e.message));
+      add(const FetchCollections(isRefresh: true, isBackground: true));
+    } catch (e) {
+      emit(state.copyWith(updateError: 'Failed to add sub-collection: $e'));
       add(const FetchCollections(isRefresh: true, isBackground: true));
     }
   }

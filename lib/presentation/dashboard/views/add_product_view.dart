@@ -5,9 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/admin_user.dart';
 import '../../../core/models/category.dart';
 import '../../../core/models/product.dart';
+import '../../../core/models/technical_name.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/admin_user_state.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
+import '../../../logic/auth/auth_bloc.dart';
 import '../../../logic/category/category_bloc.dart';
 import '../../../logic/category/category_event.dart';
 import '../../../logic/category/category_state.dart';
@@ -15,6 +17,9 @@ import '../../../logic/collection/collection_bloc.dart';
 import '../../../logic/collection/collection_event.dart';
 import '../../../logic/collection/collection_state.dart';
 import '../widgets/app_html_editor.dart';
+import '../widgets/technical_name_selector.dart';
+import '../widgets/variant_label_selector.dart';
+import '../widgets/variant_live_pricing.dart';
 
 class AddProductView extends StatefulWidget {
   final VoidCallback onBack;
@@ -94,13 +99,36 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   final _variantPackSizeController = TextEditingController();
   final _variantPackQuantityController = TextEditingController();
   final _variantDisplayRateController = TextEditingController();
+  final _variantPerUnitPriceController = TextEditingController();
   final _variantPrintedMrpController = TextEditingController();
-  final _variantCostPriceController = TextEditingController();
+  final _variantCourierChargesController = TextEditingController();
+  final _variantCodChargeController = TextEditingController(text: '30');
+  final _variantCommissionController = TextEditingController();
+  final _variantSwgController = TextEditingController();
   final _variantStockController = TextEditingController();
   final _variantShippedByController = TextEditingController(text: 'essentialbiocropscience');
+  String _selectedShippingThrough = '';
+  String _selectedPaymentMethod = '';
   String _selectedVariantUnit = 'ml';
   String _selectedPackUnit = 'bottle';
   double _selectedVariantGst = 5.0;
+  double _defaultTechnicalCommission = 0.0;
+
+  void _applyTechnicalNameSelection(TechnicalNameModel tech) {
+    final comm = tech.commissionPercentage;
+    final formatted = comm == comm.roundToDouble()
+        ? comm.toInt().toString()
+        : comm.toString();
+    setState(() {
+      _defaultTechnicalCommission = comm;
+      _variantCommissionController.text = formatted;
+      for (int i = 0; i < _variants.length; i++) {
+        if (_variants[i].commissionPercentage <= 0 || i == _activeVariantIndex) {
+          _variants[i] = _variants[i].copyWith(commissionPercentage: comm);
+        }
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -131,7 +159,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
         shippedBy: 'essentialbiocropscience',
         displayRate: 0.0,
         printedMrp: 0.0,
-        costPrice: 0.0,
         discountRs: 0.0,
         gstPercentage: 5.0,
         discountPercentage: 0.0,
@@ -188,8 +215,12 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     _variantPackSizeController.dispose();
     _variantPackQuantityController.dispose();
     _variantDisplayRateController.dispose();
+    _variantPerUnitPriceController.dispose();
     _variantPrintedMrpController.dispose();
-    _variantCostPriceController.dispose();
+    _variantCourierChargesController.dispose();
+    _variantCodChargeController.dispose();
+    _variantCommissionController.dispose();
+    _variantSwgController.dispose();
     _variantStockController.dispose();
     _variantShippedByController.dispose();
     super.dispose();
@@ -200,12 +231,34 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     _variantPackSizeController.text = v.packSize > 0 ? v.packSize.toString() : '';
     _variantPackQuantityController.text = v.packQuantity > 0 ? v.packQuantity.toString() : '';
     _variantDisplayRateController.text = v.displayRate > 0 ? v.displayRate.toStringAsFixed(0) : '';
+    _variantPerUnitPriceController.text = v.perUnitPrice > 0
+        ? (v.perUnitPrice % 1 == 0 ? v.perUnitPrice.toStringAsFixed(0) : v.perUnitPrice.toString())
+        : '';
     _variantPrintedMrpController.text = v.printedMrp > 0 ? v.printedMrp.toStringAsFixed(0) : '';
-    _variantCostPriceController.text = v.costPrice > 0 ? v.costPrice.toStringAsFixed(0) : '';
+    _variantCourierChargesController.text = v.courierCharges > 0
+        ? (v.courierCharges % 1 == 0 ? v.courierCharges.toStringAsFixed(0) : v.courierCharges.toString())
+        : '';
+    _variantCodChargeController.text = v.codCharge > 0
+        ? (v.codCharge % 1 == 0 ? v.codCharge.toStringAsFixed(0) : v.codCharge.toString())
+        : '0';
+    _selectedPaymentMethod = kPaymentMethodOptions.contains(v.paymentMethod)
+        ? v.paymentMethod
+        : '';
+    _variantCommissionController.text = v.commissionPercentage > 0
+        ? (v.commissionPercentage % 1 == 0
+            ? v.commissionPercentage.toStringAsFixed(0)
+            : v.commissionPercentage.toString())
+        : '';
+    _variantSwgController.text = v.swg > 0
+        ? (v.swg % 1 == 0 ? v.swg.toStringAsFixed(0) : v.swg.toString())
+        : '';
     _variantStockController.text = v.stock > 0 ? v.stock.toString() : '';
     _variantShippedByController.text = (v.shippedBy == 'essentialbiocropscience')
         ? v.shippedBy
         : 'essentialbiocropscience';
+    _selectedShippingThrough = kShippingThroughOptions.contains(v.shippingThrough)
+        ? v.shippingThrough
+        : '';
     _selectedVariantUnit = v.unit.isNotEmpty ? v.unit : 'ml';
     _selectedPackUnit = v.packUnit.isNotEmpty ? v.packUnit : 'bottle';
     _selectedVariantGst = v.gstPercentage > 0 ? v.gstPercentage : 5.0;
@@ -216,8 +269,11 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     final cur = _variants[_activeVariantIndex];
 
     final disp = double.tryParse(_variantDisplayRateController.text.trim()) ?? cur.displayRate;
+    final perUnit = double.tryParse(_variantPerUnitPriceController.text.trim()) ?? cur.perUnitPrice;
     final mrp = double.tryParse(_variantPrintedMrpController.text.trim()) ?? cur.printedMrp;
-    final cp = double.tryParse(_variantCostPriceController.text.trim()) ?? cur.costPrice;
+    final courier = double.tryParse(_variantCourierChargesController.text.trim()) ?? cur.courierCharges;
+    final cod = double.tryParse(_variantCodChargeController.text.trim()) ?? cur.codCharge;
+    final swgVal = double.tryParse(_variantSwgController.text.trim()) ?? cur.swg;
     final st = int.tryParse(_variantStockController.text.trim()) ?? cur.stock;
     final ps = int.tryParse(_variantPackSizeController.text.trim()) ?? cur.packSize;
     final pq = int.tryParse(_variantPackQuantityController.text.trim()) ?? cur.packQuantity;
@@ -236,9 +292,15 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       shippedBy: _variantShippedByController.text.trim().isNotEmpty
           ? _variantShippedByController.text.trim()
           : 'essentialbiocropscience',
+      shippingThrough: _selectedShippingThrough,
       displayRate: disp,
+      perUnitPrice: perUnit,
       printedMrp: mrp,
-      costPrice: cp,
+      courierCharges: courier,
+      codCharge: cod,
+      paymentMethod: _selectedPaymentMethod,
+      commissionPercentage: double.tryParse(_variantCommissionController.text.trim()) ?? cur.commissionPercentage,
+      swg: swgVal,
       discountRs: disc,
       discountPercentage: discPct,
       gstPercentage: _selectedVariantGst,
@@ -272,9 +334,9 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
         shippedBy: 'essentialbiocropscience',
         displayRate: 0.0,
         printedMrp: 0.0,
-        costPrice: 0.0,
         discountRs: 0.0,
         gstPercentage: 5.0,
+        commissionPercentage: _defaultTechnicalCommission,
         discountPercentage: 0.0,
         stock: 0,
       );
@@ -454,12 +516,12 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       packSize: defaultVariant.packSize.toString(),
       displayRate: defaultVariant.displayRate,
       printedMrp: defaultVariant.printedMrp,
-      costPrice: defaultVariant.costPrice,
       discountRs: defaultVariant.discountRs,
       unit: defaultVariant.unit,
       gst: defaultVariant.gstPercentage,
       discountPercentage: defaultVariant.discountPercentage,
       shippedBy: defaultVariant.shippedBy,
+      swg: defaultVariant.swg > 0 ? defaultVariant.swg.toString() : '',
       stock: defaultVariant.stock,
       ratings: 0.0,
       refundPolicy: _refundPolicyController.text.trim(),
@@ -1190,12 +1252,12 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: _buildFormField(
-                        'Technical Name *',
-                        _technicalNameController,
-                        'e.g. Bio Organic Nutrient Formulation',
-                        isDark,
+                      child: TechnicalNameSelector(
+                        controller: _technicalNameController,
+                        isDark: isDark,
                         isRequired: true,
+                        isAdmin: context.read<AuthBloc>().state.session?.isAdmin ?? false,
+                        onSelected: _applyTechnicalNameSelection,
                       ),
                     ),
                   ],
@@ -1227,15 +1289,33 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     );
   }
 
+  void _recalculateSellingPriceFromPerUnit() {
+    final perUnit = double.tryParse(_variantPerUnitPriceController.text.trim());
+    final qty = int.tryParse(_variantPackQuantityController.text.trim()) ?? 1;
+    if (perUnit != null && perUnit > 0) {
+      final effectiveQty = qty > 0 ? qty : 1;
+      final calculated = perUnit * effectiveQty;
+      _variantDisplayRateController.text =
+          calculated % 1 == 0 ? calculated.toStringAsFixed(0) : calculated.toStringAsFixed(2);
+    }
+    setState(() {});
+  }
+
   // --- TAB 2: MULTI-VARIANTS & PRICING ---
   Widget _buildTab2Variants(bool isDark, Color borderColor, Color cardBgColor) {
     _syncCurrentVariantFromControllers();
     final activeVar = (_activeVariantIndex < _variants.length) ? _variants[_activeVariantIndex] : null;
 
-    final mrp = double.tryParse(_variantPrintedMrpController.text.trim()) ?? 500.0;
-    final rate = double.tryParse(_variantDisplayRateController.text.trim()) ?? 450.0;
-    final discountRs = (mrp > rate) ? (mrp - rate) : 0.0;
-    final discountPct = (mrp > 0 && discountRs > 0) ? ((discountRs / mrp) * 100) : 0.0;
+    final mrp = double.tryParse(_variantPrintedMrpController.text.trim());
+    final rate = double.tryParse(_variantDisplayRateController.text.trim());
+    final perUnit = double.tryParse(_variantPerUnitPriceController.text.trim());
+    final courier = double.tryParse(_variantCourierChargesController.text.trim());
+    final packQty = int.tryParse(_variantPackQuantityController.text.trim()) ?? 1;
+    final swg = double.tryParse(_variantSwgController.text.trim());
+    final hasPrice = (rate != null && rate > 0) || (mrp != null && mrp > 0);
+    final hasBothPrices = (mrp != null && mrp > 0) && (rate != null && rate > 0);
+    final discountRs = hasBothPrices && mrp > rate ? (mrp - rate) : 0.0;
+    final discountPct = hasBothPrices && discountRs > 0 ? ((discountRs / mrp) * 100) : 0.0;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -1404,13 +1484,27 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                     children: [
                       Expanded(
                         flex: 2,
-                        child: _buildFormField(
-                          'Variant Label *',
-                          _variantLabelController,
-                          'e.g. 500 ml Bottle / 1 L Can',
-                          isDark,
+                        child: VariantLabelSelector(
+                          controller: _variantLabelController,
+                          isDark: isDark,
                           isRequired: true,
-                          onChanged: (_) => setState(() {}),
+                          onChanged: () => setState(() {}),
+                          onSelected: (item) {
+                            if (item.packSize > 0) {
+                              setState(() {
+                                _variantPackSizeController.text =
+                                    item.packSize == item.packSize.roundToDouble()
+                                        ? item.packSize.toInt().toString()
+                                        : item.packSize.toString();
+                                if (kVariantUnits.contains(item.unit)) {
+                                  _selectedVariantUnit = item.unit;
+                                }
+                                _variantPackQuantityController.text =
+                                    item.packQuantity.toString();
+                              });
+                              _recalculateSellingPriceFromPerUnit();
+                            }
+                          },
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1418,10 +1512,11 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildFormField(
                           'Pack Size *',
                           _variantPackSizeController,
-                          'e.g. 500',
+                          'Auto from Variant Label',
                           isDark,
                           isNumber: true,
                           isRequired: true,
+                          readOnly: true,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1429,9 +1524,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildDropdownField(
                           label: 'Unit *',
                           value: _selectedVariantUnit,
-                          items: const ['ml', 'Litre', 'g', 'kg', 'mg', 'gm', 'pouch', 'tablet'],
+                          items: const ['ml', 'Ltr', 'g', 'kg', 'mg', 'gm', 'pouch', 'tablet'],
                           isDark: isDark,
                           borderColor: borderColor,
+                          readOnly: true,
                           onChanged: (val) => setState(() => _selectedVariantUnit = val!),
                         ),
                       ),
@@ -1447,9 +1543,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildFormField(
                           'Pack Quantity',
                           _variantPackQuantityController,
-                          'e.g. 1',
+                          'Auto from Variant Label',
                           isDark,
                           isNumber: true,
+                          readOnly: true,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1471,14 +1568,42 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                           },
                         ),
                       ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _buildDropdownField(
+                          label: 'Shipping Through *',
+                          value: _selectedShippingThrough,
+                          items: kShippingThroughOptions,
+                          hint: '-- Select Shipping Through --',
+                          allowNull: true,
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _selectedShippingThrough = val);
+                            }
+                          },
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // Row 3: Commercial Pricing (Display Rate, MRP, Cost Price, GST)
+                  // Row 3: Commercial Pricing (Per Unit Price, Display Rate, MRP, GST)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Expanded(
+                        child: _buildFormField(
+                          'Per Unit Price (₹)',
+                          _variantPerUnitPriceController,
+                          'e.g. 450',
+                          isDark,
+                          isNumber: true,
+                          onChanged: (_) => _recalculateSellingPriceFromPerUnit(),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: _buildFormField(
                           'Display Rate (Selling Price ₹) *',
@@ -1505,29 +1630,19 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                       const SizedBox(width: 14),
                       Expanded(
                         child: _buildFormField(
-                          'Cost Price (₹)',
-                          _variantCostPriceController,
-                          'e.g. 250',
+                          'Commission (%)',
+                          _variantCommissionController,
+                          'Auto from Technical Name',
                           isDark,
                           isNumber: true,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _buildDropdownField(
-                          label: 'GST Slab',
-                          value: '${_selectedVariantGst.toInt()}%',
-                          items: const ['0%', '5%', '12%', '18%', '28%'],
-                          isDark: isDark,
-                          borderColor: borderColor,
-                          onChanged: (val) => setState(() => _selectedVariantGst = double.parse(val!.replaceAll('%', ''))),
+                          readOnly: true,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // Row 4: Stock & Discount Pill
+                  // Row 4: Stock, SWG, Courier Charge & Discount Pill
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -1543,43 +1658,93 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                       ),
                       const SizedBox(width: 14),
                       Expanded(
-                        child: Container(
-                          height: 48,
-                          margin: const EdgeInsets.only(top: 22),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: discountRs > 0
-                                ? const Color(0xFF059669).withValues(alpha: 0.1)
-                                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: discountRs > 0 ? const Color(0xFF059669).withValues(alpha: 0.3) : borderColor,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.local_offer_outlined,
-                                size: 16,
-                                color: discountRs > 0 ? const Color(0xFF059669) : const Color(0xFF64748B),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                discountRs > 0
-                                    ? 'Discount: ₹${discountRs.toStringAsFixed(0)} (${discountPct.toStringAsFixed(1)}% off)'
-                                    : 'No discount applied (MRP = Rate)',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: discountRs > 0 ? const Color(0xFF059669) : const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: _buildFormField(
+                          'Seller Will Get (SWG ₹)',
+                          _variantSwgController,
+                          'e.g. 400',
+                          isDark,
+                          isNumber: true,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _buildFormField(
+                          'Courier Charge (₹)',
+                          _variantCourierChargesController,
+                          'e.g. 50',
+                          isDark,
+                          isNumber: true,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: hasPrice
+                            ? LiveDiscountPill(
+                                hasBothPrices: hasBothPrices,
+                                rate: rate,
+                                mrp: mrp,
+                                discountRs: discountRs,
+                                discountPct: discountPct,
+                                isDark: isDark,
+                                borderColor: borderColor,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Row 5: COD & Bank Charge & Payment Method
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildFormField(
+                          'COD & Bank Charge (₹)',
+                          _variantCodChargeController,
+                          'e.g. 30',
+                          isDark,
+                          isNumber: true,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: _buildDropdownField(
+                          label: 'Payment Method *',
+                          value: _selectedPaymentMethod,
+                          items: kPaymentMethodOptions,
+                          hint: '-- Select Payment Method --',
+                          allowNull: true,
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _selectedPaymentMethod = val);
+                            }
+                          },
                         ),
                       ),
                     ],
                   ),
+                  if (rate != null && rate > 0) ...[
+                    const SizedBox(height: 16),
+                    LivePriceCalculation(
+                      rate: rate,
+                      mrp: mrp,
+                      swg: swg,
+                      perUnitPrice: perUnit,
+                      packQuantity: packQty,
+                      courierCharges: courier,
+                      commissionPercentage: double.tryParse(_variantCommissionController.text.trim()) ?? 0.0,
+                      gstPercentage: _selectedVariantGst,
+                      discountRs: discountRs,
+                      discountPct: discountPct,
+                      isDark: isDark,
+                    ),
+                  ],
                   const SizedBox(height: 20),
 
                   // Variant Actions (Default, Duplicate, Delete)
@@ -1956,6 +2121,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     bool isDark, {
     bool isRequired = false,
     bool isNumber = false,
+    bool readOnly = false,
     int maxLines = 1,
     Function(String)? onChanged,
   }) {
@@ -1974,6 +2140,9 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
         TextFormField(
           controller: controller,
           maxLines: maxLines,
+          enabled: !readOnly,
+          readOnly: readOnly,
+          canRequestFocus: !readOnly,
           keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
           onChanged: onChanged,
           validator: isRequired
@@ -1986,7 +2155,9 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
               : null,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12.5,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
+            color: readOnly
+                ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569))
+                : (isDark ? Colors.white : const Color(0xFF0F172A)),
           ),
           decoration: InputDecoration(
             isDense: true,
@@ -1995,14 +2166,28 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
               fontSize: 12,
               color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
             ),
+            suffixIcon: readOnly
+                ? Icon(
+                    Icons.lock_outline_rounded,
+                    size: 14,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  )
+                : null,
+            suffixIconConstraints: readOnly ? const BoxConstraints(minWidth: 32, minHeight: 32) : null,
             filled: true,
-            fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            fillColor: readOnly
+                ? (isDark ? const Color(0xFF0B1120) : const Color(0xFFE2E8F0).withValues(alpha: 0.5))
+                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8.5),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0)),
             ),
             enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0)),
+            ),
+            disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0)),
             ),
@@ -2024,11 +2209,14 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
     required bool isDark,
     required Color borderColor,
     required Function(String?) onChanged,
+    bool readOnly = false,
+    String? hint,
+    bool allowNull = false,
   }) {
     final effectiveItems = items.toSet().toList();
-    final effectiveValue = effectiveItems.contains(value)
+    final String? effectiveValue = effectiveItems.contains(value)
         ? value
-        : (effectiveItems.isNotEmpty ? effectiveItems.first : value);
+        : (allowNull ? null : (effectiveItems.isNotEmpty ? effectiveItems.first : value));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2046,13 +2234,19 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
           decoration: InputDecoration(
             isDense: true,
             filled: true,
-            fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            fillColor: readOnly
+                ? (isDark ? const Color(0xFF0B1120) : const Color(0xFFE2E8F0).withValues(alpha: 0.5))
+                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8.5),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0)),
             ),
             enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0)),
+            ),
+            disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
               borderSide: BorderSide(color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0)),
             ),
@@ -2064,18 +2258,32 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: effectiveValue,
+              hint: hint != null
+                  ? Text(
+                      hint,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      ),
+                    )
+                  : null,
               isExpanded: true,
               isDense: true,
               dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
               borderRadius: BorderRadius.circular(6),
               icon: Icon(
-                Icons.arrow_drop_down_rounded,
+                readOnly ? Icons.lock_outline_rounded : Icons.arrow_drop_down_rounded,
+                size: readOnly ? 14 : 24,
                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                color: readOnly
+                    ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569))
+                    : (isDark ? Colors.white : const Color(0xFF0F172A)),
               ),
               items: effectiveItems.map((item) {
                 return DropdownMenuItem<String>(
@@ -2085,13 +2293,15 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: readOnly
+                          ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569))
+                          : (isDark ? Colors.white : const Color(0xFF0F172A)),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 );
               }).toList(),
-              onChanged: onChanged,
+              onChanged: readOnly ? null : onChanged,
             ),
           ),
         ),

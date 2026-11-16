@@ -192,7 +192,6 @@ void main() {
             shippedBy: 'EBS Direct',
             displayRate: 450,
             printedMrp: 500,
-            costPrice: 250,
             discountRs: 50,
             gstPercentage: 5,
             discountPercentage: 10,
@@ -232,7 +231,7 @@ void main() {
       expect(variant['shippedBy'], 'EBS Direct');
       expect(variant['displayRate'], 450.0);
       expect(variant['printedMrp'], 500.0);
-      expect(variant['costPrice'], 250.0);
+      expect(variant.containsKey('costPrice'), isFalse);
       expect(variant['discountRs'], 50.0);
       expect(variant['gstPercentage'], 5.0);
       expect(variant['discountPercentage'], 10.0);
@@ -351,7 +350,6 @@ void main() {
       expect(v.packQuantity, 1);
       expect(v.displayRate, 450.0);
       expect(v.printedMrp, 500.0);
-      expect(v.costPrice, 250.0);
       expect(v.discountRs, 50.0);
       expect(v.gstPercentage, 5.0);
       expect(v.discountPercentage, 10.0);

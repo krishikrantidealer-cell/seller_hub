@@ -404,29 +404,56 @@ class _CategoriesViewState extends State<CategoriesView> {
 
         final filteredItems = state.filteredTree;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Metrics Strip
-            _buildMetricsRow(context, state, isDark, surfaceColor, borderColor),
-            const SizedBox(height: 16),
-
-            // 2. Search & Level Filters Toolbar
-            _buildFilterToolbar(context, state, isDark, surfaceColor, borderColor, textPrimary, textSecondary, filteredItems),
-            const SizedBox(height: 16),
-
-            // Bulk Delete Action Bar
-            if (_selectedCategoryIds.isNotEmpty) ...[
-              _buildBulkActionBar(context, isDark, borderColor),
-            ],
-
+        return CustomScrollView(
+          key: const PageStorageKey('catalog_categories_scroll'),
+          physics: const ClampingScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Metrics Strip
+                    _buildMetricsRow(context, state, isDark, surfaceColor, borderColor),
+                    const SizedBox(height: 16),
+                    // 2. Search & Level Filters Toolbar
+                    _buildFilterToolbar(context, state, isDark, surfaceColor, borderColor, textPrimary, textSecondary, filteredItems),
+                    // Bulk Delete Action Bar
+                    if (_selectedCategoryIds.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _buildBulkActionBar(context, isDark, borderColor),
+                    ],
+                  ],
+                ),
+              ),
+            ),
             // 3. Category Tree or Filtered List
             if (state.status == CategoryStatus.error && state.allCategories.isEmpty)
-              _buildErrorView(state.errorMessage ?? 'Failed to load categories', borderColor, isDark)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                sliver: SliverToBoxAdapter(
+                  child: _buildErrorView(state.errorMessage ?? 'Failed to load categories', borderColor, isDark),
+                ),
+              )
             else if (filteredItems.isEmpty)
-              _buildEmptyView(state.searchQuery, borderColor, isDark)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                sliver: SliverToBoxAdapter(
+                  child: _buildEmptyView(state.searchQuery, borderColor, isDark),
+                ),
+              )
             else
-              _buildCategoriesContent(filteredItems, state, isDark, surfaceColor, borderColor, cardBgColor, textPrimary, textSecondary),
+              ..._buildCategoriesSlivers(
+                filteredItems,
+                state,
+                isDark,
+                surfaceColor,
+                borderColor,
+                cardBgColor,
+                textPrimary,
+                textSecondary,
+              ),
           ],
         );
       },
@@ -846,7 +873,7 @@ class _CategoriesViewState extends State<CategoriesView> {
     );
   }
 
-  Widget _buildCategoriesContent(
+  List<Widget> _buildCategoriesSlivers(
     List<CategoryItem> items,
     CategoryState state,
     bool isDark,
@@ -856,18 +883,19 @@ class _CategoriesViewState extends State<CategoriesView> {
     Color textPrimary,
     Color textSecondary,
   ) {
-    // If user filtered by Level 1 or Level 2 specifically, render a fast table/flat view
+    // If user filtered by Level 1 or Level 2 specifically, render a virtualized flat sliver list
     if (state.selectedLevelFilter != null && state.selectedLevelFilter != 0) {
-      return _buildFlatCategoryList(items, state, isDark, surfaceColor, borderColor, textPrimary, textSecondary);
+      return _buildFlatCategorySlivers(items, state, isDark, surfaceColor, borderColor, textPrimary, textSecondary);
     }
 
-    // Otherwise render the full 3-level tree
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      separatorBuilder: (_, index) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
+    // Otherwise render the full 3-level tree with SliverList virtualization
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        sliver: SliverList.separated(
+          itemCount: items.length,
+          separatorBuilder: (_, index) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
         final root = items[index];
         final isExpanded = state.expandedCategoryIds.contains(root.id);
         final color = _getCategoryColor(root.name);
@@ -1327,10 +1355,12 @@ class _CategoriesViewState extends State<CategoriesView> {
           ),
         );
       },
-    );
+    ),
+    ),
+    ];
   }
 
-  Widget _buildFlatCategoryList(
+  List<Widget> _buildFlatCategorySlivers(
     List<CategoryItem> items,
     CategoryState state,
     bool isDark,
@@ -1339,16 +1369,16 @@ class _CategoriesViewState extends State<CategoriesView> {
     Color textPrimary,
     Color textSecondary,
   ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        sliver: SliverToBoxAdapter(
+          child: Container(
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              border: Border.all(color: borderColor),
+            ),
             padding: const EdgeInsets.all(14),
             child: Text(
               'Showing ${items.length} categories at Level ${state.selectedLevelFilter}',
@@ -1359,19 +1389,30 @@ class _CategoriesViewState extends State<CategoriesView> {
               ),
             ),
           ),
-          Divider(height: 1, color: borderColor),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: items.length,
-            separatorBuilder: (_, index) => Divider(height: 1, color: borderColor),
-            itemBuilder: (context, index) {
-              final cat = items[index];
-              final parent = state.categoryById[cat.parentId];
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        sliver: SliverList.separated(
+          itemCount: items.length,
+          separatorBuilder: (_, index) => Divider(height: 1, color: borderColor),
+          itemBuilder: (context, index) {
+            final cat = items[index];
+            final parent = state.categoryById[cat.parentId];
+            final isLast = index == items.length - 1;
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
+            return Container(
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                border: Border(
+                  left: BorderSide(color: borderColor),
+                  right: BorderSide(color: borderColor),
+                  bottom: isLast ? BorderSide(color: borderColor) : BorderSide.none,
+                ),
+                borderRadius: isLast ? const BorderRadius.vertical(bottom: Radius.circular(12)) : null,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
                   children: [
                     // Selection Checkbox
                     SizedBox(
@@ -1454,9 +1495,8 @@ class _CategoriesViewState extends State<CategoriesView> {
               );
             },
           ),
-        ],
-      ),
-    );
+        ),
+    ];
   }
 
   Widget _buildEmptyView(String query, Color borderColor, bool isDark) {

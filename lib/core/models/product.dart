@@ -178,6 +178,17 @@ class ProductImage extends Equatable {
 }
 
 /// Variant model encapsulating commercial, pricing, packaging & inventory specs
+const List<String> kShippingThroughOptions = [
+  'Shipping through Courier',
+  'Shipping through Transport',
+];
+
+const List<String> kPaymentMethodOptions = [
+  'ONLINE',
+  'COD',
+  'BOTH',
+];
+
 class ProductVariant extends Equatable {
   final String id;
   final String sku;
@@ -190,15 +201,20 @@ class ProductVariant extends Equatable {
   final int packQuantity;
   final String packUnit;
   final String shippedBy;
+  final String shippingThrough;
   final double swg;
   final int totalBaseQuantity;
   final String totalBaseUnit;
   final ProductDimensions dimensions;
   final double displayRate;
+  final double perUnitPrice;
   final double printedMrp;
-  final double costPrice;
+  final double courierCharges;
+  final double codCharge;
+  final String paymentMethod;
   final double discountRs;
   final double gstPercentage;
+  final double commissionPercentage;
   final double discountPercentage;
   final int stock;
   final double pricePerBaseUnit;
@@ -215,15 +231,20 @@ class ProductVariant extends Equatable {
     this.packQuantity = 1,
     this.packUnit = 'bottle',
     this.shippedBy = 'essentialbiocropscience',
+    this.shippingThrough = '',
     this.swg = 0.0,
     this.totalBaseQuantity = 1,
     this.totalBaseUnit = 'ml',
     this.dimensions = const ProductDimensions(),
     this.displayRate = 0.0,
+    this.perUnitPrice = 0.0,
     this.printedMrp = 0.0,
-    this.costPrice = 0.0,
+    this.courierCharges = 0.0,
+    this.codCharge = 30.0,
+    this.paymentMethod = '',
     this.discountRs = 0.0,
     this.gstPercentage = 18.0,
+    this.commissionPercentage = 0.0,
     this.discountPercentage = 0.0,
     this.stock = 0,
     this.pricePerBaseUnit = 0.0,
@@ -258,15 +279,20 @@ class ProductVariant extends Equatable {
       packQuantity: _parseInt(json['packQuantity'], 1),
       packUnit: _parseString(json['packUnit'] ?? 'bottle'),
       shippedBy: _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'essentialbiocropscience'),
+      shippingThrough: _parseString(json['shippingThrough'] ?? ''),
       swg: _parseDouble(json['swg'] ?? json['SWG']),
       totalBaseQuantity: totalBaseQty,
       totalBaseUnit: _parseString(json['totalBaseUnit'] ?? 'ml'),
       dimensions: ProductDimensions.fromJson(json['dimensions'] ?? json['Dimmensions']),
       displayRate: disp,
+      perUnitPrice: _parseDouble(json['perUnitPrice'] ?? json['Per Unit Price']),
       printedMrp: mrp,
-      costPrice: _parseDouble(json['costPrice'] ?? json['Cost Price']),
+      courierCharges: _parseDouble(json['courierCharges'] ?? json['Courier Charges']),
+      codCharge: _parseDouble(json['codCharge'] ?? json['COD Charge'] ?? 30.0, 30.0),
+      paymentMethod: _parseString(json['paymentMethod'] ?? '').toUpperCase(),
       discountRs: disc,
       gstPercentage: _parseDouble(json['gstPercentage'] ?? json['GST'] ?? 5.0, 5.0),
+      commissionPercentage: _parseDouble(json['commissionPercentage'] ?? json['Commission Percentage']),
       discountPercentage: discPct,
       stock: _parseInt(json['stock'] ?? json['Stock']),
       pricePerBaseUnit: pricePerBaseUnit,
@@ -286,15 +312,20 @@ class ProductVariant extends Equatable {
     'packQuantity': packQuantity,
     'packUnit': packUnit,
     'shippedBy': shippedBy,
+    'shippingThrough': shippingThrough,
     'swg': swg,
     'totalBaseQuantity': totalBaseQuantity,
     'totalBaseUnit': totalBaseUnit,
     'dimensions': dimensions.toJson(),
     'displayRate': displayRate,
+    'perUnitPrice': perUnitPrice,
     'printedMrp': printedMrp,
-    'costPrice': costPrice,
+    'courierCharges': courierCharges,
+    'codCharge': codCharge,
+    'paymentMethod': paymentMethod,
     'discountRs': discountRs,
     'gstPercentage': gstPercentage,
+    'commissionPercentage': commissionPercentage,
     'discountPercentage': discountPercentage,
     'stock': stock,
     'pricePerBaseUnit': pricePerBaseUnit,
@@ -309,17 +340,24 @@ class ProductVariant extends Equatable {
     return {
       if (id.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(id)) 'id': id,
       if (sku.isNotEmpty) 'sku': sku,
+      if (displayOrder > 0) 'displayOrder': displayOrder,
+      'isDefault': isDefault,
       'label': label.isNotEmpty ? label : '500 ml Bottle',
       'unit': unit.isNotEmpty ? unit : 'ml',
       'packSize': packSize > 0 ? packSize : 500,
       'packSizeUnit': packSizeUnit.isNotEmpty ? packSizeUnit : (unit.isNotEmpty ? unit : 'ml'),
       'packQuantity': packQuantity > 0 ? packQuantity : 1,
       'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'essentialbiocropscience',
+      if (shippingThrough.isNotEmpty) 'shippingThrough': shippingThrough,
       'displayRate': effectiveDisplayRate,
+      if (perUnitPrice > 0) 'perUnitPrice': perUnitPrice,
       'printedMrp': effectiveMrp,
-      'costPrice': costPrice >= 0 ? costPrice : 0.0,
+      if (courierCharges > 0) 'courierCharges': courierCharges,
+      'codCharge': codCharge >= 0 ? codCharge : 0.0,
+      if (paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
       'discountRs': (effectiveMrp > effectiveDisplayRate) ? (effectiveMrp - effectiveDisplayRate) : 0.0,
       'gstPercentage': gstPercentage >= 0 ? gstPercentage : 5.0,
+      if (commissionPercentage > 0) 'commissionPercentage': commissionPercentage,
       'discountPercentage': effectiveMrp > 0 ? ((effectiveMrp - effectiveDisplayRate) / effectiveMrp * 100) : 0.0,
       'stock': stock >= 0 ? stock : 0,
       if (swg > 0) 'swg': swg,
@@ -346,15 +384,20 @@ class ProductVariant extends Equatable {
     int? packQuantity,
     String? packUnit,
     String? shippedBy,
+    String? shippingThrough,
     double? swg,
     int? totalBaseQuantity,
     String? totalBaseUnit,
     ProductDimensions? dimensions,
     double? displayRate,
+    double? perUnitPrice,
     double? printedMrp,
-    double? costPrice,
+    double? courierCharges,
+    double? codCharge,
+    String? paymentMethod,
     double? discountRs,
     double? gstPercentage,
+    double? commissionPercentage,
     double? discountPercentage,
     int? stock,
     double? pricePerBaseUnit,
@@ -371,15 +414,20 @@ class ProductVariant extends Equatable {
       packQuantity: packQuantity ?? this.packQuantity,
       packUnit: packUnit ?? this.packUnit,
       shippedBy: shippedBy ?? this.shippedBy,
+      shippingThrough: shippingThrough ?? this.shippingThrough,
       swg: swg ?? this.swg,
       totalBaseQuantity: totalBaseQuantity ?? this.totalBaseQuantity,
       totalBaseUnit: totalBaseUnit ?? this.totalBaseUnit,
       dimensions: dimensions ?? this.dimensions,
       displayRate: displayRate ?? this.displayRate,
+      perUnitPrice: perUnitPrice ?? this.perUnitPrice,
       printedMrp: printedMrp ?? this.printedMrp,
-      costPrice: costPrice ?? this.costPrice,
+      courierCharges: courierCharges ?? this.courierCharges,
+      codCharge: codCharge ?? this.codCharge,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
       discountRs: discountRs ?? this.discountRs,
       gstPercentage: gstPercentage ?? this.gstPercentage,
+      commissionPercentage: commissionPercentage ?? this.commissionPercentage,
       discountPercentage: discountPercentage ?? this.discountPercentage,
       stock: stock ?? this.stock,
       pricePerBaseUnit: pricePerBaseUnit ?? this.pricePerBaseUnit,
@@ -395,7 +443,13 @@ class ProductVariant extends Equatable {
     label,
     packSize,
     displayRate,
+    perUnitPrice,
     printedMrp,
+    courierCharges,
+    shippingThrough,
+    codCharge,
+    paymentMethod,
+    swg,
     stock,
     pricePerBaseUnit,
   ];
@@ -453,7 +507,6 @@ class Product extends Equatable {
   final String _flatPackSize;
   final double _flatDisplayRate;
   final double _flatPrintedMrp;
-  final double _flatCostPrice;
   final double _flatDiscountRs;
   final String _flatUnit;
   final double _flatGst;
@@ -518,7 +571,6 @@ class Product extends Equatable {
     String packSize = '',
     double displayRate = 0.0,
     double printedMrp = 0.0,
-    double costPrice = 0.0,
     double discountRs = 0.0,
     String unit = '',
     double gst = 18.0,
@@ -538,7 +590,6 @@ class Product extends Equatable {
         _flatPackSize = packSize,
         _flatDisplayRate = displayRate,
         _flatPrintedMrp = printedMrp,
-        _flatCostPrice = costPrice,
         _flatDiscountRs = discountRs,
         _flatUnit = unit,
         _flatGst = gst,
@@ -754,12 +805,14 @@ class Product extends Equatable {
   String get unit => defaultVariant?.unit.isNotEmpty == true ? defaultVariant!.unit : _flatUnit;
   double get displayRate => defaultVariant != null ? defaultVariant!.displayRate : _flatDisplayRate;
   double get printedMrp => defaultVariant != null ? defaultVariant!.printedMrp : _flatPrintedMrp;
-  double get costPrice => defaultVariant != null ? defaultVariant!.costPrice : _flatCostPrice;
   double get discountRs => defaultVariant != null ? defaultVariant!.discountRs : _flatDiscountRs;
   double get gst => defaultVariant != null ? defaultVariant!.gstPercentage : _flatGst;
   double get discountPercentage => defaultVariant != null ? defaultVariant!.discountPercentage : _flatDiscountPercentage;
   int get stock => defaultVariant != null ? defaultVariant!.stock : _flatStock;
   String get shippedBy => defaultVariant?.shippedBy.isNotEmpty == true ? defaultVariant!.shippedBy : _flatShippedBy;
+  String get shippingThrough => defaultVariant?.shippingThrough ?? '';
+  double get codCharge => defaultVariant != null ? defaultVariant!.codCharge : 30.0;
+  String get paymentMethod => defaultVariant?.paymentMethod ?? '';
   String get swg => defaultVariant?.swg != null ? defaultVariant!.swg.toString() : _flatSwg;
   String get dimensions => defaultVariant?.dimensions.formatted.isNotEmpty == true
       ? defaultVariant!.dimensions.formatted
@@ -870,7 +923,6 @@ class Product extends Equatable {
     var flatPackSize = _parseString(json['packSize'] ?? json['Pack Size']);
     var flatDisplayRate = _parseDouble(json['displayRate'] ?? json['Display Rate']);
     var flatPrintedMrp = _parseDouble(json['printedMrp'] ?? json['Printed MRP']);
-    var flatCostPrice = _parseDouble(json['costPrice'] ?? json['Cost Price']);
     var flatDiscountRs = _parseDouble(json['discountRs'] ?? json['DiscountRS']);
     var flatUnit = _parseString(json['unit'] ?? json['Unit']);
     var flatGst = _parseDouble(json['gst'] ?? json['GST'] ?? 5.0, 5.0);
@@ -887,7 +939,6 @@ class Product extends Equatable {
       if (flatPackSize.isEmpty) flatPackSize = defaultVar.packSize.toString();
       if (flatDisplayRate <= 0.0) flatDisplayRate = defaultVar.displayRate;
       if (flatPrintedMrp <= 0.0) flatPrintedMrp = defaultVar.printedMrp;
-      if (flatCostPrice <= 0.0) flatCostPrice = defaultVar.costPrice;
       if (flatDiscountRs <= 0.0) flatDiscountRs = defaultVar.discountRs;
       if (flatUnit.isEmpty) flatUnit = defaultVar.unit;
       if (flatGst <= 0.0) flatGst = defaultVar.gstPercentage;
@@ -949,7 +1000,6 @@ class Product extends Equatable {
       packSize: flatPackSize,
       displayRate: flatDisplayRate,
       printedMrp: flatPrintedMrp,
-      costPrice: flatCostPrice,
       discountRs: flatDiscountRs,
       unit: flatUnit,
       gst: flatGst,
@@ -1034,7 +1084,6 @@ class Product extends Equatable {
               'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'essentialbiocropscience',
               'displayRate': displayRate > 0 ? displayRate : 450.0,
               'printedMrp': printedMrp > 0 ? printedMrp : 500.0,
-              'costPrice': costPrice > 0 ? costPrice : 250.0,
               'discountRs': discountRs > 0 ? discountRs : 50.0,
               'gstPercentage': gst > 0 ? gst : 5.0,
               'discountPercentage': discountPercentage > 0 ? discountPercentage : 10.0,
@@ -1126,7 +1175,6 @@ class Product extends Equatable {
     'Pack Size': packSize,
     'Display Rate': displayRate,
     'Printed MRP': printedMrp,
-    'Cost Price': costPrice,
     'DiscountRS': discountRs,
     'Unit': unit,
     'GST': gst,
@@ -1189,7 +1237,6 @@ class Product extends Equatable {
     String? packSize,
     double? displayRate,
     double? printedMrp,
-    double? costPrice,
     double? discountRs,
     String? unit,
     double? gst,
@@ -1214,7 +1261,7 @@ class Product extends Equatable {
     // If variants exist, update the default variant with any new commercial parameters
     List<ProductVariant> updatedVariants = variants ?? this.variants;
     if (updatedVariants.isNotEmpty &&
-        (displayRate != null || printedMrp != null || costPrice != null || stock != null || variant != null)) {
+        (displayRate != null || printedMrp != null || stock != null || variant != null)) {
       final defaultIdx = updatedVariants.indexWhere((v) => v.isDefault);
       final targetIdx = defaultIdx != -1 ? defaultIdx : 0;
       final cur = updatedVariants[targetIdx];
@@ -1226,7 +1273,6 @@ class Product extends Equatable {
       final updatedVariant = cur.copyWith(
         displayRate: newDisp,
         printedMrp: newMrp,
-        costPrice: costPrice ?? cur.costPrice,
         discountRs: discountRs ?? newDisc,
         discountPercentage: discountPercentage ?? newDiscPct,
         stock: stock ?? cur.stock,
@@ -1305,7 +1351,6 @@ class Product extends Equatable {
       packSize: packSize ?? _flatPackSize,
       displayRate: displayRate ?? _flatDisplayRate,
       printedMrp: printedMrp ?? _flatPrintedMrp,
-      costPrice: costPrice ?? _flatCostPrice,
       discountRs: discountRs ?? _flatDiscountRs,
       unit: unit ?? _flatUnit,
       gst: gst ?? _flatGst,
@@ -1335,7 +1380,7 @@ class Product extends Equatable {
     unit,
     displayRate,
     printedMrp,
-    costPrice,
+    swg,
     stock,
     isAvailable,
     isFeatured,

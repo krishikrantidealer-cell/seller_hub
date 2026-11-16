@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -88,6 +89,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
   int _currentPage = 1;
   int _rowsPerPage = 20;
   final List<int> _rowsPerPageOptions = const [5, 10, 20, 50, 100];
+  final ScrollController _categoryFilterScrollController = ScrollController();
 
   List<CategoryItem> _resolveLevel0Categories(CategoryState? catState) {
     if (widget.categories != null && widget.categories!.isNotEmpty) {
@@ -231,6 +233,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
   @override
   void dispose() {
     _searchController.dispose();
+    _categoryFilterScrollController.dispose();
     super.dispose();
   }
 
@@ -1085,23 +1088,25 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                     final isAll = opt.key == 'All Sellers';
                     return DropdownMenuItem<String>(
                       value: opt.key,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isAll ? Icons.storefront_rounded : Icons.business_rounded,
-                            size: 14,
-                            color: const Color(0xFF059669),
-                          ),
-                          const SizedBox(width: 6),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 160),
-                            child: Text(
-                              opt.label,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
+                      child: SelectionContainer.disabled(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isAll ? Icons.storefront_rounded : Icons.business_rounded,
+                              size: 14,
+                              color: const Color(0xFF059669),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 160),
+                              child: Text(
+                                opt.label.length > 22 ? '${opt.label.substring(0, 21)}...' : opt.label,
+                                overflow: TextOverflow.clip,
+                                maxLines: 1,
+                                softWrap: false,
+                              ),
+                            ),
                           if (opt.sellerId != null && opt.sellerId!.isNotEmpty && !isAll) ...[
                             const SizedBox(width: 6),
                             Tooltip(
@@ -1137,6 +1142,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                             ),
                           ),
                         ],
+                        ),
                       ),
                     );
                   }).toList(),
@@ -1393,57 +1399,161 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
           const SizedBox(height: 10),
         ],
 
-        // Compact Filter Chips & Catalog Metrics Strip
-        Row(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: categoryOptions.map((cat) {
-                    final isSelected = _selectedCategoryFilter == cat;
-                    final catItem = level0Categories
-                        .where((c) => c.name.trim().toLowerCase() == cat.trim().toLowerCase())
-                        .firstOrNull;
-                    final hasEmoji = catItem != null && catItem.isEmojiIcon;
-                    final labelText = hasEmoji ? '${catItem.effectiveIcon} $cat' : cat;
+        // Refined Category Filter Strip
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.filter_list_rounded,
+                    size: 14,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'By Category',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                width: 1,
+                height: 18,
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                color: borderColor,
+              ),
+              Expanded(
+                child: Listener(
+                  onPointerSignal: (event) {
+                    if (event is PointerScrollEvent && _categoryFilterScrollController.hasClients) {
+                      final delta = event.scrollDelta.dx != 0
+                          ? event.scrollDelta.dx
+                          : event.scrollDelta.dy;
+                      final target = (_categoryFilterScrollController.offset + delta).clamp(
+                        0.0,
+                        _categoryFilterScrollController.position.maxScrollExtent,
+                      );
+                      _categoryFilterScrollController.jumpTo(target);
+                    }
+                  },
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(context).copyWith(
+                      dragDevices: {
+                        PointerDeviceKind.touch,
+                        PointerDeviceKind.mouse,
+                        PointerDeviceKind.trackpad,
+                      },
+                    ),
+                    child: SingleChildScrollView(
+                      controller: _categoryFilterScrollController,
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: categoryOptions.map((cat) {
+                          final isSelected = _selectedCategoryFilter == cat;
+                          final catItem = level0Categories
+                              .where((c) => c.name.trim().toLowerCase() == cat.trim().toLowerCase())
+                              .firstOrNull;
+                          final hasEmoji = catItem != null && catItem.isEmojiIcon;
+                          final labelText = hasEmoji ? '${catItem.effectiveIcon} $cat' : cat;
+                          final catCount = cat == 'All'
+                              ? totalCatalogCount
+                              : catalog
+                                  .where((p) => _matchesCategory(p, cat, level0Categories, categoryById))
+                                  .length;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: FilterChip(
-                        showCheckmark: false,
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        label: Text(labelText),
-                        selected: isSelected,
-                        selectedColor: isDark
-                            ? const Color(0xFF059669).withValues(alpha: 0.22)
-                            : const Color(0xFF059669).withValues(alpha: 0.12),
-                        backgroundColor: surfaceColor,
-                        side: BorderSide(
-                          color: isSelected ? const Color(0xFF059669) : borderColor,
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected
-                              ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                              : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                        ),
-                        onSelected: (_) => setState(() {
-                          _selectedCategoryFilter = cat;
-                          _currentPage = 1;
-                        }),
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              showCheckmark: false,
+                              elevation: 0,
+                              pressElevation: 0,
+                              surfaceTintColor: Colors.transparent,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              labelPadding: EdgeInsets.zero,
+                              label: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      labelText,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : (isDark
+                                                ? const Color(0xFFE2E8F0)
+                                                : const Color(0xFF334155)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.white.withValues(alpha: 0.22)
+                                            : (isDark
+                                                ? Colors.white.withValues(alpha: 0.08)
+                                                : const Color(0xFFE2E8F0)),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        '$catCount',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : (isDark
+                                                  ? const Color(0xFF94A3B8)
+                                                  : const Color(0xFF475569)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              selected: isSelected,
+                              selectedColor: const Color(0xFF059669),
+                              backgroundColor: isDark
+                                  ? const Color(0xFF0F172A).withValues(alpha: 0.45)
+                                  : const Color(0xFFF8FAFC),
+                              side: BorderSide(
+                                color: isSelected ? const Color(0xFF059669) : borderColor,
+                                width: 1,
+                              ),
+                              onSelected: (_) => setState(() {
+                                _selectedCategoryFilter = cat;
+                                _currentPage = 1;
+                              }),
+                            ),
+                          );
+                        }).toList(),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
 
         const SizedBox(height: 12),

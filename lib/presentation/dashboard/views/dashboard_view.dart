@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -45,7 +46,8 @@ class _DashboardViewState extends State<DashboardView> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Primary Navigation: 0 = Dashboard / Operations, 1 = Products, 2 = Sellers, 3 = Orders
-  int _selectedNavIndex = 0;
+  int _selectedNavIndex = 1;
+  int _catalogSubTabIndex = 0; // 0 = Products, 1 = Collections, 2 = Categories
 
   // Active viewing/editing product state
   Product? _viewingProduct;
@@ -108,31 +110,29 @@ class _DashboardViewState extends State<DashboardView> {
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
 
-    final productBloc = context.watch<ProductBloc>();
-    final products = productBloc.state.products;
-    final allCatalogProducts = productBloc.state.allCatalogProducts.isNotEmpty
-        ? productBloc.state.allCatalogProducts
-        : products;
-    final totalProductsCount = productBloc.state.totalProducts > 0
-        ? productBloc.state.totalProducts
-        : allCatalogProducts.length;
+    final totalProductsCount = context.select<ProductBloc, int>((b) {
+      if (b.state.totalProducts > 0) return b.state.totalProducts;
+      if (b.state.allCatalogProducts.isNotEmpty) return b.state.allCatalogProducts.length;
+      return b.state.products.length;
+    });
 
-    final collectionBloc = context.watch<CollectionBloc>();
-    final collectionsCount = collectionBloc.state.totalCollections;
+    final collectionsCount = context.select<CollectionBloc, int>(
+      (b) => b.state.totalCollections,
+    );
 
-    final categoryBloc = context.watch<CategoryBloc>();
-    final categoriesCount = categoryBloc.state.totalCount;
+    final categoriesCount = context.select<CategoryBloc, int>(
+      (b) => b.state.totalCount,
+    );
 
-    final sellerBloc = context.watch<SellerBloc>();
-    final realSellers = sellerBloc.sellerProfiles;
-    final displaySellers = [
-      ...realSellers,
-      ..._sellers.where((s) => !realSellers.any((r) => r.id == s.id)),
-    ];
-    final sellersCount = sellerBloc.state.totalCount > 0 ? sellerBloc.state.totalCount : displaySellers.length;
+    final sellersCount = context.select<SellerBloc, int>((b) {
+      final realSellers = b.sellerProfiles;
+      if (b.state.totalCount > 0) return b.state.totalCount;
+      return realSellers.length + _sellers.where((s) => !realSellers.any((r) => r.id == s.id)).length;
+    });
 
-    final customerBloc = context.watch<CustomerBloc>();
-    final customersCount = customerBloc.state.totalCount;
+    final customersCount = context.select<CustomerBloc, int>(
+      (b) => b.state.totalCount,
+    );
 
     return SelectionArea(
       child: Scaffold(
@@ -219,24 +219,21 @@ class _DashboardViewState extends State<DashboardView> {
 
                 // Active Section Body
                 Expanded(
-                  child: SingleChildScrollView(
-                    physics: const ClampingScrollPhysics(),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isWide ? 32 : 16,
-                      vertical: 24,
-                    ),
-                    child: _buildActiveContent(
-                      isWide,
-                      products,
-                      allCatalogProducts,
-                      totalProductsCount,
-                      collectionsCount,
-                      categoriesCount,
-                      displaySellers,
-                      sellersCount,
-                      customersCount,
-                    ),
-                  ),
+                  child: (_selectedNavIndex >= 1 && _selectedNavIndex <= 3)
+                      ? _buildCatalogSection(
+                          isWide: isWide,
+                          totalProductsCount: totalProductsCount,
+                          collectionsCount: collectionsCount,
+                          categoriesCount: categoriesCount,
+                        )
+                      : SingleChildScrollView(
+                          physics: const ClampingScrollPhysics(),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isWide ? 32 : 16,
+                            vertical: 24,
+                          ),
+                          child: _buildActiveContent(isWide),
+                        ),
                 ),
               ],
             ),
@@ -247,18 +244,194 @@ class _DashboardViewState extends State<DashboardView> {
   );
   }
 
-  Widget _buildActiveContent(
-    bool isWide,
-    List<Product> products,
-    List<Product> allProducts,
-    int totalProductsCount,
-    int collectionsCount,
-    int categoriesCount,
-    List<SellerProfile> sellers,
-    int sellersCount,
-    int customersCount,
-  ) {
-    final categoryBloc = context.watch<CategoryBloc>();
+  Widget _buildCatalogSection({
+    required bool isWide,
+    required int totalProductsCount,
+    required int collectionsCount,
+    required int categoriesCount,
+  }) {
+    Widget? detailOverlay;
+    if (_selectedNavIndex == 1 && _viewingProduct != null) {
+      detailOverlay = ProductDetailsView(
+        product: _viewingProduct!,
+        startInEditMode: _openInEditMode,
+        onBack: () => setState(() {
+          _viewingProduct = null;
+          _openInEditMode = false;
+        }),
+        onProductUpdated: (updated) {
+          final prevProduct = _viewingProduct;
+          final completer = Completer<bool>();
+          context.read<ProductBloc>().add(UpdateProduct(
+            updated,
+            onSuccess: (savedProduct) {
+              if (mounted) {
+                setState(() {
+                  _viewingProduct = savedProduct;
+                });
+              }
+              if (!completer.isCompleted) completer.complete(true);
+            },
+            onError: (err) {
+              if (mounted) {
+                if (prevProduct != null) {
+                  setState(() {
+                    _viewingProduct = prevProduct;
+                  });
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to update product on server: $err'),
+                    backgroundColor: const Color(0xFFEF4444),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+              if (!completer.isCompleted) completer.complete(false);
+            },
+          ));
+          return completer.future;
+        },
+      );
+    } else if (_selectedNavIndex == 1 && _isAddingProduct) {
+      detailOverlay = ProductDetailsView(
+        product: Product(
+          id: '',
+          title: '',
+          sellerId: '',
+          sellerName: '',
+          vendor: '',
+          sku: '',
+          productCode: '',
+          hsnCode: '',
+          description: '',
+          images: [],
+        ),
+        isCreateMode: true,
+        startInEditMode: true,
+        onBack: () => setState(() => _isAddingProduct = false),
+        onProductCreated: (newProduct, [pendingImages]) {
+          final completer = Completer<bool>();
+          context.read<ProductBloc>().add(CreateProduct(
+            newProduct,
+            onSuccess: (created) {
+              if (pendingImages != null && pendingImages.isNotEmpty) {
+                context.read<ProductBloc>().add(UploadProductImages(
+                  productId: created.id,
+                  filesBytes: pendingImages.map((e) => e.bytes).toList(),
+                  fileNames: pendingImages.map((e) => e.name).toList(),
+                ));
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Created "${created.title}" successfully!',
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                    ),
+                    backgroundColor: const Color(0xFF059669),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    margin: const EdgeInsets.all(20),
+                  ),
+                );
+                setState(() {
+                  _isAddingProduct = false;
+                  _viewingProduct = created;
+                  _openInEditMode = false;
+                });
+              }
+              if (!completer.isCompleted) completer.complete(true);
+            },
+            onError: (err) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Failed to create product: $err',
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                    ),
+                    backgroundColor: const Color(0xFFEF4444),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    margin: const EdgeInsets.all(20),
+                  ),
+                );
+              }
+              if (!completer.isCompleted) completer.complete(false);
+            },
+          ));
+          return completer.future;
+        },
+      );
+    }
+
+    return CatalogView(
+      activeSubTabIndex: _catalogSubTabIndex, // 0 = Products, 1 = Collections, 2 = Categories, 3 = Technical Names
+      onSubTabChanged: (tabIndex) {
+        setState(() {
+          _catalogSubTabIndex = tabIndex;
+          if (tabIndex <= 2) {
+            _selectedNavIndex = tabIndex + 1;
+          }
+          _viewingProduct = null;
+          _openInEditMode = false;
+          _isAddingProduct = false;
+        });
+      },
+      productsCount: totalProductsCount,
+      collectionsCount: collectionsCount,
+      categoriesCount: categoriesCount,
+      isWide: isWide,
+      detailOverlay: detailOverlay,
+      productsBuilder: (ctx) {
+        final pState = ctx.read<ProductBloc>().state;
+        final allProducts = pState.allCatalogProducts.isNotEmpty
+            ? pState.allCatalogProducts
+            : pState.products;
+        final realSellers = ctx.read<SellerBloc>().sellerProfiles;
+        final sellers = [
+          ...realSellers,
+          ..._sellers.where((s) => !realSellers.any((r) => r.id == s.id)),
+        ];
+        final rootCategories = ctx.read<CategoryBloc>().state.rootCategories;
+        return ProductCatalogView(
+          products: allProducts,
+          sellers: sellers,
+          categories: rootCategories,
+          initialSellerFilter: _productCatalogSellerFilter,
+          isWide: isWide,
+          onOpenProductDetails: (product, {bool editMode = false}) {
+            setState(() {
+              _viewingProduct = product;
+              _openInEditMode = editMode;
+            });
+          },
+          onOpenAddProduct: _openAddProductScreen,
+          onProductUpdated: (updated) {
+            context.read<ProductBloc>().add(UpdateProduct(updated));
+          },
+        );
+      },
+      collectionsBuilder: (_) => CollectionsView(isWide: isWide),
+      categoriesBuilder: (_) => CategoriesView(isWide: isWide),
+    );
+  }
+
+  Widget _buildActiveContent(bool isWide) {
+    final pState = context.watch<ProductBloc>().state;
+    final products = pState.products;
+    final allProducts = pState.allCatalogProducts.isNotEmpty ? pState.allCatalogProducts : products;
+
+    final sellerBloc = context.watch<SellerBloc>();
+    final realSellers = sellerBloc.sellerProfiles;
+    final sellers = [
+      ...realSellers,
+      ..._sellers.where((s) => !realSellers.any((r) => r.id == s.id)),
+    ];
+    final sellersCount = sellerBloc.state.totalCount > 0 ? sellerBloc.state.totalCount : sellers.length;
+    final customersCount = context.select<CustomerBloc, int>((b) => b.state.totalCount);
+
     if (_selectedNavIndex == 0) {
       return OperationsOverviewView(
         products: products,
@@ -279,155 +452,6 @@ class _DashboardViewState extends State<DashboardView> {
           _viewingOrder = null;
         }),
         onOpenAddProduct: _openAddProductScreen,
-      );
-    }
-
-    // Nav Index 1, 2, 3: Unified Catalog (Products, Collections, Categories)
-    if (_selectedNavIndex == 1 || _selectedNavIndex == 2 || _selectedNavIndex == 3) {
-      Widget catalogChild;
-      if (_selectedNavIndex == 1 && _viewingProduct != null) {
-        catalogChild = ProductDetailsView(
-          product: _viewingProduct!,
-          startInEditMode: _openInEditMode,
-          onBack: () => setState(() {
-            _viewingProduct = null;
-            _openInEditMode = false;
-          }),
-          onProductUpdated: (updated) {
-            final prevProduct = _viewingProduct;
-            context.read<ProductBloc>().add(UpdateProduct(
-              updated,
-              onSuccess: (savedProduct) {
-                if (mounted) {
-                  setState(() {
-                    _viewingProduct = savedProduct;
-                  });
-                }
-              },
-              onError: (err) {
-                if (mounted) {
-                  if (prevProduct != null) {
-                    setState(() {
-                      _viewingProduct = prevProduct;
-                    });
-                  }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to update product on server: $err'),
-                      backgroundColor: const Color(0xFFEF4444),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-            ));
-            setState(() {
-              _viewingProduct = updated;
-            });
-          },
-        );
-      } else if (_selectedNavIndex == 1 && _isAddingProduct) {
-        catalogChild = ProductDetailsView(
-          product: Product(
-            id: '',
-            title: '',
-            sellerId: '',
-            sellerName: '',
-            vendor: '',
-            sku: '',
-            productCode: '',
-            hsnCode: '',
-            description: '',
-            images: [],
-          ),
-          isCreateMode: true,
-          startInEditMode: true,
-          onBack: () => setState(() => _isAddingProduct = false),
-          onProductCreated: (newProduct, [pendingImages]) {
-            context.read<ProductBloc>().add(CreateProduct(
-              newProduct,
-              onSuccess: (created) {
-                if (pendingImages != null && pendingImages.isNotEmpty) {
-                  context.read<ProductBloc>().add(UploadProductImages(
-                    productId: created.id,
-                    filesBytes: pendingImages.map((e) => e.bytes).toList(),
-                    fileNames: pendingImages.map((e) => e.name).toList(),
-                  ));
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Created "${created.title}" successfully!',
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-                    ),
-                    backgroundColor: const Color(0xFF059669),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    margin: const EdgeInsets.all(20),
-                  ),
-                );
-                setState(() {
-                  _isAddingProduct = false;
-                  _viewingProduct = created;
-                  _openInEditMode = false;
-                });
-              },
-              onError: (err) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Failed to create product: $err',
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-                    ),
-                    backgroundColor: const Color(0xFFEF4444),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    margin: const EdgeInsets.all(20),
-                  ),
-                );
-              },
-            ));
-          },
-        );
-      } else if (_selectedNavIndex == 2) {
-        catalogChild = CollectionsView(isWide: isWide);
-      } else if (_selectedNavIndex == 3) {
-        catalogChild = CategoriesView(isWide: isWide);
-      } else {
-        catalogChild = ProductCatalogView(
-          products: allProducts,
-          sellers: sellers,
-          categories: categoryBloc.state.rootCategories,
-          initialSellerFilter: _productCatalogSellerFilter,
-          isWide: isWide,
-          onOpenProductDetails: (product, {bool editMode = false}) {
-            setState(() {
-              _viewingProduct = product;
-              _openInEditMode = editMode;
-            });
-          },
-          onOpenAddProduct: _openAddProductScreen,
-          onProductUpdated: (updated) {
-            context.read<ProductBloc>().add(UpdateProduct(updated));
-          },
-        );
-      }
-
-      return CatalogView(
-        activeSubTabIndex: _selectedNavIndex - 1, // 0 = Products, 1 = Collections, 2 = Categories
-        onSubTabChanged: (tabIndex) {
-          setState(() {
-            _selectedNavIndex = tabIndex + 1;
-            _viewingProduct = null;
-            _openInEditMode = false;
-            _isAddingProduct = false;
-          });
-        },
-        productsCount: totalProductsCount,
-        collectionsCount: collectionsCount,
-        categoriesCount: categoriesCount,
-        isWide: isWide,
-        child: catalogChild,
       );
     }
 
@@ -543,6 +567,7 @@ class _DashboardViewState extends State<DashboardView> {
   void _openAddProductScreen() {
     setState(() {
       _selectedNavIndex = 1;
+      _catalogSubTabIndex = 0;
       _viewingProduct = null;
       _openInEditMode = false;
       _isAddingProduct = true;
@@ -552,6 +577,9 @@ class _DashboardViewState extends State<DashboardView> {
   void _onNavItemSelected(int index) {
     setState(() {
       _selectedNavIndex = index;
+      if (index >= 1 && index <= 3) {
+        _catalogSubTabIndex = index - 1;
+      }
       _viewingProduct = null;
       _openInEditMode = false;
       _isAddingProduct = false;

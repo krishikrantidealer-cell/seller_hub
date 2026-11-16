@@ -62,12 +62,28 @@ class CollectionRemoteDataSourceImpl implements CollectionRemoteDataSource {
 
   @override
   Future<CollectionsData> getCollections() async {
-    final response = await apiClient.get(
+    try {
+      final response = await apiClient.get(
+        '${ApiEndpoints.adminCollections}?page=0&size=200',
+        requiresAuth: true,
+      );
+
+      final rawData = response['data'] ?? response;
+      if (rawData is Map<String, dynamic>) {
+        return CollectionsData.fromJson(rawData);
+      }
+    } on ApiException catch (e) {
+      if (e.statusCode != 403 && e.statusCode != 404) {
+        rethrow;
+      }
+    }
+
+    final fallbackResponse = await apiClient.get(
       ApiEndpoints.collections,
       requiresAuth: false,
     );
 
-    final rawData = response['data'];
+    final rawData = fallbackResponse['data'] ?? fallbackResponse;
     if (rawData is Map<String, dynamic>) {
       return CollectionsData.fromJson(rawData);
     }

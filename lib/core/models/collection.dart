@@ -195,14 +195,14 @@ class CollectionsData extends Equatable {
   });
 
   factory CollectionsData.fromJson(Map<String, dynamic> json) {
-    final rawItems = json['items'] as List<dynamic>? ?? [];
+    final rawItems = (json['items'] ?? json['content']) as List<dynamic>? ?? [];
     final itemList = rawItems
         .whereType<Map<String, dynamic>>()
         .map((e) => CollectionItem.fromJson(e))
         .toList();
 
     return CollectionsData(
-      count: (json['count'] as num?)?.toInt() ?? itemList.length,
+      count: ((json['count'] ?? json['totalElements']) as num?)?.toInt() ?? itemList.length,
       items: itemList,
     );
   }

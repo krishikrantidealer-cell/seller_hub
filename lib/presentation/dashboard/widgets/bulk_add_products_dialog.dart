@@ -217,7 +217,6 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
           productWeightUnit: 'kg',
           displayRate: price,
           printedMrp: mrp,
-          costPrice: price * 0.75,
           discountRs: (mrp > price) ? (mrp - price) : 0.0,
           unit: unit,
           stock: stock,

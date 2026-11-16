@@ -42,6 +42,19 @@ class ApiEndpoints {
   static String adminCategoryImage(String categoryId) =>
       '/api/v1/admin/categories/$categoryId/image';
 
+  // Technical Names
+  static const String technicalNames = '/api/v1/technical-names';
+  static const String sellerTechnicalNames = '/api/v1/seller/technical-names';
+  static const String adminTechnicalNames = '/api/v1/admin/technical-names';
+  static String adminTechnicalNameById(String id) =>
+      '/api/v1/admin/technical-names/$id';
+  static const String adminTechnicalNamesImport =
+      '/api/v1/admin/technical-names/import';
+
+  // Variant Labels
+  static const String variantLabels = '/api/v1/variant-labels';
+  static String variantLabelById(String id) => '/api/v1/variant-labels/$id';
+
   /// Admin Users (Sellers & Customers)
   static const String adminUsers = '/api/v1/admin/users';
   static const String adminCreateCustomer = '/api/v1/admin/users/customers';

@@ -292,18 +292,18 @@ class _ProductDetailsDialogState extends State<ProductDetailsDialog> with Single
             highlightFirst: true,
           ),
           _buildInfoRow(
-            'Cost Price (To Seller)', '₹${p.costPrice.toStringAsFixed(2)}',
             'Discount in Rs', '₹${p.discountRs.toStringAsFixed(2)}',
-            isDark,
-          ),
-          _buildInfoRow(
             'Discount Percentage', '${p.discountPercentage.toStringAsFixed(1)}%',
-            'GST Rate', '${p.gst.toStringAsFixed(0)}%',
             isDark,
           ),
           _buildInfoRow(
+            'GST Rate', '${p.gst.toStringAsFixed(0)}%',
             'Unit of Measurement', p.unit,
+            isDark,
+          ),
+          _buildInfoRow(
             'Pack Size', p.packSize,
+            'Shipped By', p.shippedBy,
             isDark,
           ),
         ],

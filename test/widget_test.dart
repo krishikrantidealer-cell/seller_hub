@@ -339,7 +339,8 @@ void main() {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
-    if (request.url.path == '/api/v1/collections') {
+    if ((request.url.path == '/api/v1/admin/collections' && request.method == 'GET') ||
+        request.url.path == '/api/v1/collections') {
       return http.Response(
         jsonEncode({
           "success": true,
@@ -616,6 +617,43 @@ void main() {
             "isAvailable": true,
             "isFeatured": true,
             "variants": []
+          },
+          "timestamp": "2026-10-24T06:03:33.914384719"
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.contains('/api/v1/admin/products/') &&
+        (request.method == 'PATCH' || request.method == 'PUT')) {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          "success": true,
+          "message": "Product updated successfully",
+          "data": {
+            "id": "6ad871a31df71c7f599dd954",
+            "sku": body['sku'] ?? "KKR - 35",
+            "productCode": body['productCode'] ?? "PRD-6AB4ADA822033F1670582BDA-000035",
+            "hsnCode": body['hsnCode'] ?? "3808",
+            "sellerId": body['sellerId'] ?? "6ab4ada822033f1670582bda",
+            "title": body['title'] ?? "Beauveria Bassiana - Bio Pesticide",
+            "technicalName": body['technicalName'] ?? "Beauveria bassiana",
+            "vendor": body['vendor'] ?? "Essential Bio Crop Science",
+            "description": body['description'] ?? "<p>Beauveria Bassiana Bio Pesticide</p>",
+            "images": body['images'] ?? [],
+            "productImages": body['productImages'] ?? [],
+            "technicalContent": body['technicalContent'] ?? "5x10^8 CFU/ml",
+            "features": body['features'] ?? ["Biological insecticide"],
+            "benefits": body['benefits'] ?? ["Controls whiteflies"],
+            "modeOfAction": body['modeOfAction'] ?? "Contact action",
+            "dosage": body['dosage'] ?? "2 ml/L",
+            "applicationMethod": body['applicationMethod'] ?? "Foliar spray",
+            "category": body['category'] ?? "Bio Pesticide",
+            "categoryId": body['categoryId'] ?? "6ad8582568a1edff7a609fee",
+            "isAvailable": body['isAvailable'] ?? true,
+            "isFeatured": body['isFeatured'] ?? true,
+            "variants": body['variants'] ?? [],
           },
           "timestamp": "2026-10-24T06:03:33.914384719"
         }),
@@ -904,10 +942,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();
 
-    // Verify redirected to Dashboard
+    // Verify redirected to DashboardView (landing on Catalog while Dashboard/Orders are commented out)
     expect(find.byType(DashboardView), findsOneWidget);
-    expect(find.text("Today's Orders"), findsOneWidget);
-    expect(find.text('Gross Dispatch Value'), findsOneWidget);
+    expect(find.text('Dashboard'), findsNothing);
+    expect(find.text('Orders'), findsNothing);
 
     // Tap Catalog nav
     await tester.tap(find.text('Catalog'));
@@ -1457,13 +1495,9 @@ void main() {
     expect(find.text('Update Collection'), findsOneWidget);
     expect(find.text('PUT /api/v1/admin/collections/6ad9b313fa32055b18fcb292'), findsOneWidget);
 
-    // Modify title to "Shop By Crops" and slug to "shop-by-crops"
+    // Modify title to "Shop By Crops" (Slug field is intentionally hidden in UI)
     final nameField = find.widgetWithText(TextFormField, 'Shop By Crop').first;
     await tester.enterText(nameField, 'Shop By Crops');
-    await tester.pumpAndSettle();
-
-    final slugField = find.widgetWithText(TextFormField, 'shop-by-crop');
-    await tester.enterText(slugField, 'shop-by-crops');
     await tester.pumpAndSettle();
 
     // Save changes
@@ -1474,7 +1508,7 @@ void main() {
     // Verify dialog is dismissed and collection title is updated
     expect(find.text('Update Collection'), findsNothing);
     expect(find.text('Shop By Crops'), findsOneWidget);
-    expect(find.text('/shop-by-crops'), findsOneWidget);
+    expect(find.text('/shop-by-crop'), findsOneWidget);
   });
 
   testWidgets('Assigning collections to a product via AssignCollectionsDialog integrates with /api/v1/admin/products/{productId}/collections', (WidgetTester tester) async {

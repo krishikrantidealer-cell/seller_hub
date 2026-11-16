@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 import 'package:flutter_quill_delta_from_html/flutter_quill_delta_from_html.dart';
@@ -10,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:vsc_quill_delta_to_html/vsc_quill_delta_to_html.dart' hide TableRow;
+import 'web_clipboard_helper.dart';
 
 enum EditorMode {
   visual,
@@ -2572,6 +2574,263 @@ String _convertBoxTagsToHtml(String html) {
   return result;
 }
 
+String sanitizePastedHtml(String rawHtml) {
+  final fragment = html_parser.parseFragment(rawHtml);
+
+  void cleanNode(dom.Node node) {
+    final children = List<dom.Node>.from(node.nodes);
+    for (final child in children) {
+      if (child is dom.Comment) {
+        child.remove();
+        continue;
+      }
+      if (child is dom.Element) {
+        final tag = child.localName?.toLowerCase() ?? '';
+        if (const {'script', 'style', 'meta', 'link', 'title', 'svg', 'button'}.contains(tag)) {
+          child.remove();
+          continue;
+        }
+        cleanNode(child);
+
+        // Strip ChatGPT / Google Docs noisy wrapper attributes while preserving semantic ones and colors.
+        final href = tag == 'a' ? child.attributes['href'] : null;
+        final colspan = (tag == 'td' || tag == 'th') ? child.attributes['colspan'] : null;
+        final rowspan = (tag == 'td' || tag == 'th') ? child.attributes['rowspan'] : null;
+        final rawStyle = child.attributes['style'] ?? '';
+        final keptStyles = <String>[];
+        for (final decl in rawStyle.split(';')) {
+          final colonIdx = decl.indexOf(':');
+          if (colonIdx <= 0) continue;
+          final prop = decl.substring(0, colonIdx).trim().toLowerCase();
+          final val = decl.substring(colonIdx + 1).trim();
+          final lowerVal = val.toLowerCase();
+          if ((prop == 'color' || prop == 'background-color' || prop == 'background') &&
+              val.isNotEmpty &&
+              lowerVal != 'inherit' &&
+              lowerVal != 'initial' &&
+              lowerVal != 'unset') {
+            final normalizedProp = prop == 'background' ? 'background-color' : prop;
+            keptStyles.add('$normalizedProp: $val');
+          }
+        }
+        child.attributes.clear();
+        if (href != null && href.isNotEmpty) child.attributes['href'] = href;
+        if (colspan != null && colspan.isNotEmpty) child.attributes['colspan'] = colspan;
+        if (rowspan != null && rowspan.isNotEmpty) child.attributes['rowspan'] = rowspan;
+        if (keptStyles.isNotEmpty) child.attributes['style'] = keptStyles.join('; ');
+
+        // Unwrap generic span/font wrappers only when they carry no preserved style.
+        if ((tag == 'span' || tag == 'font') && keptStyles.isEmpty) {
+          final idx = node.nodes.indexOf(child);
+          if (idx != -1) {
+            final moved = List<dom.Node>.from(child.nodes);
+            child.remove();
+            for (var i = 0; i < moved.length; i++) {
+              node.nodes.insert(idx + i, moved[i]);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  cleanNode(fragment);
+  return fragment.outerHtml.trim();
+}
+
+bool looksLikeRichMarkdown(String text) {
+  final lines = text.split(RegExp(r'\r?\n'));
+  var hasTablePipe = false;
+  for (final line in lines) {
+    final t = line.trim();
+    if (RegExp(r'^#{1,6}\s+\S').hasMatch(t)) return true;
+    if (RegExp(r'^[-*+•]\s+\S').hasMatch(t)) return true;
+    if (RegExp(r'^\d+[.)]\s+\S').hasMatch(t)) return true;
+    if (RegExp(r'^>\s+\S').hasMatch(t)) return true;
+    if (RegExp(r'^```').hasMatch(t)) return true;
+    if (RegExp(r'^([-*_])\1{2,}$').hasMatch(t)) return true;
+    if (t.startsWith('|') && t.endsWith('|') && t.contains('|')) {
+      if (hasTablePipe) return true;
+      hasTablePipe = true;
+    }
+  }
+  if (RegExp(r'\*\*.+?\*\*|(?<!\*)\*[^*\n]+\*(?!\*)|__.+?__|~~.+?~~|`[^`\n]+`|\[.+?\]\(.+?\)').hasMatch(text)) {
+    return true;
+  }
+  return false;
+}
+
+bool _hasSemanticRichHtml(String html) {
+  return RegExp(
+    r'<\s*(h[1-6]|ul|ol|li|strong|b|em|i|u|s|del|table|tr|th|td|blockquote|a)\b',
+    caseSensitive: false,
+  ).hasMatch(html);
+}
+
+String _escapeHtmlText(String text) {
+  return text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+}
+
+String _formatInlineMarkdown(String raw) {
+  var out = _escapeHtmlText(raw);
+  out = out.replaceAllMapped(
+    RegExp(r'`([^`\n]+)`'),
+    (m) => '<code>${m.group(1)}</code>',
+  );
+  out = out.replaceAllMapped(
+    RegExp(r'\[([^\]]+)\]\((https?://[^)\s]+)\)'),
+    (m) => '<a href="${m.group(2)}">${m.group(1)}</a>',
+  );
+  out = out.replaceAllMapped(
+    RegExp(r'\*\*\*(.+?)\*\*\*'),
+    (m) => '<strong><em>${m.group(1)}</em></strong>',
+  );
+  out = out.replaceAllMapped(
+    RegExp(r'\*\*(.+?)\*\*|__(.+?)__'),
+    (m) => '<strong>${m.group(1) ?? m.group(2)}</strong>',
+  );
+  out = out.replaceAllMapped(
+    RegExp(r'(?<!\*)\*([^*\n]+)\*(?!\*)'),
+    (m) => '<em>${m.group(1)}</em>',
+  );
+  out = out.replaceAllMapped(
+    RegExp(r'~~(.+?)~~'),
+    (m) => '<s>${m.group(1)}</s>',
+  );
+  return out;
+}
+
+String markdownToHtml(String markdown) {
+  final lines = markdown.replaceAll('\r\n', '\n').split('\n');
+  final buf = StringBuffer();
+  var i = 0;
+
+  while (i < lines.length) {
+    final line = lines[i];
+    final trimmed = line.trim();
+
+    if (trimmed.isEmpty) {
+      i++;
+      continue;
+    }
+
+    // Fenced code block
+    if (trimmed.startsWith('```')) {
+      i++;
+      final codeLines = <String>[];
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.add(_escapeHtmlText(lines[i]));
+        i++;
+      }
+      if (i < lines.length) i++;
+      buf.writeln('<pre><code>${codeLines.join('\n')}</code></pre>');
+      continue;
+    }
+
+    // Markdown table
+    if (trimmed.contains('|') &&
+        i + 1 < lines.length &&
+        RegExp(r'^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$').hasMatch(lines[i + 1].trim())) {
+      List<String> splitCells(String row) {
+        var r = row.trim();
+        if (r.startsWith('|')) r = r.substring(1);
+        if (r.endsWith('|')) r = r.substring(0, r.length - 1);
+        return r.split('|').map((c) => _formatInlineMarkdown(c.trim())).toList();
+      }
+
+      final headers = splitCells(trimmed);
+      i += 2; // Skip header & separator line
+      buf.writeln('<table><thead><tr>${headers.map((h) => '<th>$h</th>').join()}</tr></thead><tbody>');
+      while (i < lines.length && lines[i].trim().contains('|') && lines[i].trim().isNotEmpty) {
+        final cells = splitCells(lines[i]);
+        buf.writeln('<tr>${cells.map((c) => '<td>$c</td>').join()}</tr>');
+        i++;
+      }
+      buf.writeln('</tbody></table>');
+      continue;
+    }
+
+    // Headings (# .. ######)
+    final headingMatch = RegExp(r'^(#{1,6})\s+(.+)$').firstMatch(trimmed);
+    if (headingMatch != null) {
+      final level = headingMatch.group(1)!.length.clamp(1, 6);
+      buf.writeln('<h$level>${_formatInlineMarkdown(headingMatch.group(2)!.trim())}</h$level>');
+      i++;
+      continue;
+    }
+
+    // Horizontal rule
+    if (RegExp(r'^([-*_])\1{2,}$').hasMatch(trimmed)) {
+      buf.writeln('<hr/>');
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (RegExp(r'^>\s*').hasMatch(trimmed)) {
+      final quoteLines = <String>[];
+      while (i < lines.length && RegExp(r'^>\s*').hasMatch(lines[i].trim())) {
+        quoteLines.add(_formatInlineMarkdown(lines[i].trim().replaceFirst(RegExp(r'^>\s*'), '')));
+        i++;
+      }
+      buf.writeln('<blockquote><p>${quoteLines.join('<br/>')}</p></blockquote>');
+      continue;
+    }
+
+    // Unordered list
+    if (RegExp(r'^[-*+•]\s+').hasMatch(trimmed)) {
+      buf.writeln('<ul>');
+      while (i < lines.length && RegExp(r'^\s*[-*+•]\s+').hasMatch(lines[i])) {
+        final itemText = lines[i].replaceFirst(RegExp(r'^\s*[-*+•]\s+'), '');
+        buf.writeln('<li>${_formatInlineMarkdown(itemText.trim())}</li>');
+        i++;
+      }
+      buf.writeln('</ul>');
+      continue;
+    }
+
+    // Ordered list
+    if (RegExp(r'^\d+[.)]\s+').hasMatch(trimmed)) {
+      buf.writeln('<ol>');
+      while (i < lines.length && RegExp(r'^\s*\d+[.)]\s+').hasMatch(lines[i])) {
+        final itemText = lines[i].replaceFirst(RegExp(r'^\s*\d+[.)]\s+'), '');
+        buf.writeln('<li>${_formatInlineMarkdown(itemText.trim())}</li>');
+        i++;
+      }
+      buf.writeln('</ol>');
+      continue;
+    }
+
+    // Paragraph (collect consecutive plain lines)
+    final paraLines = <String>[];
+    while (i < lines.length) {
+      final cur = lines[i].trim();
+      if (cur.isEmpty ||
+          cur.startsWith('```') ||
+          RegExp(r'^#{1,6}\s+').hasMatch(cur) ||
+          RegExp(r'^[-*+•]\s+').hasMatch(cur) ||
+          RegExp(r'^\d+[.)]\s+').hasMatch(cur) ||
+          RegExp(r'^>\s*').hasMatch(cur) ||
+          RegExp(r'^([-*_])\1{2,}$').hasMatch(cur) ||
+          (cur.contains('|') &&
+              i + 1 < lines.length &&
+              RegExp(r'^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$').hasMatch(lines[i + 1].trim()))) {
+        break;
+      }
+      paraLines.add(_formatInlineMarkdown(cur));
+      i++;
+    }
+    if (paraLines.isNotEmpty) {
+      buf.writeln('<p>${paraLines.join('<br/>')}</p>');
+    }
+  }
+
+  return buf.toString().trim();
+}
+
 Delta _parseHtmlToDelta(String html) {
   if (html.trim().isEmpty) {
     return Delta()..insert('\n');
@@ -2721,6 +2980,24 @@ Delta _parseHtmlToDelta(String html) {
   }
 }
 
+String _normalizeCssColor(String raw) {
+  final trimmed = raw.trim();
+  final hex8 = RegExp(r'^#([0-9a-fA-F]{2})([0-9a-fA-F]{6})$').firstMatch(trimmed);
+  if (hex8 != null) {
+    final alphaHex = hex8.group(1)!.toUpperCase();
+    final rgbHex = hex8.group(2)!.toUpperCase();
+    if (alphaHex == 'FF') {
+      return '#$rgbHex';
+    }
+    final alpha = int.parse(alphaHex, radix: 16) / 255.0;
+    final r = int.parse(rgbHex.substring(0, 2), radix: 16);
+    final g = int.parse(rgbHex.substring(2, 4), radix: 16);
+    final b = int.parse(rgbHex.substring(4, 6), radix: 16);
+    return 'rgba($r, $g, $b, ${alpha.toStringAsFixed(2)})';
+  }
+  return trimmed;
+}
+
 String _deltaToHtml(Document doc) {
   try {
     final deltaOps = doc.toDelta().toJson().cast<Map<String, dynamic>>();
@@ -2737,6 +3014,14 @@ String _deltaToHtml(Document doc) {
               return null;
             }),
             'font': InlineStyleType(fn: (value, _) => 'font-family: $value'),
+            'color': InlineStyleType(fn: (value, _) {
+              final css = _normalizeCssColor(value.toString());
+              return css.isNotEmpty ? 'color: $css' : null;
+            }),
+            'background': InlineStyleType(fn: (value, _) {
+              final css = _normalizeCssColor(value.toString());
+              return css.isNotEmpty ? 'background-color: $css' : null;
+            }),
           }),
         ),
       ),
@@ -2774,6 +3059,7 @@ class _AppHtmlEditorState extends State<AppHtmlEditor> {
   Timer? _syncDebounceTimer;
 
   bool _isSyncing = false;
+  bool _isHandlingRichPaste = false;
   String _lastSyncedHtml = '';
   int _wordCount = 0;
   int _charCount = 0;
@@ -2790,16 +3076,25 @@ class _AppHtmlEditorState extends State<AppHtmlEditor> {
     _quillController = QuillController(
       document: Document.fromDelta(initialDelta),
       selection: const TextSelection.collapsed(offset: 0),
+      config: QuillControllerConfig(
+        // ignore: experimental_member_use
+        clipboardConfig: QuillClipboardConfig(
+          // ignore: experimental_member_use
+          onClipboardPaste: _handleSmartClipboardPaste,
+        ),
+      ),
     );
 
     _updateCounts();
-    _docChangesSub = _quillController.document.changes.listen((_) => _onQuillDocChanged());
+    registerWebPasteListener();
+    _docChangesSub = _quillController.document.changes.listen(_onQuillDocChanged);
     widget.controller.addListener(_onExternalControllerChanged);
     _sourceController.addListener(_onSourceChanged);
   }
 
   @override
   void dispose() {
+    unregisterWebPasteListener();
     _syncDebounceTimer?.cancel();
     _flushSync();
     _docChangesSub?.cancel();
@@ -2875,8 +3170,165 @@ class _AppHtmlEditorState extends State<AppHtmlEditor> {
     }
   }
 
-  void _onQuillDocChanged() {
-    if (_isSyncing) return;
+  Future<bool> _handleSmartClipboardPaste() async {
+    final plainData = await Clipboard.getData(Clipboard.kTextPlain);
+    final plainText = plainData?.text;
+
+    // Preserve flutter_quill's internal rich paste when copying within the editor.
+    if (_quillController.pasteStyleAndEmbed.isNotEmpty &&
+        plainText != null &&
+        plainText == _quillController.pastePlainText) {
+      return false;
+    }
+
+    // 1. Try reading HTML from the browser clipboard (e.g. selected & copied from ChatGPT / Docs),
+    //    unless the clipboard HTML only wraps raw Markdown in <p>/<div>/<pre>/<br> without semantic formatting.
+    final clipboardHtml = await readHtmlFromClipboard();
+    final plainIsMarkdown = plainText != null && looksLikeRichMarkdown(plainText);
+    if (clipboardHtml != null &&
+        clipboardHtml.trim().isNotEmpty &&
+        (!plainIsMarkdown || _hasSemanticRichHtml(clipboardHtml)) &&
+        RegExp(r'<\s*(h[1-6]|p|ul|ol|li|strong|b|em|i|u|s|del|table|tr|th|td|blockquote|pre|code|br|a)\b',
+                caseSensitive: false)
+            .hasMatch(clipboardHtml)) {
+      final cleaned = sanitizePastedHtml(clipboardHtml);
+      if (cleaned.isNotEmpty) {
+        final delta = _parseHtmlToDelta(cleaned);
+        if (delta.isNotEmpty) {
+          _insertPastedDelta(delta);
+          return true;
+        }
+      }
+    }
+
+    // 2. Fall back to plain text: detect raw HTML or ChatGPT Markdown and convert to rich Delta.
+    if (plainText != null && plainText.trim().isNotEmpty) {
+      String? htmlToParse;
+      if (RegExp(r'^\s*<\s*(h[1-6]|p|div|ul|ol|table|blockquote|pre)\b',
+              caseSensitive: false)
+          .hasMatch(plainText)) {
+        htmlToParse = sanitizePastedHtml(plainText);
+      } else if (looksLikeRichMarkdown(plainText)) {
+        htmlToParse = markdownToHtml(plainText);
+      }
+
+      if (htmlToParse != null && htmlToParse.trim().isNotEmpty) {
+        final delta = _parseHtmlToDelta(htmlToParse);
+        if (delta.isNotEmpty) {
+          _insertPastedDelta(delta);
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  void _insertPastedDelta(Delta rawDelta, {int? replaceStart, int? replaceLength}) {
+    final sel = _quillController.selection;
+    final start = replaceStart ?? (sel.isValid ? sel.start : _quillController.document.length - 1);
+    final lengthToReplace = replaceLength ?? ((sel.isValid ? sel.end : start) - start);
+
+    final ops = rawDelta.toList();
+    if (ops.isEmpty) return;
+
+    // Trim one trailing plain newline so pasting doesn't insert an extra blank line.
+    final last = ops.last;
+    if (last.isInsert &&
+        last.data == '\n' &&
+        (last.attributes == null || last.attributes!.isEmpty)) {
+      ops.removeLast();
+    } else if (last.isInsert &&
+        last.data is String &&
+        (last.data as String).endsWith('\n') &&
+        (last.attributes == null || last.attributes!.isEmpty)) {
+      final str = last.data as String;
+      final trimmed = str.substring(0, str.length - 1);
+      if (trimmed.isEmpty) {
+        ops.removeLast();
+      } else {
+        ops[ops.length - 1] = Operation.insert(trimmed, last.attributes);
+      }
+    }
+
+    if (ops.isEmpty) return;
+
+    final change = Delta();
+    if (start > 0) change.retain(start);
+    if (lengthToReplace > 0) change.delete(lengthToReplace);
+    var pastedLength = 0;
+    for (final op in ops) {
+      change.push(op);
+      pastedLength += op.length ?? 0;
+    }
+
+    _quillController.compose(
+      change,
+      TextSelection.collapsed(offset: start + pastedLength),
+      ChangeSource.local,
+    );
+    _syncQuillToHtml();
+  }
+
+  void _onQuillDocChanged(DocChange docChange) {
+    if (_isSyncing || _isHandlingRichPaste) return;
+
+    // On Flutter Web, Cmd+V / Ctrl+V can arrive via TextInputConnection.updateEditingValue
+    // without invoking QuillController.clipboardPaste(). Detect a multi-char rich HTML/Markdown
+    // insertion here and upgrade it to a formatted Delta.
+    if (docChange.source == ChangeSource.local) {
+      int insertOffset = 0;
+      String? insertedText;
+      int insertCount = 0;
+      for (final op in docChange.change.toList()) {
+        if (op.isRetain) {
+          insertOffset += op.length ?? 0;
+        } else if (op.isInsert && op.data is String && (op.attributes == null || op.attributes!.isEmpty)) {
+          insertedText = op.data as String;
+          insertCount++;
+        } else if (op.isInsert) {
+          insertCount += 2;
+        }
+      }
+
+      if (insertCount == 1 && insertedText != null && insertedText.length > 10) {
+        final recentHtml = takeRecentPastedHtml();
+        final plainIsMarkdown = looksLikeRichMarkdown(insertedText);
+        String? htmlToParse;
+        if (recentHtml != null &&
+            (!plainIsMarkdown || _hasSemanticRichHtml(recentHtml)) &&
+            RegExp(r'<\s*(h[1-6]|p|ul|ol|li|strong|b|em|i|u|s|del|table|tr|th|td|blockquote|pre|code|br|a)\b',
+                    caseSensitive: false)
+                .hasMatch(recentHtml)) {
+          htmlToParse = sanitizePastedHtml(recentHtml);
+        } else if (RegExp(r'^\s*<\s*(h[1-6]|p|div|ul|ol|table|blockquote|pre)\b',
+                caseSensitive: false)
+            .hasMatch(insertedText)) {
+          htmlToParse = sanitizePastedHtml(insertedText);
+        } else if (plainIsMarkdown) {
+          htmlToParse = markdownToHtml(insertedText);
+        }
+
+        if (htmlToParse != null && htmlToParse.trim().isNotEmpty) {
+          final parsed = _parseHtmlToDelta(htmlToParse);
+          if (parsed.isNotEmpty) {
+            final start = insertOffset;
+            final rawLen = insertedText.length;
+            _isHandlingRichPaste = true;
+            Future.microtask(() {
+              try {
+                if (!mounted) return;
+                _insertPastedDelta(parsed, replaceStart: start, replaceLength: rawLen);
+              } finally {
+                _isHandlingRichPaste = false;
+              }
+            });
+            return;
+          }
+        }
+      }
+    }
+
     _syncDebounceTimer?.cancel();
     _syncQuillToHtml();
   }
@@ -4653,7 +5105,7 @@ Map<String, String>? buildAppHtmlCustomStyles(dom.Element element, bool isDark) 
     case 'p':
       final isOnlyBr = element.children.length == 1 && element.children.first.localName == 'br';
       return {
-        'margin': isOnlyBr ? '0 0 2px 0' : '0 0 6px 0',
+        'margin': isOnlyBr ? '0 0 14px 0' : '0 0 6px 0',
         'line-height': '1.5',
       };
     case 'h1':
@@ -4699,15 +5151,31 @@ Map<String, String>? buildAppHtmlCustomStyles(dom.Element element, bool isDark) 
         'line-height': '1.5',
       };
     case 'pre':
-    case 'code':
       return {
         'margin': '8px 0',
-        'padding': '6px 10px',
+        'padding': '10px 14px',
         'background-color': isDark ? '#1E293B' : '#F1F5F9',
         'border-radius': '6px',
         'font-family': 'monospace',
         'font-size': '13px',
-        'line-height': '1.4',
+        'line-height': '1.45',
+        'white-space': 'pre-wrap',
+      };
+    case 'code':
+      if (element.parent?.localName == 'pre') {
+        return {
+          'font-family': 'monospace',
+          'background-color': 'transparent',
+          'padding': '0',
+          'margin': '0',
+        };
+      }
+      return {
+        'padding': '2px 5px',
+        'background-color': isDark ? '#1E293B' : '#F1F5F9',
+        'border-radius': '4px',
+        'font-family': 'monospace',
+        'font-size': '12.5px',
       };
     case 'table':
       return {
@@ -4717,8 +5185,16 @@ Map<String, String>? buildAppHtmlCustomStyles(dom.Element element, bool isDark) 
       };
     case 'th':
       final thInline = (element.attributes['style'] ?? '').toLowerCase();
+      final trInline = (element.parent?.attributes['style'] ?? '').toLowerCase();
+      final theadInline = (element.parent?.parent?.attributes['style'] ?? '').toLowerCase();
+      final hasHeaderBg = thInline.contains('background-color') ||
+          thInline.contains('background:') ||
+          trInline.contains('background-color') ||
+          trInline.contains('background:') ||
+          theadInline.contains('background-color') ||
+          theadInline.contains('background:');
       return {
-        if (!thInline.contains('background-color'))
+        if (!hasHeaderBg)
           'background-color': isDark ? '#1E293B' : '#F1F5F9',
         'padding': '8px 12px',
         if (!thInline.contains('border'))

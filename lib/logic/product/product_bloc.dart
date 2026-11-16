@@ -393,7 +393,14 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     Emitter<ProductState> emit,
   ) async {
     try {
-      final createdProduct = await productRepository.createProduct(event.product);
+      var createdProduct = await productRepository.createProduct(event.product);
+      if (createdProduct.id.isNotEmpty &&
+          createdProduct.isAvailable != event.product.isAvailable) {
+        createdProduct = await productRepository.updateProductAvailability(
+          productId: createdProduct.id,
+          isAvailable: event.product.isAvailable,
+        );
+      }
       final currentList = List<Product>.from(state.pageData.content);
       currentList.removeWhere((p) => p.id == createdProduct.id || (p.sku.isNotEmpty && p.sku == createdProduct.sku));
       currentList.insert(0, createdProduct);
@@ -491,7 +498,14 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     // 2. Persist to backend database via PATCH /api/v1/admin/products/{productId}
     if (event.product.id.isNotEmpty) {
       try {
-        final serverUpdated = await productRepository.updateProduct(event.product);
+        var serverUpdated = await productRepository.updateProduct(event.product);
+        if (serverUpdated.id.isNotEmpty &&
+            serverUpdated.isAvailable != event.product.isAvailable) {
+          serverUpdated = await productRepository.updateProductAvailability(
+            productId: serverUpdated.id,
+            isAvailable: event.product.isAvailable,
+          );
+        }
 
         final finalList = List<Product>.from(state.products);
         final fIdx = finalList.indexWhere((p) =>

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../../core/models/category.dart';
 import '../../../core/models/collection.dart';
 import '../../../core/models/product.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
+import '../../../logic/auth/auth_bloc.dart';
 import '../../../logic/category/category_bloc.dart';
 import '../../../logic/collection/collection_bloc.dart';
 import '../../../logic/collection/collection_event.dart';
@@ -18,6 +20,9 @@ import '../widgets/app_product_image.dart';
 import '../widgets/app_html_view.dart';
 import '../widgets/app_html_editor.dart';
 import '../widgets/assign_collections_dialog.dart';
+import '../widgets/technical_name_selector.dart';
+import '../widgets/variant_label_selector.dart';
+import '../widgets/variant_live_pricing.dart';
 
 class ProductImageUploadItem {
   final String name;
@@ -29,8 +34,8 @@ class ProductImageUploadItem {
 class ProductDetailsView extends StatefulWidget {
   final Product product;
   final VoidCallback onBack;
-  final Function(Product updatedProduct)? onProductUpdated;
-  final void Function(Product newProduct, [List<ProductImageUploadItem>? pendingImages])? onProductCreated;
+  final FutureOr<bool> Function(Product updatedProduct)? onProductUpdated;
+  final FutureOr<bool> Function(Product newProduct, [List<ProductImageUploadItem>? pendingImages])? onProductCreated;
   final bool startInEditMode;
   final bool isCreateMode;
 
@@ -78,10 +83,15 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late TextEditingController _unitController;
   late TextEditingController _packQuantityController;
   late TextEditingController _displayRateController;
+  late TextEditingController _perUnitPriceController;
   late TextEditingController _printedMrpController;
-  late TextEditingController _costPriceController;
+  late TextEditingController _courierChargesController;
+  late TextEditingController _codChargeController;
+  late TextEditingController _paymentMethodController;
+  late TextEditingController _commissionController;
   late TextEditingController _gstController;
   late TextEditingController _shippedByController;
+  late TextEditingController _shippingThroughController;
   late TextEditingController _swgController;
   late TextEditingController _stockController;
   late TextEditingController _ratingsController;
@@ -138,18 +148,17 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           id: 'var_default_1',
           displayOrder: 1,
           isDefault: true,
-          label: 'Pack 1',
-          unit: 'ml',
+          label: '',
+          unit: '',
           packSize: 0,
-          packSizeUnit: 'ml',
-          packQuantity: 1,
+          packSizeUnit: '',
+          packQuantity: 0,
           packUnit: 'bottle',
           shippedBy: '',
           displayRate: 0.0,
           printedMrp: 0.0,
-          costPrice: 0.0,
           discountRs: 0.0,
-          gstPercentage: 5.0,
+          gstPercentage: 0.0,
           discountPercentage: 0.0,
           stock: 0,
           pricePerBaseUnit: 0.0,
@@ -177,21 +186,26 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _dosageController = TextEditingController();
       _appMethodController = TextEditingController();
       _variantSkuController = TextEditingController();
-      _variantController = TextEditingController(text: 'Pack 1');
+      _variantController = TextEditingController();
       _packSizeController = TextEditingController();
-      _unitController = TextEditingController(text: 'ml');
-      _packQuantityController = TextEditingController(text: '1');
+      _unitController = TextEditingController();
+      _packQuantityController = TextEditingController();
       _displayRateController = TextEditingController();
+      _perUnitPriceController = TextEditingController();
       _printedMrpController = TextEditingController();
-      _costPriceController = TextEditingController();
-      _gstController = TextEditingController(text: '5');
+      _courierChargesController = TextEditingController();
+      _codChargeController = TextEditingController(text: '30');
+      _paymentMethodController = TextEditingController();
+      _commissionController = TextEditingController();
+      _gstController = TextEditingController();
       _shippedByController = TextEditingController(text: 'essentialbiocropscience');
+      _shippingThroughController = TextEditingController();
       _swgController = TextEditingController();
       _stockController = TextEditingController();
-      _ratingsController = TextEditingController(text: '4.8');
+      _ratingsController = TextEditingController(text: '0.0');
       _refundPolicyController = TextEditingController();
       _weightController = TextEditingController();
-      _weightUnitController = TextEditingController(text: 'g');
+      _weightUnitController = TextEditingController();
       _dimensionsController = TextEditingController();
 
       _selectedSellerId = p.sellerId;
@@ -246,19 +260,58 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _variantController = TextEditingController(text: initialVar?.label ?? p.variant);
     _packSizeController = TextEditingController(text: (initialVar != null ? initialVar.packSize : (int.tryParse(p.packSize) ?? 1)).toString());
     _unitController = TextEditingController(text: initialVar?.unit ?? p.unit);
-    _packQuantityController = TextEditingController(text: (initialVar?.packQuantity ?? 1).toString());
+    _packQuantityController = TextEditingController(text: (initialVar?.packQuantity ?? 0).toString());
     _displayRateController = TextEditingController(text: (initialVar?.displayRate ?? p.displayRate).toStringAsFixed(2));
+    _perUnitPriceController = TextEditingController(
+      text: (initialVar != null && initialVar.perUnitPrice > 0)
+          ? (initialVar.perUnitPrice % 1 == 0
+              ? initialVar.perUnitPrice.toStringAsFixed(0)
+              : initialVar.perUnitPrice.toStringAsFixed(2))
+          : '',
+    );
     _printedMrpController = TextEditingController(text: (initialVar?.printedMrp ?? p.printedMrp).toStringAsFixed(2));
-    _costPriceController = TextEditingController(text: (initialVar?.costPrice ?? p.costPrice).toStringAsFixed(2));
+    _courierChargesController = TextEditingController(
+      text: (initialVar != null && initialVar.courierCharges > 0)
+          ? (initialVar.courierCharges % 1 == 0
+              ? initialVar.courierCharges.toStringAsFixed(0)
+              : initialVar.courierCharges.toStringAsFixed(2))
+          : '',
+    );
+    _codChargeController = TextEditingController(
+      text: ((initialVar?.codCharge ?? 30.0) % 1 == 0)
+          ? (initialVar?.codCharge ?? 30.0).toStringAsFixed(0)
+          : (initialVar?.codCharge ?? 30.0).toStringAsFixed(2),
+    );
+    _paymentMethodController = TextEditingController(
+      text: kPaymentMethodOptions.contains(initialVar?.paymentMethod)
+          ? initialVar!.paymentMethod
+          : '',
+    );
+    _shippingThroughController = TextEditingController(
+      text: kShippingThroughOptions.contains(initialVar?.shippingThrough)
+          ? initialVar!.shippingThrough
+          : '',
+    );
+    _commissionController = TextEditingController(
+      text: (initialVar != null && initialVar.commissionPercentage > 0)
+          ? (initialVar.commissionPercentage % 1 == 0
+              ? initialVar.commissionPercentage.toStringAsFixed(0)
+              : initialVar.commissionPercentage.toStringAsFixed(1))
+          : '',
+    );
     _gstController = TextEditingController(text: (initialVar?.gstPercentage ?? p.gst).toStringAsFixed(0));
     _shippedByController = TextEditingController(
       text: (initialVar?.shippedBy == 'essentialbiocropscience')
           ? initialVar!.shippedBy
           : 'essentialbiocropscience',
     );
-    _swgController = TextEditingController(text: p.swg);
+    _swgController = TextEditingController(
+      text: (initialVar != null && initialVar.swg > 0)
+          ? (initialVar.swg % 1 == 0 ? initialVar.swg.toStringAsFixed(0) : initialVar.swg.toStringAsFixed(2))
+          : p.swg,
+    );
     _stockController = TextEditingController(text: (initialVar?.stock ?? p.stock).toString());
-    _ratingsController = TextEditingController(text: (p.ratings > 0 ? p.ratings : 4.8).toStringAsFixed(1));
+    _ratingsController = TextEditingController(text: (p.ratings >= 0 ? p.ratings : 0.0).toStringAsFixed(1));
     _refundPolicyController = TextEditingController(text: p.refundPolicy);
     _weightController = TextEditingController(text: p.productWeight.toStringAsFixed(2));
     _weightUnitController = TextEditingController(text: p.productWeightUnit);
@@ -295,13 +348,17 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   void _syncCurrentVariantFromControllers() {
     if (_workingVariants.isEmpty || _selectedVariantIndex >= _workingVariants.length) return;
     final cur = _workingVariants[_selectedVariantIndex];
-    final disp = double.tryParse(_displayRateController.text.trim()) ?? cur.displayRate;
-    final mrp = double.tryParse(_printedMrpController.text.trim()) ?? cur.printedMrp;
-    final cp = double.tryParse(_costPriceController.text.trim()) ?? cur.costPrice;
-    final st = int.tryParse(_stockController.text.trim()) ?? cur.stock;
-    final ps = int.tryParse(_packSizeController.text.trim()) ?? cur.packSize;
-    final pq = int.tryParse(_packQuantityController.text.trim()) ?? cur.packQuantity;
-    final unit = _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : cur.unit;
+    final disp = double.tryParse(_displayRateController.text.trim()) ?? 0.0;
+    final perUnit = double.tryParse(_perUnitPriceController.text.trim()) ?? 0.0;
+    final mrp = double.tryParse(_printedMrpController.text.trim()) ?? 0.0;
+    final courier = double.tryParse(_courierChargesController.text.trim()) ?? 0.0;
+    final cod = double.tryParse(_codChargeController.text.trim()) ?? 30.0;
+    final commission = double.tryParse(_commissionController.text.trim()) ?? 0.0;
+    final st = int.tryParse(_stockController.text.trim()) ?? 0;
+    final ps = int.tryParse(_packSizeController.text.trim()) ?? 0;
+    final pq = int.tryParse(_packQuantityController.text.trim()) ?? 0;
+    final unit = _normalizeUnit(_unitController.text);
+    final gst = double.tryParse(_gstController.text.trim()) ?? 0.0;
     final disc = (mrp > disp) ? (mrp - disp) : 0.0;
     final discPct = mrp > 0 ? (disc / mrp * 100) : 0.0;
     final totalBase = (ps > 0 && pq > 0) ? (ps * pq) : cur.totalBaseQuantity;
@@ -318,18 +375,39 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       totalBaseUnit: unit,
       pricePerBaseUnit: pricePerBase,
       displayRate: disp,
+      perUnitPrice: perUnit,
       printedMrp: mrp,
-      costPrice: cp,
+      courierCharges: courier,
+      codCharge: cod,
+      paymentMethod: kPaymentMethodOptions.contains(_paymentMethodController.text.trim())
+          ? _paymentMethodController.text.trim()
+          : '',
+      shippingThrough: kShippingThroughOptions.contains(_shippingThroughController.text.trim())
+          ? _shippingThroughController.text.trim()
+          : '',
       discountRs: disc,
       discountPercentage: discPct,
       stock: st,
-      gstPercentage: double.tryParse(_gstController.text.trim()) ?? cur.gstPercentage,
-      swg: double.tryParse(_swgController.text.trim()) ?? cur.swg,
+      commissionPercentage: commission,
+      gstPercentage: gst,
+      swg: double.tryParse(_swgController.text.trim()) ?? 0.0,
       dimensions: _dimensionsController.text.trim().isNotEmpty
           ? ProductDimensions.fromJson(_dimensionsController.text.trim())
           : cur.dimensions,
       shippedBy: _shippedByController.text.trim(),
     );
+  }
+
+  void _recalculateSellingPriceFromPerUnit() {
+    final perUnit = double.tryParse(_perUnitPriceController.text.trim());
+    final qty = int.tryParse(_packQuantityController.text.trim()) ?? 1;
+    if (perUnit != null && perUnit > 0) {
+      final effectiveQty = qty > 0 ? qty : 1;
+      final calculated = perUnit * effectiveQty;
+      _displayRateController.text =
+          calculated % 1 == 0 ? calculated.toStringAsFixed(0) : calculated.toStringAsFixed(2);
+    }
+    _onVariantFieldChanged();
   }
 
   void _onVariantFieldChanged() {
@@ -348,16 +426,38 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _variantSkuController.text = v.sku;
       _variantController.text = v.label;
       _packSizeController.text = v.packSize > 0 ? v.packSize.toString() : '';
-      _unitController.text = v.unit;
-      _packQuantityController.text = v.packQuantity > 0 ? v.packQuantity.toString() : '1';
+      _unitController.text = _normalizeUnit(v.unit);
+      _packQuantityController.text = v.packQuantity > 0 ? v.packQuantity.toString() : '';
       _displayRateController.text = v.displayRate > 0 ? v.displayRate.toStringAsFixed(2) : '';
+      _perUnitPriceController.text = v.perUnitPrice > 0
+          ? (v.perUnitPrice % 1 == 0 ? v.perUnitPrice.toStringAsFixed(0) : v.perUnitPrice.toStringAsFixed(2))
+          : '';
       _printedMrpController.text = v.printedMrp > 0 ? v.printedMrp.toStringAsFixed(2) : '';
-      _costPriceController.text = v.costPrice > 0 ? v.costPrice.toStringAsFixed(2) : '';
-      _stockController.text = v.stock.toString();
+      _courierChargesController.text = v.courierCharges > 0
+          ? (v.courierCharges % 1 == 0 ? v.courierCharges.toStringAsFixed(0) : v.courierCharges.toStringAsFixed(2))
+          : '';
+      _codChargeController.text = v.codCharge % 1 == 0
+          ? v.codCharge.toStringAsFixed(0)
+          : v.codCharge.toStringAsFixed(2);
+      _paymentMethodController.text = kPaymentMethodOptions.contains(v.paymentMethod)
+          ? v.paymentMethod
+          : '';
+      _shippingThroughController.text = kShippingThroughOptions.contains(v.shippingThrough)
+          ? v.shippingThrough
+          : '';
+      _commissionController.text = v.commissionPercentage > 0
+          ? (v.commissionPercentage % 1 == 0
+              ? v.commissionPercentage.toStringAsFixed(0)
+              : v.commissionPercentage.toStringAsFixed(1))
+          : '';
+      _swgController.text = v.swg > 0
+          ? (v.swg % 1 == 0 ? v.swg.toStringAsFixed(0) : v.swg.toStringAsFixed(2))
+          : '';
+      _stockController.text = v.stock > 0 ? v.stock.toString() : '';
       _shippedByController.text = (v.shippedBy.isNotEmpty)
           ? v.shippedBy
           : 'essentialbiocropscience';
-      _gstController.text = v.gstPercentage.toStringAsFixed(0);
+      _gstController.text = v.gstPercentage > 0 ? v.gstPercentage.toStringAsFixed(0) : '';
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -378,7 +478,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     }
     setState(() {
       final newIndex = _workingVariants.length + 1;
-      final unit = _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : 'ml';
       final baseSku = (_currentProduct.sku.isNotEmpty ? _currentProduct.sku : 'PROD')
           .replaceAll(RegExp(r'\s*-\s*'), '-')
           .trim();
@@ -388,25 +487,24 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         sku: autoSku,
         displayOrder: newIndex,
         isDefault: _workingVariants.isEmpty,
-        label: 'Pack $newIndex (${_packSizeController.text.trim()}$unit x 1)',
-        unit: unit,
-        packSize: int.tryParse(_packSizeController.text.trim()) ?? 1,
-        packSizeUnit: unit,
-        packQuantity: 1,
+        label: '',
+        unit: '',
+        packSize: 0,
+        packSizeUnit: '',
+        packQuantity: 0,
         packUnit: 'pack',
         shippedBy: _shippedByController.text.trim().isNotEmpty
             ? _shippedByController.text.trim()
             : 'essentialbiocropscience',
-        totalBaseQuantity: int.tryParse(_packSizeController.text.trim()) ?? 1,
-        totalBaseUnit: unit,
-        displayRate: double.tryParse(_displayRateController.text.trim()) ?? 500.0,
-        printedMrp: double.tryParse(_printedMrpController.text.trim()) ?? 999.0,
-        costPrice: double.tryParse(_costPriceController.text.trim()) ?? 350.0,
-        stock: 50,
-        gstPercentage: double.tryParse(_gstController.text.trim()) ?? 18.0,
+        totalBaseQuantity: 0,
+        totalBaseUnit: '',
+        displayRate: 0.0,
+        printedMrp: 0.0,
+        stock: 0,
+        gstPercentage: 0.0,
       );
       _workingVariants.add(newVariant);
-      _selectVariant(_workingVariants.length - 1);
+      _selectVariant(_workingVariants.length - 1, syncCurrent: false);
     });
   }
 
@@ -496,10 +594,15 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _unitController.dispose();
     _packQuantityController.dispose();
     _displayRateController.dispose();
+    _perUnitPriceController.dispose();
     _printedMrpController.dispose();
-    _costPriceController.dispose();
+    _courierChargesController.dispose();
+    _codChargeController.dispose();
+    _paymentMethodController.dispose();
+    _commissionController.dispose();
     _gstController.dispose();
     _shippedByController.dispose();
+    _shippingThroughController.dispose();
     _swgController.dispose();
     _stockController.dispose();
     _ratingsController.dispose();
@@ -509,26 +612,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _dimensionsController.dispose();
     _variantScrollController.dispose();
     super.dispose();
-  }
-
-  void _toggleAvailability() {
-    final newAvailability = !_currentProduct.isAvailable;
-    setState(() {
-      _currentProduct = _currentProduct.copyWith(isAvailable: newAvailability);
-      _editIsAvailable = newAvailability;
-    });
-    widget.onProductUpdated?.call(_currentProduct);
-
-    if (!widget.isCreateMode && _currentProduct.id.isNotEmpty) {
-      try {
-        context.read<ProductBloc>().add(
-              ToggleProductAvailability(
-                productId: _currentProduct.id,
-                isAvailable: newAvailability,
-              ),
-            );
-      } catch (_) {}
-    }
   }
 
   void _openAssignCollectionsDialog(BuildContext context) {
@@ -604,57 +687,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
   }
 
-  void _applyPackagingLabel(String label) {
-    _variantController.text = label;
-
-    final parenMatch = RegExp(
-      r'\((?:(\d+(?:\.\d+)?)\s*([a-zA-Z]+))\s*[xX]\s*(\d+)(?:\s*[qQ]ty)?\)',
-    ).firstMatch(label);
-
-    if (parenMatch != null) {
-      final pSize = parenMatch.group(1);
-      final pUnit = parenMatch.group(2)?.toLowerCase();
-      final pQty = parenMatch.group(3);
-      if (pSize != null && double.tryParse(pSize) != null) {
-        _packSizeController.text = pSize.contains('.') && pSize.endsWith('.0')
-            ? pSize.replaceAll('.0', '')
-            : pSize;
-      }
-      if (pUnit != null && pUnit.isNotEmpty) {
-        _unitController.text = pUnit;
-      }
-      if (pQty != null && int.tryParse(pQty) != null) {
-        _packQuantityController.text = pQty;
-      }
-    } else {
-      final simpleMatch = RegExp(r'(\d+(?:\.\d+)?)\s*([a-zA-Z]+)').firstMatch(label);
-      if (simpleMatch != null) {
-        final pSize = simpleMatch.group(1);
-        final pUnit = simpleMatch.group(2)?.toLowerCase();
-        if (pSize != null) _packSizeController.text = pSize;
-        if (pUnit != null) _unitController.text = pUnit;
-        _packQuantityController.text = '1';
-      }
-    }
-    _onVariantFieldChanged();
-  }
-
-  Future<void> _openPackagingSearchDialog(BuildContext context, bool isDark, Color borderColor) async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => _PackagingSearchDialog(
-        currentSelection: _variantController.text.trim(),
-        options: _standardPackagingOptions,
-        isDark: isDark,
-        borderColor: borderColor,
-      ),
-    );
-
-    if (result != null && result.isNotEmpty) {
-      _applyPackagingLabel(result);
-    }
-  }
-
   /*
   void _toggleFeatured() {
     setState(() {
@@ -665,7 +697,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
   */
 
-  void _saveChanges() {
+  Future<void> _saveChanges() async {
+    if (_isSaving) return;
     final now = DateTime.now();
     if (_lastSaveClickTime != null && now.difference(_lastSaveClickTime!) < const Duration(milliseconds: 500)) {
       return;
@@ -678,20 +711,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         SnackBar(
           content: Text(
             'Product Title cannot be empty',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-          ),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    if (widget.isCreateMode && _selectedSellerId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please select a Seller (Store Owner) for this product',
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
           ),
           backgroundColor: const Color(0xFFEF4444),
@@ -723,12 +742,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
     final displayRate = double.tryParse(_displayRateController.text) ?? _currentProduct.displayRate;
     final printedMrp = double.tryParse(_printedMrpController.text) ?? _currentProduct.printedMrp;
-    final costPrice = double.tryParse(_costPriceController.text) ?? _currentProduct.costPrice;
     final discountRs = (printedMrp > displayRate) ? (printedMrp - displayRate) : 0.0;
     final discountPct = printedMrp > 0 ? (discountRs / printedMrp * 100) : 0.0;
     final stock = int.tryParse(_stockController.text) ?? _currentProduct.stock;
     final gst = double.tryParse(_gstController.text) ?? _currentProduct.gst;
-    final rawRating = double.tryParse(_ratingsController.text.trim()) ?? 4.8;
+    final rawRating = double.tryParse(_ratingsController.text.trim()) ?? 0.0;
     final ratings = rawRating.clamp(0.0, 5.0);
     final weight = double.tryParse(_weightController.text) ?? _currentProduct.productWeight;
 
@@ -769,7 +787,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       unit: _unitController.text.trim(),
       displayRate: displayRate,
       printedMrp: printedMrp,
-      costPrice: costPrice,
       discountRs: discountRs,
       gst: gst,
       discountPercentage: discountPct,
@@ -788,40 +805,77 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
 
     if (widget.isCreateMode) {
-      widget.onProductCreated?.call(updatedProduct, _pendingImages);
-      Future.delayed(const Duration(seconds: 4), () {
-        if (mounted && _isSaving) {
-          setState(() => _isSaving = false);
-        }
-      });
+      final created = await widget.onProductCreated?.call(updatedProduct, _pendingImages) ?? false;
+      if (mounted && !created) {
+        setState(() => _isSaving = false);
+      }
       return;
     }
 
+    var productToSave = updatedProduct;
     if (_pendingImages.isNotEmpty && _currentProduct.id.isNotEmpty) {
+      final uploadCompleter = Completer<Product?>();
       try {
         context.read<ProductBloc>().add(
               UploadProductImages(
                 productId: _currentProduct.id,
                 filesBytes: _pendingImages.map((e) => e.bytes).toList(),
                 fileNames: _pendingImages.map((e) => e.name).toList(),
+                onSuccess: (withImages) {
+                  if (!uploadCompleter.isCompleted) uploadCompleter.complete(withImages);
+                },
+                onError: (_) {
+                  if (!uploadCompleter.isCompleted) uploadCompleter.complete(null);
+                },
               ),
             );
+        final withImages = await uploadCompleter.future;
+        if (withImages == null) {
+          if (mounted) {
+            setState(() => _isSaving = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Failed to upload product images. Please try again.',
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                ),
+                backgroundColor: const Color(0xFFEF4444),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                margin: const EdgeInsets.all(20),
+              ),
+            );
+          }
+          return;
+        }
+        productToSave = productToSave.copyWith(images: withImages.images);
         _pendingImages.clear();
-      } catch (_) {}
+      } catch (_) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+        }
+        return;
+      }
+    }
+
+    final saved = await widget.onProductUpdated?.call(productToSave) ?? true;
+    if (!mounted) return;
+
+    if (!saved) {
+      setState(() => _isSaving = false);
+      return;
     }
 
     setState(() {
-      _currentProduct = updatedProduct;
+      _currentProduct = productToSave;
       _isEditing = false;
       _isSaving = false;
     });
 
-    widget.onProductUpdated?.call(updatedProduct);
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Successfully updated "${updatedProduct.title}" (All 38 Fields Synchronized)',
+          'Successfully updated "${productToSave.title}"',
           style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
         ),
         backgroundColor: const Color(0xFF059669),
@@ -830,6 +884,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         margin: const EdgeInsets.all(20),
       ),
     );
+
+    widget.onBack();
   }
 
   void _cancelEdit() {
@@ -853,16 +909,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final isWide = size.width >= 1040;
     final p = _currentProduct;
 
-    // Derived Financials for live calculation
-    double curDisplayRate = p.displayRate;
-    double curCostPrice = p.costPrice;
-    if (_isEditing) {
-      curDisplayRate = double.tryParse(_displayRateController.text) ?? p.displayRate;
-      curCostPrice = double.tryParse(_costPriceController.text) ?? p.costPrice;
-    }
-    final grossProfit = curDisplayRate - curCostPrice;
-    final marginPct = curDisplayRate > 0 ? (grossProfit / curDisplayRate * 100) : 0.0;
-
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -880,7 +926,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 // Back to catalog button
                 InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: _isEditing ? _cancelEdit : widget.onBack,
+                  onTap: _isSaving ? null : (_isEditing ? _cancelEdit : widget.onBack),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     child: Row(
@@ -971,7 +1017,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 // Edit Mode Actions or Standard Quick Actions
                 if (_isEditing) ...[
                   OutlinedButton.icon(
-                    onPressed: _cancelEdit,
+                    onPressed: _isSaving ? null : _cancelEdit,
                     icon: const Icon(Icons.close_rounded, size: 16),
                     label: Text(
                       'Cancel',
@@ -1035,46 +1081,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                   ),
                   */
 
-                  // Availability Quick Pill
-                  InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: _toggleAvailability,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: (p.isAvailable ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: (p.isAvailable ? const Color(0xFF10B981) : const Color(0xFFEF4444)).withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: p.isAvailable ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            p.isAvailable ? 'In Stock / Live' : 'Unavailable',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                              color: p.isAvailable ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
                   // Prominent "Edit Product" Button
                   ElevatedButton.icon(
                     onPressed: () {
@@ -1103,60 +1109,18 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ),
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
-          // Main Responsive Grid Layout (Industry Standard E-Commerce Structure)
-          if (isWide)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left Column: Identity, Narrative/Documentation & Multi-Variants (Main Workspace)
-                Expanded(
-                  flex: 65,
-                  child: Column(
-                    children: [
-                      _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                      const SizedBox(height: 18),
-                      _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                      const SizedBox(height: 18),
-                      _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 20),
-
-                // Right Column: Media Gallery, Commercial Pricing & Logistics Sidebar (380px)
-                SizedBox(
-                  width: 380,
-                  child: Column(
-                    children: [
-                      _buildImageAndMediaCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                      const SizedBox(height: 18),
-                      _buildPricingCard(p, isDark, surfaceColor, borderColor, cardBgColor, grossProfit, marginPct),
-                      const SizedBox(height: 18),
-                      _buildLogisticsAndPackagingCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                    ],
-                  ),
-                ),
-              ],
-            )
-          else
-            // Narrow Screen Layout
-            Column(
-              children: [
-                _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                const SizedBox(height: 16),
-                _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                const SizedBox(height: 16),
-                _buildImageAndMediaCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                const SizedBox(height: 16),
-                _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-                const SizedBox(height: 16),
-                _buildPricingCard(p, isDark, surfaceColor, borderColor, cardBgColor, grossProfit, marginPct),
-                const SizedBox(height: 16),
-                _buildLogisticsAndPackagingCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-              ],
-            ),
+          // Main Full-Width Layout (Unified for both Read-Only & Edit Modes)
+          Column(
+            children: [
+              _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+              SizedBox(height: isWide ? 14 : 12),
+              _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+              SizedBox(height: isWide ? 14 : 12),
+              _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
+            ],
+          ),
         ],
       ),
     );
@@ -1174,7 +1138,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   ) {
     if (_isEditing) {
       return Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: surfaceColor,
           borderRadius: BorderRadius.circular(14),
@@ -1201,36 +1165,88 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildField(
-              controller: _titleController,
-              label: 'Product Title *',
-              hint: 'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            _buildField(
-              controller: _brandNameController,
-              label: 'Brand Name',
-              hint: 'e.g. Bayer, Syngenta, UPL, Biocrop',
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            _buildField(
-              controller: _techNameController,
-              label: 'Technical / Scientific Name',
-              hint: 'e.g. Chlorpyrifos + Cypermethrin',
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            _buildField(
-              controller: _hsnCodeController,
-              label: 'HSN Code *',
-              hint: 'e.g. 38089190',
-              isDark: isDark,
-              borderColor: borderColor,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final identityFields = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildField(
+                      controller: _titleController,
+                      label: 'Product Title *',
+                      hint: 'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
+                      isDark: isDark,
+                      borderColor: borderColor,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _brandNameController,
+                      label: 'Brand Name',
+                      hint: 'e.g. Bayer, Syngenta, UPL, Biocrop',
+                      isDark: isDark,
+                      borderColor: borderColor,
+                    ),
+                    const SizedBox(height: 12),
+                    TechnicalNameSelector(
+                      controller: _techNameController,
+                      isDark: isDark,
+                      isRequired: false,
+                      isAdmin: context.read<AuthBloc>().state.session?.isAdmin ?? false,
+                      onSelected: (tech) {
+                        final comm = tech.commissionPercentage;
+                        final formatted = comm == comm.roundToDouble()
+                            ? comm.toInt().toString()
+                            : comm.toString();
+                        setState(() {
+                          _commissionController.text = formatted;
+                          for (int i = 0; i < _workingVariants.length; i++) {
+                            if (_workingVariants[i].commissionPercentage <= 0 ||
+                                i == _selectedVariantIndex) {
+                              _workingVariants[i] =
+                                  _workingVariants[i].copyWith(
+                                commissionPercentage: comm,
+                              );
+                            }
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildField(
+                      controller: _hsnCodeController,
+                      label: 'HSN Code *',
+                      hint: 'e.g. 38089190',
+                      isDark: isDark,
+                      borderColor: borderColor,
+                    ),
+                  ],
+                );
+                final mediaUploader = _buildImageAndMediaCard(
+                  p,
+                  isDark,
+                  surfaceColor,
+                  borderColor,
+                  cardBgColor,
+                  embedded: true,
+                );
+                if (constraints.maxWidth >= 720) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: identityFields),
+                      const SizedBox(width: 20),
+                      SizedBox(width: 320, child: mediaUploader),
+                    ],
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    identityFields,
+                    const SizedBox(height: 14),
+                    mediaUploader,
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 12),
             Row(
@@ -1250,9 +1266,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                               : (_selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text);
 
                           return _buildSearchableSelectField<AdminUser>(
-                            label: 'Seller (Store Owner) *',
+                            label: 'Seller (Store Owner)',
                             displayText: displayText,
-                            placeholder: '-- Select Seller (Required) --',
+                            placeholder: '-- Select Seller (Optional) --',
                             prefixIcon: Icons.storefront_rounded,
                             hasValue: _selectedSellerId.isNotEmpty || _vendorController.text.isNotEmpty,
                             isDark: isDark,
@@ -1318,7 +1334,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                 items: flatCategories,
                                 selectedItem: currentSelected,
                                 labelBuilder: (c) => c.name,
-                                subtitleBuilder: (c) => 'Level ${c.level + 1} Category',
+                                subtitleBuilder: (c) =>
+                                    'Level ${c.level + 1} Category${c.children.isNotEmpty ? ' • ${c.children.length} sub-categories' : ''}',
+                                filters: [
+                                  (label: 'All', predicate: (_) => true),
+                                  (label: 'Level 1', predicate: (c) => c.level == 0),
+                                  (label: 'Level 2', predicate: (c) => c.level == 1),
+                                  (label: 'Level 3', predicate: (c) => c.level == 2),
+                                ],
                                 isDark: isDark,
                               );
                               if (picked != null) {
@@ -1618,7 +1641,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             : p.resolvedCategory.trim());
 
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(14),
@@ -1627,127 +1650,165 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (displayCategory.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF059669).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    displayCategory.toUpperCase(),
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                      color: const Color(0xFF059669),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              if (p.collections.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    p.collections,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                    ),
-                  ),
-                ),
-              const Spacer(),
-              Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final identityDetails = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.star_rounded, size: 18, color: Color(0xFFF59E0B)),
-                  const SizedBox(width: 4),
+                  Row(
+                    children: [
+                      if (displayCategory.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            displayCategory.toUpperCase(),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: const Color(0xFF059669),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (p.collections.isNotEmpty)
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              p.collections,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                        ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          const Icon(Icons.star_rounded, size: 18, color: Color(0xFFF59E0B)),
+                          const SizedBox(width: 4),
+                          Text(
+                            p.ratings.toStringAsFixed(1),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            ' (Ratings)',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   Text(
-                    p.ratings.toStringAsFixed(1),
+                    p.title,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
+                      fontSize: 22,
                       fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
                       color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                   ),
-                  Text(
-                    ' (Ratings)',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  if (p.brandName.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF2563EB)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Brand: ${p.brandName}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF2563EB),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
+                  ],
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.science_rounded, size: 16, color: Color(0xFF059669)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Technical Name: ${p.technicalName}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF059669),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildBadgePill('Seller', p.sellerName.isNotEmpty ? p.sellerName : (p.vendor.isNotEmpty ? p.vendor : 'Essential BioCrop'), isDark, borderColor),
+                      if (p.sku.isNotEmpty)
+                        _buildBadgePill('SKU', p.sku, isDark, borderColor),
+                      _buildBadgePill('HSN Code', p.hsnCode, isDark, borderColor),
+                      if (p.subCollections.isNotEmpty)
+                        _buildBadgePill('Sub Collection', p.subCollections, isDark, borderColor),
+                    ],
                   ),
                 ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            p.title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
-          ),
-          if (p.brandName.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF2563EB)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Brand: ${p.brandName}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF2563EB),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.science_rounded, size: 16, color: Color(0xFF059669)),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Technical Name: ${p.technicalName}',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF059669),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildBadgePill('Seller', p.sellerName.isNotEmpty ? p.sellerName : (p.vendor.isNotEmpty ? p.vendor : 'Essential BioCrop'), isDark, borderColor),
-              if (p.sku.isNotEmpty)
-                _buildBadgePill('SKU', p.sku, isDark, borderColor),
-              _buildBadgePill('HSN Code', p.hsnCode, isDark, borderColor),
-              if (p.subCollections.isNotEmpty)
-                _buildBadgePill('Sub Collection', p.subCollections, isDark, borderColor),
-            ],
+              );
+              final mediaCard = _buildImageAndMediaCard(
+                p,
+                isDark,
+                surfaceColor,
+                borderColor,
+                cardBgColor,
+                embedded: true,
+              );
+              if (constraints.maxWidth >= 720) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: identityDetails),
+                    const SizedBox(width: 22),
+                    SizedBox(width: 280, child: mediaCard),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  mediaCard,
+                  const SizedBox(height: 16),
+                  identityDetails,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
           Divider(height: 1, color: borderColor),
@@ -1928,7 +1989,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
     return Container(
       clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(14),
@@ -2072,10 +2133,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ),
           ),
 
-          // Active Variant Section: Interactive Form only when in edit mode
+          // Active Variant Section: Interactive Form in edit mode, Unified Overview in read-only mode
           if (_isEditing) ...[
             _buildActiveVariantEditor(activeVariant, safeIdx, isDark, borderColor, cardBgColor),
-            const SizedBox(height: 18),
+            const SizedBox(height: 12),
+          ] else ...[
+            const SizedBox(height: 10),
+            _buildActiveVariantReadOnlySummary(activeVariant, p, isDark, borderColor, cardBgColor),
+            const SizedBox(height: 12),
           ],
 
           // Variants Table Header
@@ -2501,6 +2566,297 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
   }
 
+  Widget _buildActiveVariantReadOnlySummary(
+    ProductVariant v,
+    Product p,
+    bool isDark,
+    Color borderColor,
+    Color cardBgColor,
+  ) {
+    final discRs = v.printedMrp > v.displayRate ? (v.printedMrp - v.displayRate) : 0.0;
+    final discPct = v.printedMrp > 0 ? (discRs / v.printedMrp * 100) : 0.0;
+    final unitDisplay = _normalizeUnit(v.packSizeUnit.isNotEmpty ? v.packSizeUnit : v.unit);
+    final weightUnitDisplay = p.productWeightUnit.trim().isNotEmpty ? p.productWeightUnit.trim() : 'kg';
+    final dimsDisplay = v.dimensions.toString().trim().isNotEmpty ? v.dimensions.toString().trim() : p.dimensions;
+
+    Widget buildPanel({
+      required IconData icon,
+      required String title,
+      required List<Widget> rows,
+    }) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.6) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 15, color: const Color(0xFF059669)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Divider(height: 1, color: borderColor),
+            const SizedBox(height: 10),
+            ...rows,
+          ],
+        ),
+      );
+    }
+
+    final pricingPanel = buildPanel(
+      icon: Icons.currency_rupee_rounded,
+      title: 'Pricing & Commercial Matrix',
+      rows: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF059669).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SELLING RATE',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: const Color(0xFF059669),
+                      ),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '₹${v.displayRate.toStringAsFixed(2)}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'MRP',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        '₹${v.printedMrp.toStringAsFixed(2)}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.lineThrough,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        _buildGridValueRow(
+          'Discount',
+          '₹${discRs.toStringAsFixed(2)} (${discPct.toStringAsFixed(1)}% off)',
+          isDark,
+          valueColor: const Color(0xFF059669),
+        ),
+        _buildGridValueRow('Commission (%)', '${v.commissionPercentage.toStringAsFixed(1)}%', isDark),
+        if (v.perUnitPrice > 0)
+          _buildGridValueRow('Per Unit Price', '₹${v.perUnitPrice.toStringAsFixed(2)}', isDark),
+        if (v.swg > 0)
+          _buildGridValueRow('Seller Will Get (SWG)', '₹${v.swg.toStringAsFixed(2)}', isDark),
+        if (v.courierCharges > 0)
+          _buildGridValueRow('Courier Charge', '₹${v.courierCharges.toStringAsFixed(2)}', isDark),
+        _buildGridValueRow('COD & Bank Charge', '₹${v.codCharge.toStringAsFixed(2)}', isDark),
+        if (v.paymentMethod.isNotEmpty)
+          _buildGridValueRow('Payment Method', v.paymentMethod, isDark),
+        if (v.shippingThrough.isNotEmpty)
+          _buildGridValueRow('Shipping Through', v.shippingThrough, isDark),
+      ],
+    );
+
+    final packagingPanel = buildPanel(
+      icon: Icons.inventory_2_outlined,
+      title: 'Packaging & Inventory',
+      rows: [
+        _buildGridValueRow(
+          'Stock on Hand',
+          '${v.stock} Units',
+          isDark,
+          valueColor: v.stock > 50 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+        ),
+        _buildGridValueRow('Pack Size & Unit', '${v.packSize} $unitDisplay'.trim(), isDark),
+        _buildGridValueRow('Pack Quantity', '${v.packQuantity}', isDark),
+        _buildGridValueRow(
+          'Base Rate',
+          v.pricePerBaseUnit > 0 ? '₹${v.pricePerBaseUnit.toStringAsFixed(3)} / $unitDisplay' : '-',
+          isDark,
+        ),
+        _buildGridValueRow(
+          'Fulfilled / Shipped By',
+          v.shippedBy.isNotEmpty ? v.shippedBy : 'essentialbiocropscience',
+          isDark,
+        ),
+      ],
+    );
+
+    final shippingPanel = buildPanel(
+      icon: Icons.local_shipping_outlined,
+      title: 'Shipping & Return Policy',
+      rows: [
+        _buildGridValueRow(
+          'Product Weight',
+          p.productWeight > 0 ? '${p.productWeight} $weightUnitDisplay' : '-',
+          isDark,
+        ),
+        _buildGridValueRow('Dimensions (LxWxH)', dimsDisplay.trim().isNotEmpty ? dimsDisplay : '-', isDark),
+        _buildGridValueRow(
+          'Refund / Return Policy',
+          p.refundPolicy.trim().isNotEmpty ? p.refundPolicy : '-',
+          isDark,
+        ),
+      ],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Selected Variant',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF059669),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  v.label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (v.isDefault) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star_rounded, size: 12, color: Color(0xFFF59E0B)),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Primary Default SKU',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFD97706),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 820) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: pricingPanel),
+                    const SizedBox(width: 12),
+                    Expanded(child: packagingPanel),
+                    const SizedBox(width: 12),
+                    Expanded(child: shippingPanel),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  pricingPanel,
+                  const SizedBox(height: 10),
+                  packagingPanel,
+                  const SizedBox(height: 10),
+                  shippingPanel,
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActiveVariantEditor(
     ProductVariant v,
     int index,
@@ -2630,41 +2986,34 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // SECTION 1: PACKAGING & SPECIFICATION
-                _buildPackagingLabelField(isDark, borderColor),
-                const SizedBox(height: 14),
-
-                // PACK METRICS ROW
+                // SECTION 1: PACKAGING & IDENTIFICATION
+                _buildVariantSubSectionHeader(
+                  Icons.inventory_2_outlined,
+                  'PACKAGING & IDENTIFICATION',
+                  isDark,
+                ),
+                const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      flex: 2,
-                      child: _buildField(
-                        controller: _packSizeController,
-                        label: 'Pack Size *',
-                        hint: 'e.g. 1000',
-                        keyboardType: TextInputType.number,
+                      flex: 3,
+                      child: VariantLabelSelector(
+                        controller: _variantController,
                         isDark: isDark,
-                        borderColor: borderColor,
-                        onChanged: (_) => _onVariantFieldChanged(),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: _buildDropdownField(
-                        label: 'Unit *',
-                        value: _unitController.text.trim().isNotEmpty
-                            ? _unitController.text.trim()
-                            : 'ml',
-                        items: const ['ml', 'L', 'gm', 'kg', 'pcs', 'packs'],
-                        prefixIcon: Icons.straighten_rounded,
-                        isDark: isDark,
-                        borderColor: borderColor,
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _unitController.text = val);
+                        isRequired: true,
+                        onChanged: _onVariantFieldChanged,
+                        onSelected: (item) {
+                          if (item.packSize > 0) {
+                            setState(() {
+                              _packSizeController.text =
+                                  item.packSize == item.packSize.roundToDouble()
+                                      ? item.packSize.toInt().toString()
+                                      : item.packSize.toString();
+                              _unitController.text = _normalizeUnit(item.unit);
+                              _packQuantityController.text = item.packQuantity.toString();
+                            });
+                            _recalculateSellingPriceFromPerUnit();
                             _onVariantFieldChanged();
                           }
                         },
@@ -2673,19 +3022,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: _buildField(
-                        controller: _packQuantityController,
-                        label: 'Pack Quantity *',
-                        hint: 'e.g. 1',
-                        keyboardType: TextInputType.number,
-                        isDark: isDark,
-                        borderColor: borderColor,
-                        onChanged: (_) => _onVariantFieldChanged(),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 3,
                       child: _buildDropdownField(
                         label: 'Fulfilled / Shipped By',
                         value: _shippedByController.text.trim().isNotEmpty
@@ -2703,16 +3039,103 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         },
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: _buildDropdownField(
+                        label: 'Shipping Through *',
+                        value: _shippingThroughController.text.trim(),
+                        items: kShippingThroughOptions,
+                        hint: '-- Select Shipping Through --',
+                        allowNull: true,
+                        prefixIcon: Icons.directions_car_outlined,
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _shippingThroughController.text = val);
+                            _onVariantFieldChanged();
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildField(
+                        controller: _packSizeController,
+                        label: 'Pack Size *',
+                        hint: 'Auto from Variant Label',
+                        keyboardType: TextInputType.number,
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        readOnly: true,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildDropdownField(
+                        label: 'Unit *',
+                        value: _normalizeUnit(_unitController.text),
+                        items: const ['ml', 'Ltr', 'g', 'kg', 'mg', 'gm', 'pouch', 'tablet', 'pcs', 'packs'],
+                        hint: 'Auto from Variant Label',
+                        allowNull: true,
+                        prefixIcon: Icons.straighten_rounded,
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        readOnly: true,
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _unitController.text = val);
+                            _onVariantFieldChanged();
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildField(
+                        controller: _packQuantityController,
+                        label: 'Pack Quantity *',
+                        hint: 'Auto from Variant Label',
+                        keyboardType: TextInputType.number,
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        readOnly: true,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 Divider(height: 1, color: borderColor),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
 
-                // SECTION 2: COMMERCIAL PRICING & INVENTORY
+                // SECTION 2: PRICING & INVENTORY
+                _buildVariantSubSectionHeader(
+                  Icons.currency_rupee_rounded,
+                  'PRICING & INVENTORY',
+                  isDark,
+                ),
+                const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Expanded(
+                      child: _buildField(
+                        controller: _perUnitPriceController,
+                        label: 'Per Unit Price (₹)',
+                        hint: 'e.g. 450',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        onChanged: (_) => _recalculateSellingPriceFromPerUnit(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: _buildField(
                         controller: _displayRateController,
@@ -2736,12 +3159,29 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         onChanged: (_) => _onVariantFieldChanged(),
                       ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildField(
+                        controller: _commissionController,
+                        label: 'Commission (%)',
+                        hint: 'Auto from Technical Name',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        readOnly: true,
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildField(
-                        controller: _costPriceController,
-                        label: 'Cost Price (₹)',
-                        hint: '350.00',
+                        controller: _swgController,
+                        label: 'Seller Will Get (SWG ₹)',
+                        hint: 'e.g. 400',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
@@ -2751,10 +3191,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildField(
-                        controller: _gstController,
-                        label: 'GST Slab (%)',
-                        hint: '5',
-                        keyboardType: TextInputType.number,
+                        controller: _courierChargesController,
+                        label: 'Courier Charge (₹)',
+                        hint: 'e.g. 50',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
                         onChanged: (_) => _onVariantFieldChanged(),
@@ -2774,6 +3214,159 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildField(
+                        controller: _codChargeController,
+                        label: 'COD & Bank Charge (₹)',
+                        hint: 'e.g. 30',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        onChanged: (_) => _onVariantFieldChanged(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildDropdownField(
+                        label: 'Payment Method *',
+                        value: _paymentMethodController.text.trim(),
+                        items: kPaymentMethodOptions,
+                        hint: '-- Select Payment Method --',
+                        allowNull: true,
+                        prefixIcon: Icons.payments_outlined,
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _paymentMethodController.text = val);
+                            _onVariantFieldChanged();
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                Builder(
+                  builder: (_) {
+                    final rateVal = double.tryParse(_displayRateController.text.trim());
+                    final mrpVal = double.tryParse(_printedMrpController.text.trim());
+                    final perUnitVal = double.tryParse(_perUnitPriceController.text.trim());
+                    final courierVal = double.tryParse(_courierChargesController.text.trim());
+                    final swgVal = double.tryParse(_swgController.text.trim());
+                    final commVal = double.tryParse(_commissionController.text.trim()) ?? 0.0;
+                    final packQtyVal = int.tryParse(_packQuantityController.text.trim()) ?? 1;
+                    final hasPrice = (rateVal != null && rateVal > 0) || (mrpVal != null && mrpVal > 0);
+                    if (!hasPrice) return const SizedBox.shrink();
+                    final hasBoth = (rateVal != null && rateVal > 0) && (mrpVal != null && mrpVal > 0);
+                    final discRs = hasBoth && mrpVal > rateVal ? (mrpVal - rateVal) : 0.0;
+                    final discPct = hasBoth && discRs > 0 ? ((discRs / mrpVal) * 100) : 0.0;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
+                        LiveDiscountPill(
+                          hasBothPrices: hasBoth,
+                          rate: rateVal,
+                          mrp: mrpVal,
+                          discountRs: discRs,
+                          discountPct: discPct,
+                          isDark: isDark,
+                          borderColor: borderColor,
+                        ),
+                        if (rateVal != null && rateVal > 0) ...[
+                          const SizedBox(height: 12),
+                          LivePriceCalculation(
+                            rate: rateVal,
+                            mrp: mrpVal,
+                            swg: swgVal,
+                            perUnitPrice: perUnitVal,
+                            packQuantity: packQtyVal,
+                            courierCharges: courierVal,
+                            commissionPercentage: commVal,
+                            discountRs: discRs,
+                            discountPct: discPct,
+                            isDark: isDark,
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Divider(height: 1, color: borderColor),
+                const SizedBox(height: 14),
+
+                // SECTION 3: SHIPPING & RETURN POLICY
+                _buildVariantSubSectionHeader(
+                  Icons.local_shipping_outlined,
+                  'SHIPPING & RETURN POLICY',
+                  isDark,
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _buildField(
+                        controller: _weightController,
+                        label: 'Product Weight',
+                        hint: '0.62',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        isDark: isDark,
+                        borderColor: borderColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildDropdownField(
+                        label: 'Weight Unit',
+                        value: _weightUnitController.text.trim().isNotEmpty
+                            ? _weightUnitController.text.trim().toLowerCase()
+                            : 'kg',
+                        items: const ['g', 'kg', 'mg', 'gm'],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _weightUnitController.text = val);
+                          }
+                        },
+                        isDark: isDark,
+                        borderColor: borderColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: _buildField(
+                        controller: _dimensionsController,
+                        label: 'Dimensions (LxWxH)',
+                        hint: '8 x 8 x 20 cm',
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        onChanged: (_) => _onVariantFieldChanged(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: _buildField(
+                        controller: _refundPolicyController,
+                        label: 'Refund & Return Policy',
+                        hint: '7-day replacement for sealed bottle',
+                        isDark: isDark,
+                        borderColor: borderColor,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -2782,81 +3375,18 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
   }
 
-  Widget _buildPackagingLabelField(bool isDark, Color borderColor) {
-    final curLabel = _variantController.text.trim();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildVariantSubSectionHeader(IconData icon, String title, bool isDark) {
+    return Row(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Text(
-                'Variant Label / Name *',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: () => _openPackagingSearchDialog(context, isDark, borderColor),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.search_rounded, size: 13, color: Color(0xFF059669)),
-                  const SizedBox(width: 3),
-                  Text(
-                    'Search Standards',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF059669),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        InkWell(
-          onTap: () => _openPackagingSearchDialog(context, isDark, borderColor),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: borderColor),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.inventory_2_outlined, size: 18, color: Color(0xFF059669)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    curLabel.isNotEmpty ? curLabel : 'Select packaging specification (e.g. 10 ltr (1000ml x 10))...',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: curLabel.isNotEmpty ? FontWeight.w700 : FontWeight.w500,
-                      color: curLabel.isNotEmpty
-                          ? (isDark ? Colors.white : const Color(0xFF0F172A))
-                          : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_drop_down_rounded,
-                  size: 22,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                ),
-              ],
-            ),
+        Icon(icon, size: 14, color: const Color(0xFF059669)),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.7,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
           ),
         ),
       ],
@@ -2928,9 +3458,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     bool isDark,
     Color surfaceColor,
     Color borderColor,
-    Color cardBgColor,
-  ) {
-    const double heroHeight = 190.0;
+    Color cardBgColor, {
+    bool embedded = false,
+  }) {
+    const double heroHeight = 156.0;
     Widget heroWidget;
 
     if (_pendingImages.isNotEmpty && _activePreviewImageIndex < _pendingImages.length) {
@@ -2993,10 +3524,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(embedded ? 10 : 12),
       decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
+        color: embedded ? cardBgColor : surfaceColor,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor),
       ),
       child: Column(
@@ -3144,435 +3675,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
 
   // ==========================================
-  // CARD 3: PRICING & COMMERCIAL MATRIX
-  // ==========================================
-  Widget _buildPricingCard(
-    Product p,
-    bool isDark,
-    Color surfaceColor,
-    Color borderColor,
-    Color cardBgColor,
-    double grossProfit,
-    double marginPct,
-  ) {
-    if (_isEditing) {
-      final disp = double.tryParse(_displayRateController.text) ?? 0.0;
-      final mrp = double.tryParse(_printedMrpController.text) ?? 0.0;
-      final disc = (mrp > disp) ? (mrp - disp) : 0.0;
-      final discPct = mrp > 0 ? (disc / mrp * 100) : 0.0;
-
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.currency_rupee_rounded, color: Color(0xFF059669), size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Edit Pricing & Commercials',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _displayRateController,
-                    label: 'Display Rate (₹) *',
-                    hint: '540.00',
-                    keyboardType: TextInputType.number,
-                    isDark: isDark,
-                    borderColor: borderColor,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _printedMrpController,
-                    label: 'Printed MRP (₹) *',
-                    hint: '650.00',
-                    keyboardType: TextInputType.number,
-                    isDark: isDark,
-                    borderColor: borderColor,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _costPriceController,
-                    label: 'Cost Price (₹)',
-                    hint: '410.00',
-                    keyboardType: TextInputType.number,
-                    isDark: isDark,
-                    borderColor: borderColor,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _gstController,
-                    label: 'GST Slab (%)',
-                    hint: '18',
-                    keyboardType: TextInputType.number,
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            // Live financial calculation summary
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF059669).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.2)),
-              ),
-              child: Column(
-                children: [
-                  _buildMiniSummaryRow('Auto-Calculated Discount:', '₹${disc.toStringAsFixed(2)} (${discPct.toStringAsFixed(1)}%)', isDark),
-                  const SizedBox(height: 4),
-                  _buildMiniSummaryRow('Projected Gross Margin:', '₹${grossProfit.toStringAsFixed(2)} (${marginPct.toStringAsFixed(1)}%)', isDark, valueColor: const Color(0xFF10B981)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Read-only view
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Pricing & Commercial Matrix',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Main Price Row
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF059669).withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'DISPLAY RATE (SELLER OFFER)',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: const Color(0xFF059669),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '₹${p.displayRate.toStringAsFixed(2)}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'PRINTED MRP',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                    Text(
-                      '₹${p.printedMrp.toStringAsFixed(2)}',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        decoration: TextDecoration.lineThrough,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          _buildGridValueRow('Cost Price (To Seller)', '₹${p.costPrice.toStringAsFixed(2)}', isDark),
-          _buildGridValueRow(
-            'Discount in Rupees',
-            '₹${p.discountRs.toStringAsFixed(2)} (${p.discountPercentage.toStringAsFixed(1)}% off)',
-            isDark,
-            valueColor: const Color(0xFF059669),
-          ),
-          _buildGridValueRow('GST Tax Slab', '${p.gst.toStringAsFixed(0)}% Applicable', isDark),
-          _buildGridValueRow(
-            'Estimated Gross Margin',
-            '₹${grossProfit.toStringAsFixed(2)} (${marginPct.toStringAsFixed(1)}%)',
-            isDark,
-            valueColor: const Color(0xFF10B981),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // CARD 4: LOGISTICS & INVENTORY
-  // ==========================================
-  Widget _buildLogisticsAndPackagingCard(
-    Product p,
-    bool isDark,
-    Color surfaceColor,
-    Color borderColor,
-    Color cardBgColor,
-  ) {
-    if (_isEditing) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.local_shipping_outlined, color: Color(0xFF059669), size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Edit Logistics & Packaging Specs',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _stockController,
-                    label: 'Stock on Hand *',
-                    hint: '240',
-                    keyboardType: TextInputType.number,
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _packSizeController,
-                    label: 'Pack Size *',
-                    hint: '500',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _unitController,
-                    label: 'Unit *',
-                    hint: 'ml / L / kg',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _variantController,
-                    label: 'Variant *',
-                    hint: 'Liquid Formulation',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _weightController,
-                    label: 'Product Weight',
-                    hint: '0.62',
-                    keyboardType: TextInputType.number,
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _weightUnitController,
-                    label: 'Weight Unit',
-                    hint: 'kg',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    controller: _swgController,
-                    label: 'SWG Code',
-                    hint: 'SWG-22',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    controller: _dimensionsController,
-                    label: 'Dimensions (LxWxH)',
-                    hint: '8 x 8 x 20 cm',
-                    isDark: isDark,
-                    borderColor: borderColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildDropdownField(
-              label: 'Shipped By Partner',
-              value: _shippedByController.text.trim().isNotEmpty
-                  ? _shippedByController.text.trim()
-                  : 'essentialbiocropscience',
-              items: _shippedByOptions,
-              prefixIcon: Icons.local_shipping_outlined,
-              isDark: isDark,
-              borderColor: borderColor,
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() {
-                    _shippedByController.text = val;
-                  });
-                  _onVariantFieldChanged();
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildField(
-              controller: _refundPolicyController,
-              label: 'Refund & Return Policy',
-              hint: '7-day replacement for sealed bottle',
-              isDark: isDark,
-              borderColor: borderColor,
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Read-only view
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Inventory & Fulfillment Specs',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 14),
-          _buildGridValueRow('Stock on Hand', '${p.stock} Units', isDark, valueColor: p.stock > 50 ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
-          _buildGridValueRow('Pack Size & Unit', '${p.packSize} ${p.unit}', isDark),
-          _buildGridValueRow('Variant Type', p.variant, isDark),
-          _buildGridValueRow('Shipping Weight', '${p.productWeight} ${p.productWeightUnit}', isDark),
-          _buildGridValueRow('Volumetric SWG', p.swg, isDark),
-          _buildGridValueRow('Dimensions (LxWxH)', p.dimensions, isDark),
-          _buildGridValueRow('Shipped By Partner', p.shippedBy.isNotEmpty ? p.shippedBy : 'essentialbiocropscience', isDark),
-          _buildGridValueRow('Refund / Return Policy', p.refundPolicy, isDark),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
   // CARD 6: PRODUCT NARRATIVE & DOCUMENTATION
   // ==========================================
   Widget _buildDescriptionAndBenefitsCard(
@@ -3584,7 +3686,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   ) {
     if (_isEditing) {
       return Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: surfaceColor,
           borderRadius: BorderRadius.circular(14),
@@ -3610,13 +3712,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             AppHtmlEditor(
               controller: _descriptionController,
               label: 'Full Commercial Description',
               hintText: 'Comprehensive product description with agronomy tables, per-acre dosage, application guide, and guidelines...',
               isRequired: true,
-              minHeight: 320,
+              minHeight: 190,
             ),
           ],
         ),
@@ -3625,7 +3727,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
 
     // Read-only view
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: BorderRadius.circular(14),
@@ -3650,7 +3752,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
 
           // Description (Parsed HTML with rich typography, list support & collapsible view)
           AppHtmlView(
@@ -3672,6 +3774,25 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     'essentialbiocropscience',
   ];
 
+  String _normalizeUnit(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+    final lower = trimmed.toLowerCase();
+    if (lower == 'l' || lower == 'ltr' || lower == 'litre' || lower == 'liter') {
+      return 'Ltr';
+    }
+    if (lower == 'g' || lower == 'gm' || lower == 'gms' || lower == 'gram' || lower == 'grams') {
+      return 'gm';
+    }
+    if (lower == 'kg' || lower == 'kgs') return 'kg';
+    if (lower == 'ml') return 'ml';
+    if (lower == 'mg') return 'mg';
+    if (lower == 'pouch' || lower == 'pouches') return 'pouch';
+    if (lower == 'tablet' || lower == 'tablets') return 'tablet';
+    if (lower == 'pcs' || lower == 'packs') return lower;
+    return trimmed;
+  }
+
   Widget _buildDropdownField({
     required String label,
     required String value,
@@ -3680,9 +3801,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     required bool isDark,
     required Color borderColor,
     IconData? prefixIcon,
+    String? hint,
+    bool allowNull = false,
+    bool readOnly = false,
   }) {
     final effectiveItems = items.isNotEmpty ? items : const ['essentialbiocropscience'];
-    final effectiveValue = effectiveItems.contains(value) ? value : effectiveItems.first;
+    final String? effectiveValue = effectiveItems.contains(value)
+        ? value
+        : (allowNull ? null : effectiveItems.first);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3702,7 +3828,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 ? Icon(prefixIcon, size: 18, color: const Color(0xFF059669))
                 : null,
             filled: true,
-            fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            fillColor: readOnly
+                ? (isDark ? const Color(0xFF0B1120) : const Color(0xFFE2E8F0).withValues(alpha: 0.5))
+                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: borderColor),
@@ -3720,18 +3848,32 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: effectiveValue,
+              hint: hint != null
+                  ? Text(
+                      hint,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      ),
+                    )
+                  : null,
               isExpanded: true,
               isDense: true,
               dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
               borderRadius: BorderRadius.circular(8),
               icon: Icon(
-                Icons.arrow_drop_down_rounded,
+                readOnly ? Icons.lock_outline_rounded : Icons.arrow_drop_down_rounded,
+                size: readOnly ? 14 : 24,
                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                color: readOnly
+                    ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569))
+                    : (isDark ? Colors.white : const Color(0xFF0F172A)),
               ),
               items: effectiveItems.map((opt) {
                 return DropdownMenuItem<String>(
@@ -3742,12 +3884,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: readOnly
+                          ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569))
+                          : (isDark ? Colors.white : const Color(0xFF0F172A)),
                     ),
                   ),
                 );
               }).toList(),
-              onChanged: onChanged,
+              onChanged: readOnly ? null : onChanged,
             ),
           ),
         ),
@@ -3767,18 +3911,24 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     List<TextInputFormatter>? inputFormatters,
     Widget? prefixIcon,
     Widget? suffix,
+    bool readOnly = false,
     void Function(String)? onChanged,
   }) {
     final inputWidget = TextField(
       controller: controller,
       maxLines: maxLines,
+      enabled: !readOnly,
+      readOnly: readOnly,
+      canRequestFocus: !readOnly,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       onChanged: onChanged,
       style: GoogleFonts.plusJakartaSans(
         fontSize: 13,
         fontWeight: FontWeight.w600,
-        color: isDark ? Colors.white : const Color(0xFF0F172A),
+        color: readOnly
+            ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569))
+            : (isDark ? Colors.white : const Color(0xFF0F172A)),
       ),
       decoration: InputDecoration(
         hintText: hint,
@@ -3787,6 +3937,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ? const BoxConstraints(minWidth: 36, minHeight: 36)
             : null,
         suffix: suffix,
+        suffixIcon: readOnly
+            ? Icon(
+                Icons.lock_outline_rounded,
+                size: 14,
+                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+              )
+            : null,
+        suffixIconConstraints: readOnly ? const BoxConstraints(minWidth: 32, minHeight: 32) : null,
         isDense: height != null,
         hintStyle: GoogleFonts.plusJakartaSans(
           fontSize: 12.5,
@@ -3794,12 +3952,18 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
         ),
         filled: true,
-        fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        fillColor: readOnly
+            ? (isDark ? const Color(0xFF0B1120) : const Color(0xFFE2E8F0).withValues(alpha: 0.5))
+            : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: borderColor),
         ),
@@ -3826,35 +3990,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         ),
         SizedBox(height: height != null ? 6 : 5),
         height != null ? SizedBox(height: height, child: inputWidget) : inputWidget,
-      ],
-    );
-  }
-
-  Widget _buildMiniSummaryRow(String label, String value, bool isDark, {Color? valueColor}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Flexible(
-          child: Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          value,
-          textAlign: TextAlign.end,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: valueColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
-          ),
-        ),
       ],
     );
   }
@@ -4009,6 +4144,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     required T? selectedItem,
     required String Function(T) labelBuilder,
     String Function(T)? subtitleBuilder,
+    List<({String label, bool Function(T) predicate})>? filters,
     bool isDark = false,
   }) async {
     return showDialog<T>(
@@ -4023,6 +4159,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           selectedItem: selectedItem,
           labelBuilder: labelBuilder,
           subtitleBuilder: subtitleBuilder,
+          filters: filters,
           isDark: isDark,
         );
       },
@@ -4067,6 +4204,7 @@ class _SearchablePickerDialog<T> extends StatefulWidget {
   final T? selectedItem;
   final String Function(T) labelBuilder;
   final String Function(T)? subtitleBuilder;
+  final List<({String label, bool Function(T) predicate})>? filters;
   final bool isDark;
 
   const _SearchablePickerDialog({
@@ -4077,6 +4215,7 @@ class _SearchablePickerDialog<T> extends StatefulWidget {
     required this.selectedItem,
     required this.labelBuilder,
     this.subtitleBuilder,
+    this.filters,
     this.isDark = false,
   });
 
@@ -4087,6 +4226,7 @@ class _SearchablePickerDialog<T> extends StatefulWidget {
 class _SearchablePickerDialogState<T> extends State<_SearchablePickerDialog<T>> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  int _selectedFilterIndex = 0;
 
   @override
   void dispose() {
@@ -4100,13 +4240,25 @@ class _SearchablePickerDialogState<T> extends State<_SearchablePickerDialog<T>> 
     final cardBgColor = isDark ? const Color(0xFF111827) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
     final query = _searchQuery.toLowerCase();
+    final filters = widget.filters;
+    final activeFilter = (filters != null && _selectedFilterIndex < filters.length)
+        ? filters[_selectedFilterIndex]
+        : null;
 
     final filtered = widget.items.where((item) {
+      if (activeFilter != null && !activeFilter.predicate(item)) {
+        return false;
+      }
       if (query.isEmpty) return true;
       final label = widget.labelBuilder(item).toLowerCase();
       final sub = widget.subtitleBuilder != null ? widget.subtitleBuilder!(item).toLowerCase() : '';
       return label.contains(query) || sub.contains(query);
     }).toList();
+
+    final isFiltered = query.isNotEmpty || _selectedFilterIndex != 0;
+    final countText = isFiltered
+        ? '${filtered.length} of ${widget.items.length}'
+        : '${widget.items.length}';
 
     return Dialog(
       backgroundColor: cardBgColor,
@@ -4127,13 +4279,35 @@ class _SearchablePickerDialogState<T> extends State<_SearchablePickerDialog<T>> 
                   Icon(widget.titleIcon, size: 20, color: const Color(0xFF059669)),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      widget.title,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.title,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: isDark ? 0.2 : 0.1),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            countText,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF059669),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
@@ -4175,6 +4349,49 @@ class _SearchablePickerDialogState<T> extends State<_SearchablePickerDialog<T>> 
                 ),
               ),
             ),
+            if (filters != null && filters.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: List.generate(filters.length, (i) {
+                    final f = filters[i];
+                    final count = widget.items.where(f.predicate).length;
+                    final selected = _selectedFilterIndex == i;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => setState(() => _selectedFilterIndex = i),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? const Color(0xFF059669)
+                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: selected ? const Color(0xFF059669) : borderColor,
+                            ),
+                          ),
+                          child: Text(
+                            '${f.label} ($count)',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                              color: selected
+                                  ? Colors.white
+                                  : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Divider(height: 1, color: borderColor),
             Expanded(
@@ -4804,415 +5021,3 @@ class _AddSkuPillButtonState extends State<_AddSkuPillButton> {
   }
 }
 
-// ==========================================
-// PACKAGING SEARCH & SELECTION DIALOG
-// ==========================================
-
-const List<String> _standardPackagingOptions = [
-  // Liquids - Single & Multi-Pack Standards
-  '100 ml (100ml x 1)',
-  '200 ML (100 ML x 2 Qty)',
-  '250ml (250ml x 1)',
-  '300 ML (150 ML x 2 Qty)',
-  '500ml (500ml x 1)',
-  '500ml (250ml x 2)',
-  '500 ML (100 ML x 5 Qty)',
-  '750 ML (150 ML x 5 Qty)',
-  '1 Litre (1 Ltr x 1 Qty)',
-  '1 ltr (1000ml x 1)',
-  '1 ltr (250ml x 4)',
-  '1 ltr (500ml x 2)',
-  '1 Litre (100 ML x 10 Qty)',
-  '1 Litre (250 ML x 4 Qty)',
-  '1 Litre (500 ML x 2 Qty)',
-  '1500 ML (150 ML X 10 Qty)',
-  '2 Litre (1 Ltr x 2 Qty)',
-  '2 ltr (1000ml x 2)',
-  '2 ltr (250ml x 8)',
-  '2 Litre (500 ML x 4 Qty)',
-  '2 Litre (250 ML x 8 Qty)',
-  '2 Litre (100 ML x 20 Qty)',
-  '3 Litre (1 Ltr x 3 Qty)',
-  '3 ltr (1000ml x 3)',
-  '3 ltr (250ml x 12)',
-  '3 Litre (250 ML x 12 Qty)',
-  '4 Litre (1 Ltr x 4 Qty)',
-  '5 Litre (1 Ltr x 5 Qty)',
-  '5 ltr (1000ml x 5)',
-  '5 ltr (250ml x 20)',
-  '5 ltr (100ml x 50)',
-  '5 Litre (500 ML x 10 Qty)',
-  '5 Litre (250 ML x 20 Qty)',
-  '10 Litre (1 Ltr x 10 Qty)',
-  '10 ltr (1000ml x 10)',
-  '10 ltr (250ml x 40)',
-  '10 Litre (250 ML x 40 Qty)',
-  '20 Litre (1 Ltr x 20 Qty)',
-  '200 Litre (Drum / Barrel)',
-
-  // Solids / Powders / Granules - Single & Multi-Pack Standards
-  '50 gm (50gm x 1)',
-  '100 gm (100gm x 1)',
-  '250 gm (250gm x 1)',
-  '500 GM (500 Gm x 1 Qty)',
-  '500gm (250gm x 2)',
-  '1 KG (1 Kg x 1 Qty)',
-  '1kg (250gm x 4)',
-  '1kg (500gm x 2)',
-  '1 KG (250 Gm x 4 Qty)',
-  '1 KG (500 Gm x 2 Qty)',
-  '2 KG (1 Kg x 2 Qty)',
-  '2kg (250gm x 8)',
-  '2kg (500gm x 4)',
-  '2 KG (250 Gm x 8 Qty)',
-  '2 KG (500 Gm x 4 Qty)',
-  '3 KG (1 Kg x 3 Qty)',
-  '3kg (500gm x 6)',
-  '3 KG (250 Gm x 12 Qty)',
-  '3 KG (500 Gm x 6 Qty)',
-  '4 KG (1 Kg x 4 Qty)',
-  '5 KG (1 Kg x 5 Qty)',
-  '5kg (250gm x 20)',
-  '5kg (500gm x 10)',
-  '5 KG (250 Gm x 20 Qty)',
-  '5 KG (500 Gm x 10 Qty)',
-  '10 KG (1 Kg x 10 Qty)',
-  '10kg (250gm x 40)',
-  '10kg (500gm x 20)',
-  '10 KG (250 Gm x 40 Qty)',
-  '10 KG (500 Gm x 20 Qty)',
-  '25 KG (Bag / Sack)',
-  '50 KG (Bag / Sack)',
-];
-
-class _PackagingSearchDialog extends StatefulWidget {
-  final String currentSelection;
-  final List<String> options;
-  final bool isDark;
-  final Color borderColor;
-
-  const _PackagingSearchDialog({
-    required this.currentSelection,
-    required this.options,
-    required this.isDark,
-    required this.borderColor,
-  });
-
-  @override
-  State<_PackagingSearchDialog> createState() => _PackagingSearchDialogState();
-}
-
-class _PackagingSearchDialogState extends State<_PackagingSearchDialog> {
-  late final TextEditingController _searchController;
-  String _searchQuery = '';
-  String _selectedCategory = 'All';
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  List<String> get _filteredOptions {
-    final query = _searchQuery.trim().toLowerCase();
-    return widget.options.where((opt) {
-      final optLower = opt.toLowerCase();
-      if (_selectedCategory == 'Liquid (ml/L)') {
-        final isLiquid = optLower.contains('ml') || optLower.contains('ltr') || optLower.contains('litre');
-        if (!isLiquid) return false;
-      } else if (_selectedCategory == 'Solid/Powder (g/kg)') {
-        final isSolid = optLower.contains('gm') || optLower.contains('kg') || optLower.contains('bag') || optLower.contains('sack');
-        if (!isSolid) return false;
-      } else if (_selectedCategory == 'Multi-Pack') {
-        final isMulti = optLower.contains(' x ') || optLower.contains('x') || optLower.contains('qty');
-        if (!isMulti) return false;
-      }
-
-      if (query.isEmpty) return true;
-      return optLower.contains(query);
-    }).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = widget.isDark;
-    final borderColor = widget.borderColor;
-    final dialogBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final filtered = _filteredOptions;
-    final queryTrimmed = _searchQuery.trim();
-    final hasExactMatch = widget.options.any((o) => o.toLowerCase() == queryTrimmed.toLowerCase());
-    final showCustomOption = queryTrimmed.isNotEmpty && !hasExactMatch;
-
-    return Dialog(
-      backgroundColor: dialogBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: borderColor),
-      ),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 600),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF059669).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.inventory_2_outlined, size: 20, color: Color(0xFF059669)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Select Packaging Specification',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        Text(
-                          'Pick standard agri package or type custom specifications',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Search Bar
-              TextField(
-                controller: _searchController,
-                autofocus: true,
-                onChanged: (val) => setState(() => _searchQuery = val),
-                onSubmitted: (val) {
-                  if (val.trim().isNotEmpty) {
-                    Navigator.of(context).pop(val.trim());
-                  }
-                },
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                ),
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF059669)),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, size: 16),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  hintText: 'Search packaging (e.g. 1 ltr, 250ml, 5kg, 10 ltr)...',
-                  hintStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.5,
-                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                  ),
-                  filled: true,
-                  fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: borderColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Quick Filter Categories
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final cat in ['All', 'Liquid (ml/L)', 'Solid/Powder (g/kg)', 'Multi-Pack'])
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ChoiceChip(
-                          label: Text(
-                            cat,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: _selectedCategory == cat ? FontWeight.w700 : FontWeight.w500,
-                              color: _selectedCategory == cat
-                                  ? Colors.white
-                                  : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
-                            ),
-                          ),
-                          selected: _selectedCategory == cat,
-                          selectedColor: const Color(0xFF059669),
-                          backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                          side: BorderSide(
-                            color: _selectedCategory == cat
-                                ? const Color(0xFF059669)
-                                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                          ),
-                          onSelected: (sel) {
-                            if (sel) setState(() => _selectedCategory = cat);
-                          },
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Divider(height: 1, color: borderColor),
-              const SizedBox(height: 6),
-
-              // Results List
-              Expanded(
-                child: filtered.isEmpty && !showCustomOption
-                    ? Center(
-                        child: Text(
-                          'No standard packaging matches "$_searchQuery"',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
-                        ),
-                      )
-                    : ListView(
-                        physics: const BouncingScrollPhysics(),
-                        children: [
-                          if (showCustomOption)
-                            InkWell(
-                              onTap: () => Navigator.of(context).pop(queryTrimmed),
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 6),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF059669).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.4)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.add_circle_outline_rounded, size: 16, color: Color(0xFF059669)),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: RichText(
-                                        text: TextSpan(
-                                          text: 'Use custom specification: ',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 12,
-                                            color: isDark ? Colors.white70 : const Color(0xFF334155),
-                                          ),
-                                          children: [
-                                            TextSpan(
-                                              text: '"$queryTrimmed"',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w800,
-                                                color: const Color(0xFF059669),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const Icon(Icons.arrow_forward_rounded, size: 14, color: Color(0xFF059669)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          for (final opt in filtered) ...[
-                            _buildOptionTile(opt, isDark),
-                          ],
-                        ],
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOptionTile(String opt, bool isDark) {
-    final isSelected = widget.currentSelection.trim().toLowerCase() == opt.trim().toLowerCase();
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => Navigator.of(context).pop(opt),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFF059669).withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                opt.toLowerCase().contains('kg') || opt.toLowerCase().contains('gm')
-                    ? Icons.grain_rounded
-                    : Icons.water_drop_outlined,
-                size: 15,
-                color: isSelected
-                    ? const Color(0xFF059669)
-                    : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  opt,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    color: isSelected
-                        ? const Color(0xFF059669)
-                        : (isDark ? Colors.white : const Color(0xFF0F172A)),
-                  ),
-                ),
-              ),
-              if (isSelected)
-                const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF059669)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

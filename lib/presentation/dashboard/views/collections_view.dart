@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/collection.dart';
+import '../../../core/models/product.dart';
 import '../../../logic/collection/collection_bloc.dart';
 import '../../../logic/collection/collection_event.dart';
 import '../../../logic/collection/collection_state.dart';
@@ -32,6 +33,8 @@ class _CollectionsViewState extends State<CollectionsView> {
   final Set<String> _selectedCollectionIds = {};
   final Map<String, Set<String>> _selectedSubCollectionIds = {};
   String _searchQuery = '';
+  bool _isCreatingCollection = false;
+  CollectionItem? _editingCollection;
 
   @override
   void initState() {
@@ -332,17 +335,17 @@ class _CollectionsViewState extends State<CollectionsView> {
   }
 
   void _openCreateCollectionDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => const CreateCollectionDialog(),
-    );
+    setState(() {
+      _isCreatingCollection = true;
+      _editingCollection = null;
+    });
   }
 
   void _openEditCollectionDialog(BuildContext context, CollectionItem item) {
-    showDialog(
-      context: context,
-      builder: (ctx) => EditCollectionDialog(collection: item),
-    );
+    setState(() {
+      _editingCollection = item;
+      _isCreatingCollection = false;
+    });
   }
 
   void _openAddSubCollectionDialog(BuildContext context, CollectionItem item) {
@@ -714,6 +717,18 @@ class _CollectionsViewState extends State<CollectionsView> {
       ],
       child: BlocBuilder<ProductBloc, ProductState>(
         builder: (context, prodState) {
+          if (_isCreatingCollection) {
+            return CreateCollectionDialog(
+              onClose: () => setState(() => _isCreatingCollection = false),
+            );
+          }
+          if (_editingCollection != null) {
+            return EditCollectionDialog(
+              collection: _editingCollection!,
+              onClose: () => setState(() => _editingCollection = null),
+            );
+          }
+
           return BlocBuilder<CollectionBloc, CollectionState>(
             builder: (context, state) {
               final allItems = state.collections;
@@ -728,53 +743,105 @@ class _CollectionsViewState extends State<CollectionsView> {
                 return matchName || matchSlug || matchDesc || matchSubs;
               }).toList();
 
-              return SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. Sleek Compact Header
-                    _buildHeader(context, state, isDark, borderColor, filteredItems),
+              final productsByCollection = <String, List<Product>>{};
+              for (final p in prodState.products) {
+                for (final cid in p.assignedCollections) {
+                  (productsByCollection[cid] ??= <Product>[]).add(p);
+                }
+              }
 
-                    const SizedBox(height: 14),
+              final subNameStyle = GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              );
+              final subMetaActiveStyle = GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF059669),
+              );
+              final subMetaMutedStyle = GoogleFonts.plusJakartaSans(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+              );
 
-                    // 2. Compact Overview Metrics Row
-                    _buildMetricsRow(state, prodState, isDark, surfaceColor, borderColor),
-
-                    const SizedBox(height: 14),
-
-                    // 3. Compact Search Bar
-                    _buildSearchBar(isDark, surfaceColor, borderColor),
-
-                    if (_selectedCollectionIds.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      _buildCollectionBulkActionBar(context, isDark, borderColor),
-                    ],
-
-                    const SizedBox(height: 14),
-
-                    // 4. Content Area
-                    if (state.status == CollectionStatus.loading && allItems.isEmpty)
-                      _buildLoadingState(isDark)
-                    else if (state.status == CollectionStatus.error && allItems.isEmpty)
-                      _buildErrorState(context, state.errorMessage ?? 'Failed to load collections', isDark, surfaceColor, borderColor)
-                    else if (filteredItems.isEmpty)
-                      _buildEmptyState(isDark, surfaceColor, borderColor)
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: filteredItems.length,
-                        separatorBuilder: (_, index) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final item = filteredItems[index];
-                          final isExpanded = _expandedCollectionIds.contains(item.id) ||
-                              (_searchQuery.isNotEmpty && item.subCollections.isNotEmpty);
-                          return _buildCollectionCard(item, prodState, isExpanded, isDark, surfaceColor, borderColor, cardBgColor);
-                        },
+              return CustomScrollView(
+                key: const PageStorageKey('catalog_collections_scroll'),
+                physics: const ClampingScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+                    sliver: SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1. Sleek Compact Header
+                          _buildHeader(context, state, isDark, borderColor, filteredItems),
+                          const SizedBox(height: 14),
+                          // 2. Compact Overview Metrics Row
+                          _buildMetricsRow(state, prodState, isDark, surfaceColor, borderColor),
+                          const SizedBox(height: 14),
+                          // 3. Compact Search Bar
+                          _buildSearchBar(isDark, surfaceColor, borderColor),
+                          if (_selectedCollectionIds.isNotEmpty) ...[
+                            const SizedBox(height: 14),
+                            _buildCollectionBulkActionBar(context, isDark, borderColor),
+                          ],
+                        ],
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  if (state.status == CollectionStatus.loading && allItems.isEmpty)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      sliver: SliverToBoxAdapter(child: _buildLoadingState(isDark)),
+                    )
+                  else if (state.status == CollectionStatus.error && allItems.isEmpty)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildErrorState(
+                          context,
+                          state.errorMessage ?? 'Failed to load collections',
+                          isDark,
+                          surfaceColor,
+                          borderColor,
+                        ),
+                      ),
+                    )
+                  else if (filteredItems.isEmpty)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildEmptyState(isDark, surfaceColor, borderColor),
+                      ),
+                    )
+                  else
+                    for (var i = 0; i < filteredItems.length; i++)
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          0,
+                          20,
+                          i == filteredItems.length - 1 ? 24 : 10,
+                        ),
+                        sliver: _buildCollectionSliver(
+                          filteredItems[i],
+                          productsByCollection,
+                          _expandedCollectionIds.contains(filteredItems[i].id) ||
+                              (_searchQuery.isNotEmpty &&
+                                  filteredItems[i].subCollections.isNotEmpty),
+                          isDark,
+                          surfaceColor,
+                          borderColor,
+                          cardBgColor,
+                          subNameStyle,
+                          subMetaActiveStyle,
+                          subMetaMutedStyle,
+                        ),
+                      ),
+                ],
               );
             },
           );
@@ -1163,61 +1230,53 @@ class _CollectionsViewState extends State<CollectionsView> {
     );
   }
 
-  Widget _buildCollectionCard(
+  Widget _buildCollectionSliver(
     CollectionItem item,
-    ProductState prodState,
+    Map<String, List<Product>> productsByCollection,
     bool isExpanded,
     bool isDark,
     Color surfaceColor,
     Color borderColor,
     Color cardBgColor,
+    TextStyle subNameStyle,
+    TextStyle subMetaActiveStyle,
+    TextStyle subMetaMutedStyle,
   ) {
     final hasSubs = item.subCollections.isNotEmpty;
-    final allSubIds = item.subCollections.map((s) => s.id).toSet();
-    final liveProductCount = prodState.products.where((p) =>
-        p.assignedCollections.contains(item.id) ||
-        p.assignedCollections.any((id) => allSubIds.contains(id))
-    ).length;
+    final assignedProductsMap = <String, Product>{};
+    for (final p in productsByCollection[item.id] ?? const <Product>[]) {
+      assignedProductsMap[p.id] = p;
+    }
+    for (final sub in item.subCollections) {
+      for (final p in productsByCollection[sub.id] ?? const <Product>[]) {
+        assignedProductsMap[p.id] = p;
+      }
+    }
+    final assigned = assignedProductsMap.values.toList();
+    final liveProductCount = assigned.length;
     final displayProductCount = liveProductCount > 0 ? liveProductCount : item.productCount;
     final themeColor = _getCollectionColor(item.name, item.slug);
     final themeIcon = _getCollectionIcon(item.name, item.slug);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(12),
-          border: isExpanded ? null : Border.all(color: borderColor),
-          boxShadow: isExpanded
-              ? [
-                  BoxShadow(
-                    color: themeColor.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Material(
-          color: surfaceColor,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final headerWidget = Material(
+      color: surfaceColor,
+      borderRadius: isExpanded
+          ? const BorderRadius.vertical(top: Radius.circular(12))
+          : BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _toggleExpanded(item.id),
+        borderRadius: isExpanded
+            ? const BorderRadius.vertical(top: Radius.circular(12))
+            : BorderRadius.circular(12),
+        hoverColor: isDark
+            ? const Color(0xFF1E293B).withValues(alpha: 0.6)
+            : const Color(0xFFF1F5F9),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Header Row / Tap Target
-              InkWell(
-                onTap: () => _toggleExpanded(item.id),
-                borderRadius: isExpanded
-                    ? const BorderRadius.vertical(top: Radius.circular(12))
-                    : BorderRadius.circular(12),
-                hoverColor: isDark
-                    ? const Color(0xFF1E293B).withValues(alpha: 0.6)
-                    : const Color(0xFFF1F5F9),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
                   // Collection Selection Checkbox
                   SizedBox(
                     width: 24,
@@ -1429,12 +1488,39 @@ class _CollectionsViewState extends State<CollectionsView> {
               ),
             ),
           ),
+        );
 
-          // Expanded Shelf
-          if (isExpanded) ...[
-            Container(
-              padding: const EdgeInsets.all(14),
-              color: cardBgColor,
+    if (!isExpanded) {
+      return SliverToBoxAdapter(
+        child: Container(
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: headerWidget,
+        ),
+      );
+    }
+
+    return DecoratedSliver(
+      decoration: BoxDecoration(
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      sliver: SliverMainAxisGroup(
+        slivers: [
+          SliverToBoxAdapter(child: headerWidget),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+            sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1565,153 +1651,162 @@ class _CollectionsViewState extends State<CollectionsView> {
                           color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                         ),
                       ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (hasSubs)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              sliver: SliverGrid.builder(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 260,
+                  mainAxisExtent: 52,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: item.subCollections.length,
+                itemBuilder: (context, subIdx) {
+                  return _buildSubCollectionPill(
+                    item,
+                    item.subCollections[subIdx],
+                    productsByCollection,
+                    isDark,
+                    surfaceColor,
+                    borderColor,
+                    subNameStyle,
+                    subMetaActiveStyle,
+                    subMetaMutedStyle,
+                  );
+                },
+              ),
+            ),
+          SliverPadding(
+            padding: const EdgeInsets.all(14),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xFF059669)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Assigned Catalog Products (${assigned.length})',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (assigned.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: surfaceColor,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 16, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'No products assigned yet. Click "Assign Products" to link items to this shelf.',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     )
                   else
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: item.subCollections.map((sub) {
-                        return _buildSubCollectionPill(item, sub, prodState, isDark, surfaceColor, borderColor);
-                      }).toList(),
-                    ),
-
-                  const SizedBox(height: 14),
-
-                  // Assigned Products Shelf
-                  BlocBuilder<ProductBloc, ProductState>(
-                    builder: (context, prodState) {
-                      final allSubIds = item.subCollections.map((s) => s.id).toSet();
-                      final assigned = prodState.products.where((p) {
-                        return p.assignedCollections.contains(item.id) ||
-                            p.assignedCollections.any((id) => allSubIds.contains(id));
-                      }).toList();
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                      children: assigned.map((p) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: surfaceColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.inventory_2_outlined, size: 15, color: Color(0xFF059669)),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: AppProductImage(imageUrl: p.image, width: 22, height: 22),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              SelectionContainer.disabled(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 160),
+                                  child: Text(
+                                    p.title.length > 22 ? '${p.title.substring(0, 21)}...' : p.title,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                    ),
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    overflow: TextOverflow.clip,
+                                  ),
+                                ),
+                              ),
                               const SizedBox(width: 6),
                               Text(
-                                'Assigned Catalog Products (${assigned.length})',
+                                '₹${p.price.toStringAsFixed(0)}',
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w800,
-                                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                  color: const Color(0xFF059669),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-
-                          if (assigned.isEmpty)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: surfaceColor,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: borderColor),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.info_outline_rounded, size: 16, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      'No products assigned yet. Click "Assign Products" to link items to this shelf.',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11.5,
-                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          else
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: assigned.map((p) {
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: surfaceColor,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: borderColor),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: AppProductImage(imageUrl: p.image, width: 22, height: 22),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      ConstrainedBox(
-                                        constraints: const BoxConstraints(maxWidth: 160),
-                                        child: Text(
-                                          p.title,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 11.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '₹${p.price.toStringAsFixed(0)}',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF059669),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
+                        );
+                      }).toList(),
+                    ),
                 ],
               ),
             ),
-          ],
+          ),
         ],
       ),
-    ),
-  ),
-);
+    );
   }
 
   Widget _buildSubCollectionPill(
     CollectionItem parentItem,
     SubCollectionItem sub,
-    ProductState prodState,
+    Map<String, List<Product>> productsByCollection,
     bool isDark,
     Color surfaceColor,
     Color borderColor,
+    TextStyle nameStyle,
+    TextStyle metaActiveStyle,
+    TextStyle metaMutedStyle,
   ) {
-    final liveSubCount = prodState.products.where((p) =>
-        p.assignedCollections.contains(sub.id)
-    ).length;
+    final liveSubCount = productsByCollection[sub.id]?.length ?? 0;
     final displaySubCount = liveSubCount > 0 ? liveSubCount : sub.productCount;
     final isSubSelected = _selectedSubCollectionIds[parentItem.id]?.contains(sub.id) ?? false;
 
     return Container(
-      constraints: const BoxConstraints(minWidth: 160, maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: surfaceColor,
@@ -1722,7 +1817,6 @@ class _CollectionsViewState extends State<CollectionsView> {
         ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           // Sub-collection Selection Checkbox
           SizedBox(
@@ -1767,21 +1861,13 @@ class _CollectionsViewState extends State<CollectionsView> {
               children: [
                 Text(
                   sub.name,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
+                  style: nameStyle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   '$displaySubCount SKUs • /${sub.slug}',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: displaySubCount > 0 ? const Color(0xFF059669) : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-                  ),
+                  style: displaySubCount > 0 ? metaActiveStyle : metaMutedStyle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1789,26 +1875,33 @@ class _CollectionsViewState extends State<CollectionsView> {
             ),
           ),
           // Upload / Change subcollection image button
-          IconButton(
-            icon: const Icon(Icons.add_photo_alternate_outlined, size: 15),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-            splashRadius: 14,
-            tooltip: 'Upload / Change Sub-Collection Image',
-            color: const Color(0xFF7C3AED),
-            onPressed: () => _pickAndUploadSubCollectionImage(context, parentItem, sub),
+          InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: () => _pickAndUploadSubCollectionImage(context, parentItem, sub),
+            child: const SizedBox(
+              width: 24,
+              height: 24,
+              child: Icon(
+                Icons.add_photo_alternate_outlined,
+                size: 15,
+                color: Color(0xFF7C3AED),
+              ),
+            ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
           // Delete subcollection button
-          IconButton(
-            icon: const Icon(Icons.close_rounded, size: 14),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-            splashRadius: 14,
-            tooltip: 'Delete Sub-Collection',
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            hoverColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
-            onPressed: () => _confirmDeleteSubCollection(context, parentItem, sub),
+          InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: () => _confirmDeleteSubCollection(context, parentItem, sub),
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: Icon(
+                Icons.close_rounded,
+                size: 14,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
           ),
         ],
       ),

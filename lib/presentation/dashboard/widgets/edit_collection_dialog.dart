@@ -13,11 +13,13 @@ import '../widgets/app_product_image.dart';
 class EditCollectionDialog extends StatefulWidget {
   final CollectionItem collection;
   final void Function(CollectionItem updatedItem)? onCollectionUpdated;
+  final VoidCallback? onClose;
 
   const EditCollectionDialog({
     super.key,
     required this.collection,
     this.onCollectionUpdated,
+    this.onClose,
   });
 
   @override
@@ -243,6 +245,14 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
     context.read<CollectionBloc>().add(UpdateCollection(updatedItem));
   }
 
+  void _closeView([CollectionItem? updated]) {
+    if (widget.onClose != null) {
+      widget.onClose!();
+    } else {
+      Navigator.of(context).pop(updated);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -257,7 +267,7 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
       listener: (context, state) {
         final updated = state.updatedCollection!;
         widget.onCollectionUpdated?.call(updated);
-        Navigator.of(context).pop(updated);
+        _closeView(updated);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -279,80 +289,107 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
           final isUpdating = state.isUpdating;
           final errorMessage = state.updateError;
 
-          return Dialog(
-            backgroundColor: surfaceColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: borderColor),
-            ),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 620, maxHeight: 780),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header (Pinned)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 20, 20, 16),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.edit_note_rounded,
-                              color: Color(0xFF2563EB),
-                              size: 22,
-                            ),
+          final pageBgColor =
+              isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+
+          final content = Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Top Workspace Header (Pinned)
+                Container(
+                  color: surfaceColor,
+                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
+                  child: Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: isUpdating ? null : () => _closeView(),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 17),
+                        label: Text(
+                          'Back to Collections',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Update Collection',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'PUT /api/v1/admin/collections/${widget.collection.id}',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 11,
-                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark
+                              ? const Color(0xFFCBD5E1)
+                              : const Color(0xFF334155),
+                          side: BorderSide(color: borderColor),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
                           ),
-                          IconButton(
-                            onPressed: isUpdating ? null : () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close_rounded, size: 20),
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-
-                    Divider(height: 1, color: borderColor),
-
-                    // Scrollable Form Body
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
+                      const SizedBox(width: 14),
+                      Container(
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.edit_note_rounded,
+                          color: Color(0xFF2563EB),
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Text(
+                              'Update Collection',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'PUT /api/v1/admin/collections/${widget.collection.id}',
+                              style: GoogleFonts.jetBrainsMono(
+                                fontSize: 11,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Divider(height: 1, color: borderColor),
+
+                // Scrollable Full-Width Form Workspace
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: surfaceColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                             if (errorMessage != null) ...[
                               Container(
                                 padding: const EdgeInsets.all(12),
@@ -400,37 +437,6 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Collection name is required';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Slug
-                      _buildLabel('Slug * (URL Identifier)', isDark),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _slugController,
-                        enabled: !isUpdating,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 13,
-                          color: const Color(0xFF2563EB),
-                          fontWeight: FontWeight.w600,
-                        ),
-                        decoration: _inputDecoration(
-                          hintText: 'e.g. shop-by-crops',
-                          isDark: isDark,
-                          surfaceColor: cardBgColor,
-                          borderColor: borderColor,
-                          prefixIcon: const Icon(Icons.link_rounded, size: 18),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Slug is required';
-                          }
-                          if (!RegExp(r'^[a-z0-9-]+$').hasMatch(value.trim())) {
-                            return 'Slug must only contain lowercase letters, numbers, and hyphens';
                           }
                           return null;
                         },
@@ -873,7 +879,7 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
                                   ),
                                   const SizedBox(width: 8),
                                   ElevatedButton(
-                                    onPressed: _handleAddSubCollection,
+                                    onPressed: _isUploadingSubImage ? null : _handleAddSubCollection,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF7C3AED),
                                       foregroundColor: Colors.white,
@@ -881,7 +887,7 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                                     ),
                                     child: Text(
-                                      'Add Node',
+                                      _isUploadingSubImage ? 'Uploading...' : 'Add Node',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
@@ -911,156 +917,176 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
                         )
                       else
                         Container(
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             border: Border.all(color: borderColor),
                             borderRadius: BorderRadius.circular(10),
+                            color: cardBgColor,
                           ),
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _subCollections.length,
-                            separatorBuilder: (_, index) => Divider(height: 1, color: borderColor),
-                            itemBuilder: (context, idx) {
-                              final sub = _subCollections[idx];
-                              return ListTile(
-                                dense: true,
-                                visualDensity: VisualDensity.compact,
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: SizedBox(
-                                    width: 28,
-                                    height: 28,
-                                    child: sub.image != null && sub.image!.isNotEmpty
-                                        ? AppProductImage(
-                                            imageUrl: sub.image!,
-                                            width: 28,
-                                            height: 28,
-                                            borderRadius: 6,
-                                            fit: BoxFit.cover,
-                                          )
-                                        : Container(
-                                            color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
-                                            child: const Icon(
-                                              Icons.subdirectory_arrow_right_rounded,
-                                              size: 16,
-                                              color: Color(0xFF7C3AED),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 260),
+                            child: GridView.builder(
+                              shrinkWrap: true,
+                              itemCount: _subCollections.length,
+                              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 260,
+                                mainAxisExtent: 48,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                              ),
+                              itemBuilder: (context, idx) {
+                                final sub = _subCollections[idx];
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: surfaceColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: borderColor),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: SizedBox(
+                                          width: 26,
+                                          height: 26,
+                                          child: sub.image != null && sub.image!.isNotEmpty
+                                              ? AppProductImage(
+                                                  imageUrl: sub.image!,
+                                                  width: 26,
+                                                  height: 26,
+                                                  borderRadius: 6,
+                                                  fit: BoxFit.cover,
+                                                )
+                                              : Container(
+                                                  color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+                                                  child: const Icon(
+                                                    Icons.subdirectory_arrow_right_rounded,
+                                                    size: 14,
+                                                    color: Color(0xFF7C3AED),
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              sub.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                              ),
                                             ),
+                                            Text(
+                                              '/${sub.slug} • ${sub.productCount}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 10,
+                                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(4),
+                                        onTap: isUpdating ? null : () => _handleRemoveSubCollection(idx),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(4),
+                                          child: Icon(
+                                            Icons.delete_outline_rounded,
+                                            size: 16,
+                                            color: Color(0xFFEF4444),
                                           ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                title: Text(
-                                  sub.name,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  '/${sub.slug} • ${sub.productCount} products',
-                                  style: GoogleFonts.jetBrainsMono(
-                                    fontSize: 11,
-                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                  ),
-                                ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
-                                  tooltip: 'Remove sub-collection',
-                                  onPressed: isUpdating ? null : () => _handleRemoveSubCollection(idx),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
                         ),
-
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Divider(height: 1, color: borderColor),
-
-                    // Action Buttons (Pinned Footer)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
-                        children: [
-                          if (widget.collection.isActive) ...[
-                            OutlinedButton.icon(
-                              onPressed: (isUpdating || state.isDeactivating)
-                                  ? null
-                                  : () {
-                                      Navigator.of(context).pop();
-                                      context.read<CollectionBloc>().add(DeactivateCollection(widget.collection.id));
-                                    },
-                              icon: const Icon(Icons.power_settings_new_rounded, size: 15, color: Color(0xFFEF4444)),
-                              label: Text(
-                                'Deactivate',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFFEF4444),
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFFEF4444)),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                            ),
-                          ],
-                          const Spacer(),
-                          OutlinedButton(
-                            onPressed: isUpdating ? null : () => Navigator.of(context).pop(),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                              side: BorderSide(color: borderColor),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            onPressed: isUpdating ? null : _handleSubmit,
-                            icon: isUpdating
-                                ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.save_rounded, size: 16),
-                            label: Text(
-                              isUpdating ? 'Saving...' : 'Save Collection',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2563EB),
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+
+                Divider(height: 1, color: borderColor),
+
+                // Action Buttons (Pinned Footer)
+                Container(
+                  color: surfaceColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  child: Row(
+                    children: [
+                      const Spacer(),
+                      OutlinedButton(
+                        onPressed: isUpdating ? null : () => _closeView(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          side: BorderSide(color: borderColor),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: isUpdating ? null : _handleSubmit,
+                        icon: isUpdating
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.save_rounded, size: 16),
+                        label: Text(
+                          isUpdating ? 'Saving...' : 'Save Collection',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
+          );
+
+          if (widget.onClose != null) {
+            return Container(color: pageBgColor, child: content);
+          }
+          return Scaffold(
+            backgroundColor: pageBgColor,
+            body: SafeArea(child: content),
           );
         },
       ),

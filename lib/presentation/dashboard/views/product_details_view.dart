@@ -101,6 +101,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late TextEditingController _dimWidthController;
   late TextEditingController _dimHeightController;
   String _selectedDimensionUnit = 'cm';
+  double _defaultTechnicalCommission = 0.0;
 
   String _selectedSellerId = '';
   String _selectedSellerName = '';
@@ -285,9 +286,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ? initialVar!.shippingThrough
           : '',
     );
+    _defaultTechnicalCommission =
+        (initialVar != null && initialVar.commissionPercentage > 0)
+            ? initialVar.commissionPercentage
+            : 0.0;
     _commissionController = TextEditingController(
-      text: (initialVar != null && initialVar.commissionPercentage > 0)
-          ? initialVar.commissionPercentage.round().toString()
+      text: _defaultTechnicalCommission > 0
+          ? _defaultTechnicalCommission.round().toString()
           : '',
     );
     _gstController = TextEditingController(text: (initialVar?.gstPercentage ?? p.gst).round().toString());
@@ -544,6 +549,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         totalBaseUnit: '',
         displayRate: 0.0,
         printedMrp: 0.0,
+        commissionPercentage: _defaultTechnicalCommission,
         stock: 0,
         gstPercentage: 0.0,
       );
@@ -1291,19 +1297,23 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       isAdmin: context.read<AuthBloc>().state.session?.isAdmin ?? false,
                       onSelected: (tech) {
                         final comm = tech.commissionPercentage;
-                        final formatted = comm == comm.roundToDouble()
-                            ? comm.toInt().toString()
-                            : comm.toString();
+                        final formatted = comm > 0 ? comm.round().toString() : '';
                         setState(() {
+                          _defaultTechnicalCommission = comm;
                           _commissionController.text = formatted;
                           for (int i = 0; i < _workingVariants.length; i++) {
-                            if (_workingVariants[i].commissionPercentage <= 0 ||
-                                i == _selectedVariantIndex) {
-                              _workingVariants[i] =
-                                  _workingVariants[i].copyWith(
-                                commissionPercentage: comm,
-                              );
-                            }
+                            final v = _workingVariants[i];
+                            final updatedRate = v.swg > 0
+                                ? LivePriceCalculation.computeSellingRate(
+                                    swg: v.swg,
+                                    commissionPercentage: comm,
+                                    courierCharges: v.courierCharges,
+                                  )
+                                : v.displayRate;
+                            _workingVariants[i] = v.copyWith(
+                              commissionPercentage: comm,
+                              displayRate: updatedRate,
+                            );
                           }
                           _recalculateSellingRate();
                         });

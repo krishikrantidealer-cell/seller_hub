@@ -86,17 +86,25 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
 
   void _applyTechnicalNameSelection(TechnicalNameModel tech) {
     final comm = tech.commissionPercentage;
-    final formatted = comm == comm.roundToDouble()
-        ? comm.toInt().toString()
-        : comm.toString();
+    final formatted = comm > 0 ? comm.round().toString() : '';
     setState(() {
       _defaultTechnicalCommission = comm;
       _variantCommissionController.text = formatted;
       for (int i = 0; i < _variants.length; i++) {
-        if (_variants[i].commissionPercentage <= 0 || i == _activeVariantIndex) {
-          _variants[i] = _variants[i].copyWith(commissionPercentage: comm);
-        }
+        final v = _variants[i];
+        final updatedRate = v.swg > 0
+            ? LivePriceCalculation.computeSellingRate(
+                swg: v.swg,
+                commissionPercentage: comm,
+                courierCharges: v.courierCharges,
+              )
+            : v.displayRate;
+        _variants[i] = v.copyWith(
+          commissionPercentage: comm,
+          displayRate: updatedRate,
+        );
       }
+      _recalculateSellingRate();
     });
   }
 

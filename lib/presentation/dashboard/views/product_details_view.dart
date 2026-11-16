@@ -97,7 +97,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late TextEditingController _refundPolicyController;
   late TextEditingController _weightController;
   late TextEditingController _weightUnitController;
-  late TextEditingController _dimensionsController;
+  late TextEditingController _dimLengthController;
+  late TextEditingController _dimWidthController;
+  late TextEditingController _dimHeightController;
+  String _selectedDimensionUnit = 'cm';
 
   String _selectedSellerId = '';
   String _selectedSellerName = '';
@@ -204,7 +207,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _refundPolicyController = TextEditingController();
       _weightController = TextEditingController();
       _weightUnitController = TextEditingController();
-      _dimensionsController = TextEditingController();
+      _dimLengthController = TextEditingController();
+      _dimWidthController = TextEditingController();
+      _dimHeightController = TextEditingController();
+      _selectedDimensionUnit = 'cm';
 
       _selectedSellerId = p.sellerId;
       _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
@@ -302,7 +308,21 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       text: p.productWeight > 0 ? p.productWeight.round().toString() : '',
     );
     _weightUnitController = TextEditingController(text: 'g');
-    _dimensionsController = TextEditingController(text: p.dimensions);
+    final initDims = (initialVar != null && initialVar.dimensions.length > 0)
+        ? initialVar.dimensions
+        : p.productDimensions;
+    _dimLengthController = TextEditingController(
+      text: initDims.length > 0 ? initDims.length.round().toString() : '',
+    );
+    _dimWidthController = TextEditingController(
+      text: initDims.width > 0 ? initDims.width.round().toString() : '',
+    );
+    _dimHeightController = TextEditingController(
+      text: initDims.height > 0 ? initDims.height.round().toString() : '',
+    );
+    final rawDimUnit = initDims.unit.trim().toLowerCase();
+    _selectedDimensionUnit =
+        const ['cm', 'inch', 'mm'].contains(rawDimUnit) ? rawDimUnit : 'cm';
 
     _selectedSellerId = p.sellerId;
     _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
@@ -378,10 +398,26 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       commissionPercentage: commission,
       gstPercentage: gst,
       swg: double.tryParse(_swgController.text.trim()) ?? 0.0,
-      dimensions: _dimensionsController.text.trim().isNotEmpty
-          ? ProductDimensions.fromJson(_dimensionsController.text.trim())
-          : cur.dimensions,
+      dimensions: _buildNormalizedDimensions(fallback: cur.dimensions),
       shippedBy: _shippedByController.text.trim(),
+    );
+  }
+
+  ProductDimensions _buildNormalizedDimensions({ProductDimensions? fallback}) {
+    final l = double.tryParse(_dimLengthController.text.trim()) ?? 0.0;
+    final w = double.tryParse(_dimWidthController.text.trim()) ?? 0.0;
+    final h = double.tryParse(_dimHeightController.text.trim()) ?? 0.0;
+    if (l <= 0 && w <= 0 && h <= 0) {
+      return fallback ?? const ProductDimensions();
+    }
+    final factor = _selectedDimensionUnit == 'inch'
+        ? 2.54
+        : (_selectedDimensionUnit == 'mm' ? 0.1 : 1.0);
+    return ProductDimensions(
+      length: l > 0 ? l * factor : 0.0,
+      width: w > 0 ? w * factor : 0.0,
+      height: h > 0 ? h * factor : 0.0,
+      unit: 'cm',
     );
   }
 
@@ -456,6 +492,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _shippedByController.text = (v.shippedBy.isNotEmpty)
           ? v.shippedBy
           : 'essentialbiocropscience';
+      if (v.dimensions.length > 0) {
+        _dimLengthController.text = v.dimensions.length.round().toString();
+        _dimWidthController.text = v.dimensions.width.round().toString();
+        _dimHeightController.text = v.dimensions.height.round().toString();
+        final u = v.dimensions.unit.trim().toLowerCase();
+        _selectedDimensionUnit =
+            const ['cm', 'inch', 'mm'].contains(u) ? u : 'cm';
+      }
       _recalculateCourierFromWeight();
       _recalculateSellingRate();
     });
@@ -608,7 +652,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _refundPolicyController.dispose();
     _weightController.dispose();
     _weightUnitController.dispose();
-    _dimensionsController.dispose();
+    _dimLengthController.dispose();
+    _dimWidthController.dispose();
+    _dimHeightController.dispose();
     _variantScrollController.dispose();
     super.dispose();
   }
@@ -848,7 +894,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       refundPolicy: _refundPolicyController.text.trim(),
       productWeight: weight,
       productWeightUnit: 'g',
-      dimensions: _dimensionsController.text.trim(),
+      dimensions: _buildNormalizedDimensions().formatted,
+      productDimensions: _buildNormalizedDimensions(),
       images: _currentProduct.images,
       isAvailable: _editIsAvailable,
       isFeatured: _currentProduct.isFeatured,
@@ -3395,28 +3442,65 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      flex: 1,
                       child: _buildField(
-                        controller: _dimensionsController,
-                        label: 'Dimensions (LxWxH)',
-                        hint: '8 x 8 x 20 cm',
+                        controller: _dimLengthController,
+                        label: 'Length',
+                        hint: 'e.g. 20',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
                         onChanged: (_) => _onVariantFieldChanged(),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
-                      flex: 2,
                       child: _buildField(
-                        controller: _refundPolicyController,
-                        label: 'Refund & Return Policy',
-                        hint: '7-day replacement for sealed bottle',
+                        controller: _dimWidthController,
+                        label: 'Width',
+                        hint: 'e.g. 10',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
+                        onChanged: (_) => _onVariantFieldChanged(),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildField(
+                        controller: _dimHeightController,
+                        label: 'Height',
+                        hint: 'e.g. 10',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        onChanged: (_) => _onVariantFieldChanged(),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildDropdownField(
+                        label: 'Dim. Unit',
+                        value: _selectedDimensionUnit,
+                        items: const ['cm', 'inch', 'mm'],
+                        isDark: isDark,
+                        borderColor: borderColor,
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _selectedDimensionUnit = val);
+                            _onVariantFieldChanged();
+                          }
+                        },
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                _buildField(
+                  controller: _refundPolicyController,
+                  label: 'Refund & Return Policy',
+                  hint: '7-day replacement for sealed bottle',
+                  isDark: isDark,
+                  borderColor: borderColor,
                 ),
               ],
             ),

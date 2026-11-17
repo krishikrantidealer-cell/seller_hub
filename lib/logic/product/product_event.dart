@@ -91,11 +91,15 @@ class AssignProductCollections extends ProductEvent {
   final String productId;
   final List<String> collectionIds;
   final List<String> subCollectionIds;
+  final void Function(Product updatedProduct)? onSuccess;
+  final void Function(String errorMessage)? onError;
 
   const AssignProductCollections({
     required this.productId,
     required this.collectionIds,
     required this.subCollectionIds,
+    this.onSuccess,
+    this.onError,
   });
 
   @override

@@ -160,7 +160,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
         label: 'Pack 1',
         unit: 'ml',
         packSize: 0,
-        packSizeUnit: 'ml',
         packQuantity: 1,
         packUnit: 'bottle',
         shippedBy: 'essentialbiocropscience',
@@ -295,7 +294,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
           : cur.label,
       packSize: ps,
       unit: _selectedVariantUnit,
-      packSizeUnit: _selectedVariantUnit,
       packQuantity: pq,
       packUnit: _selectedPackUnit,
       shippedBy: _variantShippedByController.text.trim().isNotEmpty
@@ -336,7 +334,6 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
         label: 'Pack $newIndex',
         unit: 'ml',
         packSize: 0,
-        packSizeUnit: 'ml',
         packQuantity: 1,
         packUnit: 'bottle',
         shippedBy: 'essentialbiocropscience',

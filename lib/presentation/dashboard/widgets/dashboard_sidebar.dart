@@ -40,15 +40,18 @@ class DashboardSidebar extends StatelessWidget {
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
 
-    return Container(
-      color: surfaceColor,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Sidebar Brand Header (Compact & Minimizable)
-          Padding(
-            padding: EdgeInsets.fromLTRB(isMinimized ? 12 : 14, 14, isMinimized ? 12 : 14, 12),
-            child: isMinimized
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final effectiveMinimized = isMinimized || constraints.maxWidth < 160;
+        return Container(
+          color: surfaceColor,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Sidebar Brand Header (Compact & Minimizable)
+              Padding(
+                padding: EdgeInsets.fromLTRB(effectiveMinimized ? 12 : 14, 14, effectiveMinimized ? 12 : 14, 12),
+                child: effectiveMinimized
                 ? Center(
                     child: InkWell(
                       onTap: onToggleMinimize,
@@ -173,7 +176,7 @@ class DashboardSidebar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Navigation Group Label
-                  if (!isMinimized)
+                  if (!effectiveMinimized)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
                       child: Text(
@@ -243,7 +246,7 @@ class DashboardSidebar extends StatelessWidget {
             builder: (context, authState) {
               final sellerId = authState.sellerId ?? 'SELLER-AGRI-8821';
 
-              if (isMinimized) {
+              if (effectiveMinimized) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Column(
@@ -363,6 +366,8 @@ class DashboardSidebar extends StatelessWidget {
           ),
         ],
       ),
+        );
+      },
     );
   }
 

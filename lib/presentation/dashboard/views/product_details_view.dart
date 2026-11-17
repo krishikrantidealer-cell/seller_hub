@@ -12,6 +12,7 @@ import '../../../core/models/product.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
 import '../../../logic/auth/auth_bloc.dart';
 import '../../../logic/category/category_bloc.dart';
+import '../../../logic/category/category_event.dart';
 import '../../../logic/collection/collection_bloc.dart';
 import '../../../logic/collection/collection_event.dart';
 import '../../../logic/product/product_bloc.dart';
@@ -124,6 +125,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   bool _isSaving = false;
   DateTime? _lastSaveClickTime;
   bool _pointerDownOnSave = false;
+  bool _collectionsHydrated = false;
 
   @override
   void initState() {
@@ -133,14 +135,90 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _initControllers(_currentProduct);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        try {
-          final colState = context.read<CollectionBloc>().state;
-          if (colState.collections.isEmpty) {
-            context.read<CollectionBloc>().add(const FetchCollections());
-          }
-        } catch (_) {}
+      if (!mounted) return;
+      try {
+        final catBloc = context.read<CategoryBloc>();
+        if (catBloc.state.allCategories.isEmpty) {
+          catBloc.add(const FetchCategories());
+        } else {
+          _hydrateCategory(catBloc.state.allCategories);
+        }
+      } catch (_) {}
+      try {
+        final colBloc = context.read<CollectionBloc>();
+        if (colBloc.state.collections.isEmpty) {
+          colBloc.add(const FetchCollections());
+        } else {
+          _hydrateCollections(colBloc.state.collections);
+        }
+      } catch (_) {}
+    });
+  }
+
+  void _hydrateCategory(List<CategoryItem> categories) {
+    if (_selectedCategoryId.isEmpty || _selectedCategoryName.isNotEmpty) return;
+    final match = categories.where((c) => c.id == _selectedCategoryId).firstOrNull;
+    if (match != null && mounted) {
+      setState(() {
+        _selectedCategoryName = match.name;
+        _categoryController.text = match.name;
+      });
+    }
+  }
+
+  void _hydrateCollections(List<CollectionItem> collections) {
+    if (_collectionsHydrated || collections.isEmpty) return;
+    _collectionsHydrated = true;
+
+    final allIds = <String>{
+      ..._currentProduct.assignedCollections,
+      ..._currentProduct.collectionIds,
+      ..._selectedCollectionIds,
+      if (_selectedSubCollectionId.isNotEmpty) _selectedSubCollectionId,
+      ..._currentProduct.subCollectionIds,
+    };
+
+    if (allIds.isEmpty && _selectedCollectionNames.isEmpty && _selectedSubCollectionName.isEmpty) {
+      return;
+    }
+
+    final resolvedColIds = <String>[];
+    final resolvedColNames = <String>[];
+    String resolvedSubId = '';
+    String resolvedSubName = '';
+
+    for (final col in collections) {
+      final colMatched = allIds.contains(col.id) || _selectedCollectionNames.contains(col.name);
+      SubCollectionItem? matchedSub;
+      for (final sub in col.subCollections) {
+        if (allIds.contains(sub.id) ||
+            (_selectedSubCollectionName.isNotEmpty && sub.name == _selectedSubCollectionName)) {
+          matchedSub = sub;
+          break;
+        }
       }
+
+      if (matchedSub != null && resolvedSubId.isEmpty) {
+        resolvedSubId = matchedSub.id;
+        resolvedSubName = matchedSub.name;
+      }
+
+      if (colMatched || matchedSub != null) {
+        if (!resolvedColIds.contains(col.id)) {
+          resolvedColIds.add(col.id);
+          resolvedColNames.add(col.name);
+        }
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _selectedCollectionIds = resolvedColIds;
+      _selectedCollectionNames = resolvedColNames;
+      _collectionsController.text = resolvedColNames.join(', ');
+      _selectedSubCollectionId = resolvedSubId;
+      _selectedSubCollectionName = resolvedSubName;
+      _subCollectionsController.text = resolvedSubName;
     });
   }
 
@@ -154,7 +232,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           label: '',
           unit: '',
           packSize: 0,
-          packSizeUnit: '',
           packQuantity: 0,
           packUnit: 'bottle',
           shippedBy: '',
@@ -309,8 +386,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _stockController = TextEditingController(text: (initialVar?.stock ?? p.stock).toString());
     _ratingsController = TextEditingController(text: p.ratings > 0 ? p.ratings.toStringAsFixed(1) : '');
     _refundPolicyController = TextEditingController(text: p.refundPolicy);
+    final initWeight = (initialVar != null && initialVar.productWeight > 0)
+        ? initialVar.productWeight
+        : p.productWeight;
     _weightController = TextEditingController(
-      text: p.productWeight > 0 ? p.productWeight.round().toString() : '',
+      text: initWeight > 0 ? initWeight.round().toString() : '',
     );
     _weightUnitController = TextEditingController(text: 'g');
     final initDims = (initialVar != null && initialVar.dimensions.length > 0)
@@ -333,6 +413,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
     _selectedCategoryId = p.categoryId;
     _selectedCategoryName = p.category;
+    _collectionsHydrated = false;
     _selectedCollectionIds = List<String>.from(p.collectionIds);
     if (p.collections.isNotEmpty) {
       _selectedCollectionNames = p.collections
@@ -382,7 +463,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       label: _variantController.text.trim(),
       packSize: ps,
       unit: unit,
-      packSizeUnit: unit,
       packQuantity: pq,
       totalBaseQuantity: totalBase,
       totalBaseUnit: unit,
@@ -403,6 +483,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       commissionPercentage: commission,
       gstPercentage: gst,
       swg: double.tryParse(_swgController.text.trim()) ?? 0.0,
+      productWeight: double.tryParse(_weightController.text.trim()) ?? 0.0,
+      productWeightUnit: 'g',
       dimensions: _buildNormalizedDimensions(fallback: cur.dimensions),
       shippedBy: _shippedByController.text.trim(),
     );
@@ -497,16 +579,28 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _shippedByController.text = (v.shippedBy.isNotEmpty)
           ? v.shippedBy
           : 'essentialbiocropscience';
-      if (v.dimensions.length > 0) {
-        _dimLengthController.text = v.dimensions.length.round().toString();
-        _dimWidthController.text = v.dimensions.width.round().toString();
-        _dimHeightController.text = v.dimensions.height.round().toString();
+      _weightController.text = v.productWeight > 0
+          ? v.productWeight.round().toString()
+          : '';
+      if (v.dimensions.length > 0 || v.dimensions.width > 0 || v.dimensions.height > 0) {
+        _dimLengthController.text = v.dimensions.length > 0 ? v.dimensions.length.round().toString() : '';
+        _dimWidthController.text = v.dimensions.width > 0 ? v.dimensions.width.round().toString() : '';
+        _dimHeightController.text = v.dimensions.height > 0 ? v.dimensions.height.round().toString() : '';
         final u = v.dimensions.unit.trim().toLowerCase();
         _selectedDimensionUnit =
             const ['cm', 'inch', 'mm'].contains(u) ? u : 'cm';
+      } else {
+        _dimLengthController.text = '';
+        _dimWidthController.text = '';
+        _dimHeightController.text = '';
+        _selectedDimensionUnit = 'cm';
       }
-      _recalculateCourierFromWeight();
-      _recalculateSellingRate();
+      if (v.courierCharges <= 0) {
+        _recalculateCourierFromWeight();
+      }
+      if (v.displayRate <= 0 && v.swg > 0) {
+        _recalculateSellingRate();
+      }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -539,7 +633,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         label: '',
         unit: '',
         packSize: 0,
-        packSizeUnit: '',
         packQuantity: 0,
         packUnit: 'pack',
         shippedBy: _shippedByController.text.trim().isNotEmpty
@@ -552,10 +645,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         commissionPercentage: _defaultTechnicalCommission,
         stock: 0,
         gstPercentage: 0.0,
+        productWeight: 0.0,
+        dimensions: const ProductDimensions(),
       );
       _workingVariants.add(newVariant);
-      _selectVariant(_workingVariants.length - 1, syncCurrent: false);
     });
+    _selectVariant(_workingVariants.length - 1, syncCurrent: false);
   }
 
   void _duplicateVariant(int index) {
@@ -578,8 +673,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         label: '${source.label} (Copy)',
       );
       _workingVariants.add(duplicate);
-      _selectVariant(_workingVariants.length - 1);
     });
+    _selectVariant(_workingVariants.length - 1, syncCurrent: false);
   }
 
   void _deleteVariant(int index) {
@@ -787,10 +882,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         return 'Rating must be between 0.0 and 5.0';
       }
     }
-    final weightVal = double.tryParse(_weightController.text.trim()) ?? 0.0;
-    if (weightVal <= 0) {
-      return 'Please enter Product Weight in Gram';
-    }
     if (_workingVariants.isEmpty) {
       return 'At least one packaging variant is required';
     }
@@ -799,6 +890,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       final skuNum = i + 1;
       if (v.label.trim().isEmpty || v.packSize <= 0) {
         return 'Please select a Variant Label for SKU #$skuNum';
+      }
+      if (v.productWeight <= 0) {
+        return 'Please enter Product Weight in Gram for SKU #$skuNum';
       }
       if (v.shippingThrough.trim().isEmpty) {
         return 'Please select Shipping Through for SKU #$skuNum';
@@ -851,7 +945,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final gst = double.tryParse(_gstController.text) ?? _currentProduct.gst;
     final rawRating = double.tryParse(_ratingsController.text.trim()) ?? 0.0;
     final ratings = rawRating.clamp(0.0, 5.0);
-    final weight = double.tryParse(_weightController.text) ?? _currentProduct.productWeight;
+    final defaultVarForWeight = _workingVariants.where((v) => v.isDefault && v.productWeight > 0).firstOrNull ??
+        _workingVariants.where((v) => v.productWeight > 0).firstOrNull;
+    final weight = (defaultVarForWeight?.productWeight ?? 0.0) > 0
+        ? defaultVarForWeight!.productWeight
+        : (double.tryParse(_weightController.text) ?? _currentProduct.productWeight);
 
     final assignedCols = <String>[
       ..._selectedCollectionIds,
@@ -874,7 +972,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       collectionIds: _selectedCollectionIds,
       subCollections: _selectedSubCollectionName.isNotEmpty ? _selectedSubCollectionName : _subCollectionsController.text.trim(),
       subCollectionIds: _selectedSubCollectionId.isNotEmpty ? [_selectedSubCollectionId] : [],
-      assignedCollections: assignedCols.isNotEmpty ? assignedCols : _currentProduct.assignedCollections,
+      assignedCollections: assignedCols,
       description: _descriptionController.text.trim(),
       technicalContent: _techContentController.text.trim(),
       features: _featuresController.text.trim(),
@@ -955,7 +1053,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           }
           return;
         }
-        productToSave = productToSave.copyWith(images: withImages.images);
+        productToSave = productToSave.copyWith(
+          images: withImages.images,
+          productImages: withImages.productImages,
+        );
         _pendingImages.clear();
       } catch (_) {
         if (mounted) {
@@ -1337,14 +1438,46 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: _buildField(
-                            controller: _gstController,
-                            label: 'GST (%)',
-                            hint: 'e.g. 18',
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            isDark: isDark,
-                            borderColor: borderColor,
-                          ),
+                          child: _isEditing
+                              ? Builder(builder: (context) {
+                                  final rawGst = _gstController.text.trim().replaceAll('%', '');
+                                  final parsedGst = double.tryParse(rawGst)?.round().toString() ?? '';
+                                  final dropdownValue = const ['5', '12', '18'].contains(parsedGst)
+                                      ? '$parsedGst%'
+                                      : '';
+                                  return _buildDropdownField(
+                                    label: 'GST (%)',
+                                    value: dropdownValue,
+                                    items: const ['5%', '12%', '18%'],
+                                    hint: '-- Select GST --',
+                                    allowNull: true,
+                                    prefixIcon: Icons.percent_rounded,
+                                    isDark: isDark,
+                                    borderColor: borderColor,
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        final numeric = val.replaceAll('%', '').trim();
+                                        final gstVal = double.tryParse(numeric) ?? 0.0;
+                                        setState(() {
+                                          _gstController.text = numeric;
+                                          for (int i = 0; i < _workingVariants.length; i++) {
+                                            _workingVariants[i] = _workingVariants[i].copyWith(
+                                              gstPercentage: gstVal,
+                                            );
+                                          }
+                                        });
+                                      }
+                                    },
+                                  );
+                                })
+                              : _buildField(
+                                  controller: _gstController,
+                                  label: 'GST (%)',
+                                  hint: 'e.g. 18',
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  isDark: isDark,
+                                  borderColor: borderColor,
+                                ),
                         ),
                       ],
                     ),
@@ -1506,6 +1639,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                             colBloc = ctx.watch<CollectionBloc>();
                           } catch (_) {}
                           final collections = colBloc?.state.collections ?? <CollectionItem>[];
+                          if (!_collectionsHydrated && collections.isNotEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _hydrateCollections(collections);
+                            });
+                          }
                           final currentSelectedList = collections.where((c) =>
                               _selectedCollectionIds.contains(c.id) ||
                               _selectedCollectionNames.contains(c.name)).toList();
@@ -1514,6 +1652,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                               : (_selectedCollectionNames.isNotEmpty
                                   ? _selectedCollectionNames.join(', ')
                                   : _collectionsController.text);
+                          final chipNames = currentSelectedList.isNotEmpty
+                              ? currentSelectedList.map((c) => c.name).toList()
+                              : _selectedCollectionNames;
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1523,7 +1664,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                 displayText: displayText,
                                 placeholder: '-- Select Collections (Optional) --',
                                 prefixIcon: Icons.collections_bookmark_rounded,
-                                hasValue: _selectedCollectionIds.isNotEmpty || _selectedCollectionNames.isNotEmpty || _collectionsController.text.isNotEmpty,
+                                hasValue: currentSelectedList.isNotEmpty || _selectedCollectionNames.isNotEmpty || _collectionsController.text.isNotEmpty,
                                 isDark: isDark,
                                 borderColor: borderColor,
                                 onTap: () async {
@@ -1554,12 +1695,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                   }
                                 },
                               ),
-                              if (_selectedCollectionNames.isNotEmpty) ...[
+                              if (chipNames.isNotEmpty) ...[
                                 const SizedBox(height: 6),
                                 Wrap(
                                   spacing: 6,
                                   runSpacing: 6,
-                                  children: _selectedCollectionNames.map((colName) {
+                                  children: chipNames.map((colName) {
                                     final colItem = collections.where((c) => c.name == colName).firstOrNull;
                                     return Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1586,6 +1727,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                                 _selectedCollectionNames.remove(colName);
                                                 if (colItem != null) {
                                                   _selectedCollectionIds.remove(colItem.id);
+                                                  if (_selectedSubCollectionId.isNotEmpty &&
+                                                      colItem.subCollections.any((s) => s.id == _selectedSubCollectionId)) {
+                                                    _selectedSubCollectionId = '';
+                                                    _selectedSubCollectionName = '';
+                                                    _subCollectionsController.text = '';
+                                                  }
                                                 }
                                                 _collectionsController.text = _selectedCollectionNames.join(', ');
                                               });
@@ -2503,7 +2650,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                     Expanded(
                                       flex: 2,
                                       child: Text(
-                                        '${v.packSize} ${v.packSizeUnit}',
+                                        '${v.packSize} ${v.unit}',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 11.5,
                                           color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
@@ -2707,7 +2854,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   ) {
     final discRs = v.printedMrp > v.displayRate ? (v.printedMrp - v.displayRate) : 0.0;
     final discPct = v.printedMrp > 0 ? (discRs / v.printedMrp * 100) : 0.0;
-    final unitDisplay = _normalizeUnit(v.packSizeUnit.isNotEmpty ? v.packSizeUnit : v.unit);
+    final unitDisplay = _normalizeUnit(v.unit);
     final weightUnitDisplay = p.productWeightUnit.trim().isNotEmpty ? p.productWeightUnit.trim() : 'kg';
     final dimsDisplay = v.dimensions.toString().trim().isNotEmpty ? v.dimensions.toString().trim() : p.dimensions;
 
@@ -3133,6 +3280,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     Expanded(
                       flex: 3,
                       child: VariantLabelSelector(
+                        key: ValueKey('variant_label_$_selectedVariantIndex'),
                         controller: _variantController,
                         isDark: isDark,
                         isRequired: true,
@@ -3612,12 +3760,50 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     const double heroHeight = 156.0;
     Widget heroWidget;
 
+    final uploadedImageEntries = <({String primary, List<String> fallbacks})>[];
+    if (p.productImages.isNotEmpty) {
+      for (final img in p.productImages) {
+        final candidates = [
+          img.originalUrl,
+          img.midUrl,
+          img.lowUrl,
+        ].where((u) => u.isNotEmpty).toList();
+        final primary = candidates.isNotEmpty ? candidates.first : '';
+        if (primary.isNotEmpty) {
+          uploadedImageEntries.add((primary: primary, fallbacks: candidates));
+        }
+      }
+    } else if (p.images.isNotEmpty) {
+      for (final url in p.images) {
+        if (url.trim().isNotEmpty) {
+          uploadedImageEntries.add((primary: url.trim(), fallbacks: [url.trim()]));
+        }
+      }
+    }
+    final activeUploadedIdx = uploadedImageEntries.isEmpty
+        ? 0
+        : _activePreviewImageIndex.clamp(0, uploadedImageEntries.length - 1);
+
     if (_pendingImages.isNotEmpty && _activePreviewImageIndex < _pendingImages.length) {
       heroWidget = Image.memory(
         Uint8List.fromList(_pendingImages[_activePreviewImageIndex].bytes),
         fit: BoxFit.cover,
         width: double.infinity,
         height: heroHeight,
+      );
+    } else if (uploadedImageEntries.isNotEmpty) {
+      final entry = uploadedImageEntries[activeUploadedIdx];
+      heroWidget = AppProductImage(
+        imageUrl: entry.primary,
+        fallbackUrls: entry.fallbacks,
+        width: double.infinity,
+        height: heroHeight,
+        borderRadius: 10,
+        borderColor: borderColor,
+        categoryColor: const Color(0xFF64748B),
+        fit: BoxFit.cover,
+        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        padding: EdgeInsets.zero,
       );
     } else if (p.originalImageUrl.isNotEmpty) {
       heroWidget = AppProductImage(
@@ -3712,7 +3898,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                           Text(
                             _pendingImages.isNotEmpty
                                 ? 'Upload Queued (${_pendingImages.length}/5)'
-                                : 'Original Image',
+                                : uploadedImageEntries.length > 1
+                                    ? 'Image ${activeUploadedIdx + 1}/${uploadedImageEntries.length}'
+                                    : 'Original Image',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -3727,6 +3915,51 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               ),
             ),
           ),
+          if (_pendingImages.isEmpty && uploadedImageEntries.length > 1) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 48,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: uploadedImageEntries.length,
+                separatorBuilder: (_, index) => const SizedBox(width: 6),
+                itemBuilder: (context, idx) {
+                  final entry = uploadedImageEntries[idx];
+                  final isSel = idx == activeUploadedIdx;
+                  return InkWell(
+                    onTap: () => setState(() => _activePreviewImageIndex = idx),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isSel ? const Color(0xFF059669) : borderColor,
+                          width: isSel ? 2 : 1,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: AppProductImage(
+                          imageUrl: entry.primary,
+                          fallbackUrls: entry.fallbacks,
+                          width: 48,
+                          height: 48,
+                          borderRadius: 5,
+                          borderColor: Colors.transparent,
+                          categoryColor: const Color(0xFF64748B),
+                          fit: BoxFit.cover,
+                          backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                          padding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
           if (_isEditing) ...[
             const SizedBox(height: 10),
             OutlinedButton.icon(

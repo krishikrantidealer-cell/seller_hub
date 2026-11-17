@@ -265,10 +265,39 @@ class _DashboardViewState extends State<DashboardView> {
           final completer = Completer<bool>();
           context.read<ProductBloc>().add(UpdateProduct(
             updated,
-            onSuccess: (savedProduct) {
+            onSuccess: (savedProduct) async {
+              var finalProduct = savedProduct;
+              final desiredIds = <String>{
+                ...updated.collectionIds,
+                ...updated.subCollectionIds,
+              };
+              final existingIds = <String>{
+                ...(prevProduct?.assignedCollections ?? const <String>[]),
+                ...(prevProduct?.collectionIds ?? const <String>[]),
+                ...(prevProduct?.subCollectionIds ?? const <String>[]),
+              };
+              final collectionsChanged =
+                  desiredIds.length != existingIds.length ||
+                  !desiredIds.containsAll(existingIds);
+              if (collectionsChanged) {
+                final colCompleter = Completer<Product?>();
+                context.read<ProductBloc>().add(AssignProductCollections(
+                  productId: savedProduct.id,
+                  collectionIds: updated.collectionIds,
+                  subCollectionIds: updated.subCollectionIds,
+                  onSuccess: (withCols) {
+                    if (!colCompleter.isCompleted) colCompleter.complete(withCols);
+                  },
+                  onError: (_) {
+                    if (!colCompleter.isCompleted) colCompleter.complete(null);
+                  },
+                ));
+                final assigned = await colCompleter.future;
+                if (assigned != null) finalProduct = assigned;
+              }
               if (mounted) {
                 setState(() {
-                  _viewingProduct = savedProduct;
+                  _viewingProduct = finalProduct;
                 });
               }
               if (!completer.isCompleted) completer.complete(true);
@@ -314,14 +343,15 @@ class _DashboardViewState extends State<DashboardView> {
         onBack: () => setState(() => _isAddingProduct = false),
         onProductCreated: (newProduct, [pendingImages]) {
           final completer = Completer<bool>();
-          context.read<ProductBloc>().add(CreateProduct(
+          final productBloc = context.read<ProductBloc>();
+          productBloc.add(CreateProduct(
             newProduct,
             onSuccess: (created) async {
               var finalProduct = created;
               String? imageUploadError;
               if (pendingImages != null && pendingImages.isNotEmpty) {
                 final imgCompleter = Completer<Product?>();
-                context.read<ProductBloc>().add(UploadProductImages(
+                productBloc.add(UploadProductImages(
                   productId: created.id,
                   filesBytes: pendingImages.map((e) => e.bytes).toList(),
                   fileNames: pendingImages.map((e) => e.name).toList(),
@@ -335,6 +365,22 @@ class _DashboardViewState extends State<DashboardView> {
                 ));
                 final uploaded = await imgCompleter.future;
                 if (uploaded != null) finalProduct = uploaded;
+              }
+              if (newProduct.collectionIds.isNotEmpty || newProduct.subCollectionIds.isNotEmpty) {
+                final colCompleter = Completer<Product?>();
+                productBloc.add(AssignProductCollections(
+                  productId: finalProduct.id,
+                  collectionIds: newProduct.collectionIds,
+                  subCollectionIds: newProduct.subCollectionIds,
+                  onSuccess: (withCols) {
+                    if (!colCompleter.isCompleted) colCompleter.complete(withCols);
+                  },
+                  onError: (_) {
+                    if (!colCompleter.isCompleted) colCompleter.complete(null);
+                  },
+                ));
+                final assigned = await colCompleter.future;
+                if (assigned != null) finalProduct = assigned;
               }
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(

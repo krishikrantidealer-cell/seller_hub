@@ -375,16 +375,19 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
         isAssigningCollections: false,
         lastAssignedProduct: updatedProduct,
       ));
+      event.onSuccess?.call(updatedProduct);
     } on ApiException catch (e) {
       emit(state.copyWith(
         isAssigningCollections: false,
         assignCollectionsError: e.message,
       ));
+      event.onError?.call(e.message);
     } catch (e) {
       emit(state.copyWith(
         isAssigningCollections: false,
         assignCollectionsError: 'Failed to assign collections: $e',
       ));
+      event.onError?.call('Failed to assign collections: $e');
     }
   }
 

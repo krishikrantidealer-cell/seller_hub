@@ -94,6 +94,10 @@ class WebSocketService {
         },
         cancelOnError: false,
       );
+
+      // Await ready so connection failures (e.g. WebSocketChannelException) are caught
+      // instead of leaking as unhandled zone errors.
+      await _channel!.ready;
     } catch (e) {
       _handleDisconnect();
     }

@@ -43,11 +43,8 @@ class _TechnicalNameEditorDialog extends StatefulWidget {
 
 class _TechnicalNameEditorDialogState
     extends State<_TechnicalNameEditorDialog> {
-  static const String _customCategoryKey = '__CUSTOM__';
-
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late final TextEditingController _customCategoryController;
   late final TextEditingController _commissionController;
   String? _selectedCategory;
   bool _isActive = true;
@@ -65,7 +62,6 @@ class _TechnicalNameEditorDialogState
     );
     final existingCat = widget.existing?.category.trim() ?? '';
     _selectedCategory = existingCat.isNotEmpty ? existingCat : null;
-    _customCategoryController = TextEditingController();
     final comm = widget.existing?.commissionPercentage;
     _commissionController = TextEditingController(
       text: comm != null
@@ -84,7 +80,6 @@ class _TechnicalNameEditorDialogState
   @override
   void dispose() {
     _nameController.dispose();
-    _customCategoryController.dispose();
     _commissionController.dispose();
     super.dispose();
   }
@@ -97,9 +92,7 @@ class _TechnicalNameEditorDialogState
     });
 
     final name = _nameController.text.trim();
-    final category = _selectedCategory == _customCategoryKey
-        ? _customCategoryController.text.trim()
-        : (_selectedCategory ?? '').trim();
+    final category = (_selectedCategory ?? '').trim();
     final commission =
         double.tryParse(_commissionController.text.trim()) ?? 0.0;
 
@@ -132,6 +125,131 @@ class _TechnicalNameEditorDialogState
         _error = e.toString().replaceFirst('Exception: ', '');
       });
     }
+  }
+
+  Future<String?> _showCategorySearchPicker(
+    BuildContext context, {
+    required List<String> options,
+    required String? selected,
+    required bool isDark,
+    required Color bgColor,
+    required Color textPrimary,
+    required Color textMuted,
+  }) async {
+    final searchCtrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final q = searchCtrl.text.trim().toLowerCase();
+            final filtered = q.isEmpty
+                ? options
+                : options.where((o) => o.toLowerCase().contains(q)).toList();
+
+            return Dialog(
+              backgroundColor: bgColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420, maxHeight: 480),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Select Category',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: textPrimary,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(dialogCtx).pop(),
+                            icon: Icon(Icons.close, color: textMuted, size: 18),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: searchCtrl,
+                        autofocus: true,
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: InputDecoration(
+                          hintText: 'Search categories...',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                          suffixIcon: searchCtrl.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 16),
+                                  onPressed: () {
+                                    searchCtrl.clear();
+                                    setDialogState(() {});
+                                  },
+                                )
+                              : null,
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Flexible(
+                        child: filtered.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 24),
+                                child: Text(
+                                  q.isEmpty
+                                      ? 'No categories available'
+                                      : 'No categories match "$q"',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: textMuted, fontSize: 13),
+                                ),
+                              )
+                            : ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, _) => Divider(
+                                  height: 1,
+                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                ),
+                                itemBuilder: (_, index) {
+                                  final item = filtered[index];
+                                  final isSelected = item == selected;
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(
+                                      item,
+                                      style: TextStyle(
+                                        color: textPrimary,
+                                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                      ),
+                                    ),
+                                    trailing: isSelected
+                                        ? const Icon(Icons.check_rounded, color: Color(0xFF10B981), size: 18)
+                                        : null,
+                                    onTap: () => Navigator.of(dialogCtx).pop(item),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    searchCtrl.dispose();
+    return result;
   }
 
   @override
@@ -212,65 +330,65 @@ class _TechnicalNameEditorDialogState
                           .map((c) => c.name.trim())
                           .where((n) => n.isNotEmpty),
                       if (_selectedCategory != null &&
-                          _selectedCategory != _customCategoryKey &&
                           _selectedCategory!.trim().isNotEmpty)
                         _selectedCategory!.trim(),
                     };
                     final options = optionSet.toList()..sort();
 
-                    return DropdownButtonFormField<String>(
+                    return FormField<String>(
                       initialValue: _selectedCategory,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        labelText: 'Category *',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      hint: const Text('-- Select Category --'),
-                      items: [
-                        ...options.map(
-                          (cat) => DropdownMenuItem<String>(
-                            value: cat,
-                            child: Text(cat, overflow: TextOverflow.ellipsis),
-                          ),
-                        ),
-                        const DropdownMenuItem<String>(
-                          value: _customCategoryKey,
-                          child: Text('+ Other / Custom Category'),
-                        ),
-                      ],
-                      onChanged: (val) =>
-                          setState(() => _selectedCategory = val),
                       validator: (val) {
                         if (val == null || val.trim().isEmpty) {
                           return 'Category is required';
                         }
                         return null;
                       },
+                      builder: (fieldState) {
+                        final displayValue = _selectedCategory ?? '';
+                        return InkWell(
+                          onTap: () async {
+                            final picked = await _showCategorySearchPicker(
+                              context,
+                              options: options,
+                              selected: _selectedCategory,
+                              isDark: isDark,
+                              bgColor: bgColor,
+                              textPrimary: textPrimary,
+                              textMuted: textMuted,
+                            );
+                            if (picked != null) {
+                              setState(() => _selectedCategory = picked);
+                              fieldState.didChange(picked);
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'Category *',
+                              floatingLabelBehavior: FloatingLabelBehavior.always,
+                              errorText: fieldState.errorText,
+                              suffixIcon: const Icon(Icons.search_rounded, size: 20),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            isEmpty: false,
+                            child: Text(
+                              displayValue.isEmpty
+                                  ? 'Search & select category...'
+                                  : displayValue,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: displayValue.isEmpty ? textMuted : textPrimary,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
-                if (_selectedCategory == _customCategoryKey) ...[
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _customCategoryController,
-                    decoration: InputDecoration(
-                      labelText: 'Custom Category Name *',
-                      hintText: 'e.g. Soil Conditioner',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    validator: (v) {
-                      if (_selectedCategory == _customCategoryKey &&
-                          (v == null || v.trim().isEmpty)) {
-                        return 'Enter custom category name';
-                      }
-                      return null;
-                    },
-                  ),
-                ],
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _commissionController,

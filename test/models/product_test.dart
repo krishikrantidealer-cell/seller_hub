@@ -186,7 +186,6 @@ void main() {
             label: '500 ml Bottle',
             unit: 'ml',
             packSize: 500,
-            packSizeUnit: 'ml',
             packQuantity: 1,
             packUnit: 'bottle',
             shippedBy: 'EBS Direct',
@@ -226,7 +225,6 @@ void main() {
       expect(variant['label'], '500 ml Bottle');
       expect(variant['unit'], 'ml');
       expect(variant['packSize'], 500);
-      expect(variant['packSizeUnit'], 'ml');
       expect(variant['packQuantity'], 1);
       expect(variant['shippedBy'], 'EBS Direct');
       expect(variant['displayRate'], 450.0);
@@ -529,7 +527,6 @@ void main() {
         label: '1 KG (1 Kg x 1 Qty)',
         unit: 'kg',
         packSize: 1,
-        packSizeUnit: 'kg',
         packQuantity: 1,
         shippedBy: 'essentialbiocropscience',
         shippingThrough: 'Shipping through Courier',

@@ -196,12 +196,13 @@ class ProductVariant extends Equatable {
   final String label;
   final String unit;
   final int packSize;
-  final String packSizeUnit;
   final int packQuantity;
   final String packUnit;
   final String shippedBy;
   final String shippingThrough;
   final double swg;
+  final double productWeight;
+  final String productWeightUnit;
   final int totalBaseQuantity;
   final String totalBaseUnit;
   final ProductDimensions dimensions;
@@ -225,12 +226,13 @@ class ProductVariant extends Equatable {
     this.label = '',
     this.unit = 'ml',
     this.packSize = 1,
-    this.packSizeUnit = 'ml',
     this.packQuantity = 1,
     this.packUnit = 'bottle',
     this.shippedBy = 'essentialbiocropscience',
     this.shippingThrough = '',
     this.swg = 0.0,
+    this.productWeight = 0.0,
+    this.productWeightUnit = 'g',
     this.totalBaseQuantity = 1,
     this.totalBaseUnit = 'ml',
     this.dimensions = const ProductDimensions(),
@@ -270,14 +272,15 @@ class ProductVariant extends Equatable {
       displayOrder: _parseInt(json['displayOrder'], 1),
       isDefault: json['isDefault'] == true,
       label: _parseString(json['label'] ?? json['Varient'] ?? json['variant']),
-      unit: _parseString(json['unit'] ?? json['Unit'] ?? 'ml'),
+      unit: _parseString(json['unit'] ?? json['Unit'] ?? json['packSizeUnit'] ?? 'ml'),
       packSize: _parseInt(json['packSize'] ?? json['Pack Size'], 1),
-      packSizeUnit: _parseString(json['packSizeUnit'] ?? json['unit'] ?? 'ml'),
       packQuantity: _parseInt(json['packQuantity'], 1),
       packUnit: _parseString(json['packUnit'] ?? 'bottle'),
       shippedBy: _parseString(json['shippedBy'] ?? json['Shipped By'] ?? 'essentialbiocropscience'),
       shippingThrough: _parseString(json['shippingThrough'] ?? ''),
       swg: _parseDouble(json['swg'] ?? json['SWG']),
+      productWeight: _parseDouble(json['productWeight'] ?? json['weight']),
+      productWeightUnit: _parseString(json['productWeightUnit'] ?? 'g'),
       totalBaseQuantity: totalBaseQty,
       totalBaseUnit: _parseString(json['totalBaseUnit'] ?? 'ml'),
       dimensions: ProductDimensions.fromJson(json['dimensions'] ?? json['Dimmensions']),
@@ -304,12 +307,13 @@ class ProductVariant extends Equatable {
     'label': label,
     'unit': unit,
     'packSize': packSize,
-    'packSizeUnit': packSizeUnit,
     'packQuantity': packQuantity,
     'packUnit': packUnit,
     'shippedBy': shippedBy,
     'shippingThrough': shippingThrough,
     'swg': swg,
+    'productWeight': productWeight,
+    'productWeightUnit': productWeightUnit,
     'totalBaseQuantity': totalBaseQuantity,
     'totalBaseUnit': totalBaseUnit,
     'dimensions': dimensions.toJson(),
@@ -340,7 +344,6 @@ class ProductVariant extends Equatable {
       'label': label.isNotEmpty ? label : '500 ml Bottle',
       'unit': unit.isNotEmpty ? unit : 'ml',
       'packSize': packSize > 0 ? packSize : 500,
-      'packSizeUnit': packSizeUnit.isNotEmpty ? packSizeUnit : (unit.isNotEmpty ? unit : 'ml'),
       'packQuantity': packQuantity > 0 ? packQuantity : 1,
       'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'essentialbiocropscience',
       if (shippingThrough.isNotEmpty) 'shippingThrough': shippingThrough,
@@ -355,6 +358,8 @@ class ProductVariant extends Equatable {
       'discountPercentage': effectiveMrp > 0 ? ((effectiveMrp - effectiveDisplayRate) / effectiveMrp * 100) : 0.0,
       'stock': stock >= 0 ? stock : 0,
       if (swg > 0) 'swg': swg,
+      if (productWeight > 0) 'productWeight': productWeight,
+      if (productWeight > 0) 'productWeightUnit': productWeightUnit.isNotEmpty ? productWeightUnit : 'g',
       'dimensions': [
         {
           'length': dimensions.length > 0 ? dimensions.length : 20.0,
@@ -374,12 +379,13 @@ class ProductVariant extends Equatable {
     String? label,
     String? unit,
     int? packSize,
-    String? packSizeUnit,
     int? packQuantity,
     String? packUnit,
     String? shippedBy,
     String? shippingThrough,
     double? swg,
+    double? productWeight,
+    String? productWeightUnit,
     int? totalBaseQuantity,
     String? totalBaseUnit,
     ProductDimensions? dimensions,
@@ -403,12 +409,13 @@ class ProductVariant extends Equatable {
       label: label ?? this.label,
       unit: unit ?? this.unit,
       packSize: packSize ?? this.packSize,
-      packSizeUnit: packSizeUnit ?? this.packSizeUnit,
       packQuantity: packQuantity ?? this.packQuantity,
       packUnit: packUnit ?? this.packUnit,
       shippedBy: shippedBy ?? this.shippedBy,
       shippingThrough: shippingThrough ?? this.shippingThrough,
       swg: swg ?? this.swg,
+      productWeight: productWeight ?? this.productWeight,
+      productWeightUnit: productWeightUnit ?? this.productWeightUnit,
       totalBaseQuantity: totalBaseQuantity ?? this.totalBaseQuantity,
       totalBaseUnit: totalBaseUnit ?? this.totalBaseUnit,
       dimensions: dimensions ?? this.dimensions,
@@ -442,6 +449,8 @@ class ProductVariant extends Equatable {
     paymentMethod,
     gstPercentage,
     swg,
+    productWeight,
+    productWeightUnit,
     stock,
     pricePerBaseUnit,
   ];
@@ -1073,7 +1082,6 @@ class Product extends Equatable {
               'label': variant.isNotEmpty ? variant : '500 ml Bottle',
               'unit': unit.isNotEmpty ? unit : 'ml',
               'packSize': int.tryParse(packSize) ?? 500,
-              'packSizeUnit': unit.isNotEmpty ? unit : 'ml',
               'packQuantity': 1,
               'shippedBy': shippedBy.isNotEmpty ? shippedBy : 'essentialbiocropscience',
               'displayRate': displayRate > 0 ? displayRate : 450.0,
@@ -1378,6 +1386,8 @@ class Product extends Equatable {
     displayRate,
     printedMrp,
     swg,
+    productWeight,
+    productWeightUnit,
     stock,
     isAvailable,
     isFeatured,

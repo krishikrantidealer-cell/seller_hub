@@ -135,7 +135,6 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
         label: '500 ml Bottle',
         unit: 'ml',
         packSize: 500,
-        packSizeUnit: 'ml',
         packQuantity: 1,
         packUnit: 'bottle',
         shippedBy: 'essentialbiocropscience',
@@ -268,7 +267,6 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           : cur.label,
       packSize: ps,
       unit: _selectedVariantUnit,
-      packSizeUnit: _selectedVariantUnit,
       packQuantity: pq,
       packUnit: _selectedPackUnit,
       shippedBy: _variantShippedByController.text.trim().isNotEmpty
@@ -309,7 +307,6 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
         label: 'Pack $newIndex (1 L Can)',
         unit: 'ml',
         packSize: 1000,
-        packSizeUnit: 'ml',
         packQuantity: 1,
         packUnit: 'can',
         shippedBy: 'EBS Direct',

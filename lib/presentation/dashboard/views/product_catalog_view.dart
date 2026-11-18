@@ -162,25 +162,25 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
         .where((c) => c.name.trim().toLowerCase() == filterLower)
         .firstOrNull;
     if (root != null) {
-      // Direct ID match
-      if (p.categoryId.isNotEmpty && p.categoryId == root.id) return true;
+      // Collect all category IDs assigned to this product (primary + multi-selected subcategories)
+      final productCatIds = <String>{
+        if (p.categoryId.isNotEmpty) p.categoryId,
+        ...p.subCategoryIds.where((id) => id.isNotEmpty),
+      };
 
-      // Check if p.categoryId is in root's hierarchy
-      if (p.categoryId.isNotEmpty) {
+      // Direct ID match
+      if (productCatIds.contains(root.id)) return true;
+
+      // Check if any of the product's category/subcategory IDs belong to root's hierarchy
+      for (final catId in productCatIds) {
         for (final child in root.children) {
-          if (child.id == p.categoryId ||
-              child.name.trim().toLowerCase() == p.category.trim().toLowerCase()) {
-            return true;
-          }
+          if (child.id == catId) return true;
           for (final leaf in child.children) {
-            if (leaf.id == p.categoryId ||
-                leaf.name.trim().toLowerCase() == p.category.trim().toLowerCase()) {
-              return true;
-            }
+            if (leaf.id == catId) return true;
           }
         }
 
-        final item = categoryById[p.categoryId];
+        final item = categoryById[catId];
         if (item != null) {
           if (item.parentId == root.id) return true;
           final parent = categoryById[item.parentId];
@@ -188,10 +188,15 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
         }
       }
 
-      // Keyword / title / description match
-      final searchable = '${p.title} ${p.category} ${p.description}'.toLowerCase();
-      if (root.name.length >= 4 && searchable.contains(root.name.toLowerCase())) {
-        return true;
+      // Fallback: name match against root's direct/leaf category names
+      final prodCatLower = p.category.trim().toLowerCase();
+      if (prodCatLower.isNotEmpty) {
+        for (final child in root.children) {
+          if (child.name.trim().toLowerCase() == prodCatLower) return true;
+          for (final leaf in child.children) {
+            if (leaf.name.trim().toLowerCase() == prodCatLower) return true;
+          }
+        }
       }
     }
 

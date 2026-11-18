@@ -101,6 +101,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   late TextEditingController _dimHeightController;
   String _selectedDimensionUnit = 'cm';
   double _defaultTechnicalCommission = 0.0;
+  double _dealerCommission = 0.0;
+
+  double get _activeDefaultCommission =>
+      !_editIsMarketplace ? _dealerCommission : _defaultTechnicalCommission;
 
   String _selectedSellerId = '';
   String _selectedSellerName = '';
@@ -490,9 +494,11 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           if (matchedSeller.pricingModel == 'DEALER_COMMISSION') {
             _editIsMarketplace = false;
             final comm = matchedSeller.commissionPercentage;
+            _dealerCommission = comm;
             _commissionController.text = comm == comm.roundToDouble() ? comm.round().toString() : comm.toStringAsFixed(2);
           } else {
             _editIsMarketplace = true;
+            _dealerCommission = 0.0;
           }
         }
       } catch (_) {}
@@ -632,6 +638,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final isAssigningToDealer =
         !widget.isCreateMode && _currentProduct.sellerId.isEmpty && isDealer;
     _editIsMarketplace = !isDealer;
+    _dealerCommission = isDealer ? seller.commissionPercentage : 0.0;
     final comm = isDealer ? seller.commissionPercentage : _defaultTechnicalCommission;
     _commissionController.text = comm > 0
         ? (comm == comm.roundToDouble() ? comm.round().toString() : comm.toStringAsFixed(2))
@@ -821,7 +828,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         totalBaseUnit: '',
         displayRate: 0.0,
         printedMrp: 0.0,
-        commissionPercentage: _defaultTechnicalCommission,
+        commissionPercentage: _activeDefaultCommission,
         stock: 0,
         gstPercentage: 0.0,
         productWeight: 0.0,

@@ -107,6 +107,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   String _selectedPackUnit = 'bottle';
   double _selectedVariantGst = 5.0;
   double _defaultTechnicalCommission = 0.0;
+  double _dealerCommission = 0.0;
 
   void _applyTechnicalNameSelection(TechnicalNameModel tech) {
     final comm = tech.commissionPercentage;
@@ -343,7 +344,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
         printedMrp: 0.0,
         discountRs: 0.0,
         gstPercentage: 5.0,
-        commissionPercentage: _defaultTechnicalCommission,
+        commissionPercentage: !_isMarketplace ? _dealerCommission : _defaultTechnicalCommission,
         discountPercentage: 0.0,
         stock: 0,
       );
@@ -1268,6 +1269,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   void _applySellerPricingModel(AdminUser? seller) {
     final isDealer = seller != null && seller.pricingModel == 'DEALER_COMMISSION';
     _isMarketplace = !isDealer;
+    _dealerCommission = isDealer ? seller.commissionPercentage : 0.0;
     final comm = isDealer ? seller.commissionPercentage : _defaultTechnicalCommission;
     _variantCommissionController.text = comm > 0
         ? (comm == comm.roundToDouble() ? comm.round().toString() : comm.toStringAsFixed(2))

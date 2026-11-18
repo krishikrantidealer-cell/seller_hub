@@ -60,10 +60,16 @@ class ApiEndpoints {
   static const String adminCreateCustomer = '/api/v1/admin/users/customers';
   static const String adminCreateSeller = '/api/v1/admin/users/sellers';
   static String adminUserBlock(String userId) => '/api/v1/admin/users/$userId/block';
+  static String adminUserById(String userId) => '/api/v1/admin/users/$userId';
   static String adminUserDeletion(String userId) => '/api/v1/admin/users/$userId/deletion';
   static String adminUserPermanentDeletion(String userId) => '/api/v1/admin/users/$userId/permanent';
-  static String adminSellerKycDocuments(String userId) => '/api/v1/admin/users/$userId/kyc-documents';
-  static String adminSellerKycDocumentDownload(String userId, String documentType, int index) =>
+  static String adminSellerDocuments(String userId) => '/api/v1/admin/users/$userId/kyc-documents';
+  static String adminSellerDocumentDownload(String userId, String documentType, int index) =>
       '/api/v1/admin/users/$userId/kyc-documents/$documentType/$index';
-  static String adminSellerKycReview(String userId) => '/api/v1/admin/users/$userId/kyc';
+
+  /// Locations (Indian States, Cities & PIN Code Lookup)
+  static const String indiaStates = '/api/v1/locations/india/states';
+  static String indiaCities(String state) =>
+      '/api/v1/locations/india/cities?state=${Uri.encodeQueryComponent(state)}';
+  static String pincodeLookup(String pincode) => '/api/v1/locations/pincode/$pincode';
 }

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/admin_user.dart';
-import '../../../core/models/category.dart';
 import '../../../core/models/product.dart';
 import '../../../core/models/technical_name.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
@@ -12,7 +11,6 @@ import '../../../logic/admin_user/seller_bloc.dart';
 import '../../../logic/auth/auth_bloc.dart';
 import '../../../logic/category/category_bloc.dart';
 import '../../../logic/category/category_event.dart';
-import '../../../logic/category/category_state.dart';
 import '../../../logic/collection/collection_bloc.dart';
 import '../../../logic/collection/collection_event.dart';
 import '../../../logic/collection/collection_state.dart';
@@ -46,12 +44,8 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   String? _selectedSellerId;
   String? _selectedCategory;
   String? _selectedCategoryId;
-  String? _selectedRootCategoryId;
   String? _selectedRootCategoryName;
-  String? _selectedSubCategoryId;
   String? _selectedSubCategoryName;
-  String? _selectedChildCategoryId;
-  String? _selectedChildCategoryName;
   String? _selectedCollectionName;
   String? _selectedSubCollectionName;
 
@@ -88,6 +82,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   String _selectedDimensionUnit = 'cm';
   final _refundPolicyController = TextEditingController();
   bool _isAvailable = true;
+  bool _isMarketplace = true;
 
   // Multi-Variants State
   final List<ProductVariant> _variants = [];
@@ -116,24 +111,29 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   void _applyTechnicalNameSelection(TechnicalNameModel tech) {
     final comm = tech.commissionPercentage;
     final formatted = comm > 0 ? comm.round().toString() : '';
+
     setState(() {
       _defaultTechnicalCommission = comm;
-      _variantCommissionController.text = formatted;
-      for (int i = 0; i < _variants.length; i++) {
-        final v = _variants[i];
-        final updatedRate = v.swg > 0
-            ? LivePriceCalculation.computeSellingRate(
-                swg: v.swg,
-                commissionPercentage: comm,
-                courierCharges: v.courierCharges,
-              )
-            : v.displayRate;
-        _variants[i] = v.copyWith(
-          commissionPercentage: comm,
-          displayRate: updatedRate,
-        );
+      if (_isMarketplace) {
+        _variantCommissionController.text = formatted;
+        for (int i = 0; i < _variants.length; i++) {
+          final v = _variants[i];
+          final updatedRate = v.swg > 0
+              ? LivePriceCalculation.computeSellingRate(
+                  swg: v.swg,
+                  commissionPercentage: comm,
+                  courierCharges: v.courierCharges,
+                  codCharge: LivePriceCalculation.fixedCodAndBankCharge,
+                  isMarketplace: true,
+                )
+              : v.displayRate;
+          _variants[i] = v.copyWith(
+            commissionPercentage: comm,
+            displayRate: updatedRate,
+          );
+        }
+        _recalculateSellingRate();
       }
-      _recalculateSellingRate();
     });
   }
 
@@ -276,8 +276,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
 
     final disp = double.tryParse(_variantDisplayRateController.text.trim()) ?? cur.displayRate;
     final mrp = double.tryParse(_variantPrintedMrpController.text.trim()) ?? cur.printedMrp;
-    final courier = double.tryParse(_variantCourierChargesController.text.trim()) ?? cur.courierCharges;
-    const cod = LivePriceCalculation.fixedCodAndBankCharge;
+    final courier = _isMarketplace
+        ? (double.tryParse(_variantCourierChargesController.text.trim()) ?? cur.courierCharges)
+        : 0.0;
+    final cod = _isMarketplace ? LivePriceCalculation.fixedCodAndBankCharge : 0.0;
     final swgVal = double.tryParse(_variantSwgController.text.trim()) ?? cur.swg;
     final st = int.tryParse(_variantStockController.text.trim()) ?? cur.stock;
     final ps = int.tryParse(_variantPackSizeController.text.trim()) ?? cur.packSize;
@@ -517,6 +519,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
       subCollections: _selectedSubCollectionName ?? '',
       isAvailable: _isAvailable,
       isFeatured: false,
+      isMarketplace: _isMarketplace,
       variant: defaultVariant.label,
       packSize: defaultVariant.packSize.toString(),
       displayRate: defaultVariant.displayRate,
@@ -866,7 +869,9 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                 // Product Manufacturer / Seller (Store Owner) *
                 BlocBuilder<SellerBloc, AdminUserState>(
                   builder: (context, sellerState) {
-                    final sellers = sellerState.users;
+                    final sellers = sellerState.users
+                        .where((s) => !s.isDeleted && !s.isBlocked)
+                        .toList();
                     final isLoading = sellerState.status == AdminUserStatus.loading;
                     final selectedSeller = sellers.where((s) => s.id == _selectedSellerId).firstOrNull;
                     final displayText = selectedSeller != null
@@ -934,6 +939,7 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         if (picked != null) {
                           setState(() {
                             _selectedSellerId = picked.id;
+                            _applySellerPricingModel(picked);
                           });
                         }
                       },
@@ -942,159 +948,55 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                 ),
                 const SizedBox(height: 12),
 
-                // 3-Tier Cascading Category Classification (Category -> Sub-Category -> Child Sub-Category)
-                BlocBuilder<CategoryBloc, CategoryState>(
-                  builder: (context, catState) {
-                    final categories = catState.allCategories;
-                    final rootCategories = categories.where((c) => c.level == 0).toList();
-                    final subCategories = _selectedRootCategoryId != null
-                        ? categories.where((c) => c.parentId == _selectedRootCategoryId && c.level == 1).toList()
-                        : <CategoryItem>[];
-                    final childSubCategories = _selectedSubCategoryId != null
-                        ? categories.where((c) => c.parentId == _selectedSubCategoryId && c.level == 2).toList()
-                        : <CategoryItem>[];
-
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isWide = constraints.maxWidth > 700;
-                        final rootField = _buildCategoryLevelSelector(
-                          label: "Category *",
-                          tooltipText: "Product's Primary Category (Level 0 Root)",
-                          icon: Icons.category_rounded,
-                          displayText: _selectedRootCategoryName ?? '',
-                          placeholder: '-- Select Category (Required) --',
-                          hasValue: _selectedRootCategoryId != null,
-                          isDark: isDark,
-                          borderColor: borderColor,
-                          onTap: () async {
-                            final picked = await _showSearchablePicker<CategoryItem>(
-                              context: context,
-                              title: "Select Category",
-                              titleIcon: Icons.category_rounded,
-                              searchHint: 'Search root categories...',
-                              items: rootCategories,
-                              selectedItem: rootCategories.where((c) => c.id == _selectedRootCategoryId).firstOrNull,
-                              labelBuilder: (c) => c.name,
-                              subtitleBuilder: (c) => 'Root Category (Level 0)',
-                              leadingBuilder: (_) => const Icon(Icons.folder_rounded, size: 16, color: Color(0xFF059669)),
-                              isDark: isDark,
-                            );
-                            if (picked != null) {
-                              setState(() {
-                                _selectedRootCategoryId = picked.id;
-                                _selectedRootCategoryName = picked.name;
-                                // Reset child tiers
-                                _selectedSubCategoryId = null;
-                                _selectedSubCategoryName = null;
-                                _selectedChildCategoryId = null;
-                                _selectedChildCategoryName = null;
-                                // Effective assignment
-                                _selectedCategoryId = picked.id;
-                                _selectedCategory = picked.name;
-                              });
-                            }
-                          },
-                        );
-
-                        final subField = _buildCategoryLevelSelector(
-                          label: "Product's Sub category (If Any) *",
-                          tooltipText: "Select specific sub-category under selected root (Level 1)",
-                          icon: Icons.subdirectory_arrow_right_rounded,
-                          displayText: _selectedSubCategoryName ?? '',
-                          placeholder: _selectedRootCategoryId == null
-                              ? '-- Select Category First --'
-                              : (subCategories.isEmpty ? '-- No Sub Category --' : '-- Select Sub Category --'),
-                          hasValue: _selectedSubCategoryId != null,
-                          isEnabled: _selectedRootCategoryId != null && subCategories.isNotEmpty,
-                          isDark: isDark,
-                          borderColor: borderColor,
-                          onTap: () async {
-                            final picked = await _showSearchablePicker<CategoryItem>(
-                              context: context,
-                              title: "Select Sub Category (Level 1)",
-                              titleIcon: Icons.subdirectory_arrow_right_rounded,
-                              searchHint: 'Search sub categories...',
-                              items: subCategories,
-                              selectedItem: subCategories.where((c) => c.id == _selectedSubCategoryId).firstOrNull,
-                              labelBuilder: (c) => c.name,
-                              subtitleBuilder: (c) => 'Sub Category under ${_selectedRootCategoryName ?? ""}',
-                              leadingBuilder: (_) => const Icon(Icons.subdirectory_arrow_right_rounded, size: 16, color: Color(0xFF3B82F6)),
-                              isDark: isDark,
-                            );
-                            if (picked != null) {
-                              setState(() {
-                                _selectedSubCategoryId = picked.id;
-                                _selectedSubCategoryName = picked.name;
-                                _selectedChildCategoryId = null;
-                                _selectedChildCategoryName = null;
-                                _selectedCategoryId = picked.id;
-                                _selectedCategory = '$_selectedRootCategoryName > ${picked.name}';
-                              });
-                            }
-                          },
-                        );
-
-                        final childSubField = _buildCategoryLevelSelector(
-                          label: "Product's Sub Sub Category (If Any)",
-                          tooltipText: "Select granular child sub-category (Level 2)",
-                          icon: Icons.alt_route_rounded,
-                          displayText: _selectedChildCategoryName ?? '',
-                          placeholder: _selectedSubCategoryId == null
-                              ? '-- Select Sub Category First --'
-                              : (childSubCategories.isEmpty ? '-- No Child Sub Category --' : '-- Select Child Sub Category --'),
-                          hasValue: _selectedChildCategoryId != null,
-                          isEnabled: _selectedSubCategoryId != null && childSubCategories.isNotEmpty,
-                          isDark: isDark,
-                          borderColor: borderColor,
-                          onTap: () async {
-                            final picked = await _showSearchablePicker<CategoryItem>(
-                              context: context,
-                              title: "Select Child Sub Category (Level 2)",
-                              titleIcon: Icons.alt_route_rounded,
-                              searchHint: 'Search child sub categories...',
-                              items: childSubCategories,
-                              selectedItem: childSubCategories.where((c) => c.id == _selectedChildCategoryId).firstOrNull,
-                              labelBuilder: (c) => c.name,
-                              subtitleBuilder: (c) => 'Child Category under ${_selectedSubCategoryName ?? ""}',
-                              leadingBuilder: (_) => const Icon(Icons.alt_route_rounded, size: 16, color: Color(0xFF8B5CF6)),
-                              isDark: isDark,
-                            );
-                            if (picked != null) {
-                              setState(() {
-                                _selectedChildCategoryId = picked.id;
-                                _selectedChildCategoryName = picked.name;
-                                _selectedCategoryId = picked.id;
-                                _selectedCategory = '$_selectedRootCategoryName > $_selectedSubCategoryName > ${picked.name}';
-                              });
-                            }
-                          },
-                        );
-
-                        if (isWide) {
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: rootField),
-                              const SizedBox(width: 12),
-                              Expanded(child: subField),
-                              const SizedBox(width: 12),
-                              Expanded(child: childSubField),
-                            ],
-                          );
-                        } else {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              rootField,
-                              const SizedBox(height: 10),
-                              subField,
-                              const SizedBox(height: 10),
-                              childSubField,
-                            ],
-                          );
-                        }
-                      },
+                // 2-Tier Read-Only Category Classification (Auto-selected from Technical Name)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth > 600;
+                    final rootField = _buildCategoryLevelSelector(
+                      label: "Category (Auto from Technical Name)",
+                      tooltipText: "Automatically set from the selected Technical Name",
+                      icon: Icons.lock_outline_rounded,
+                      displayText: _selectedRootCategoryName ?? '',
+                      placeholder: 'Auto-selected from Technical Name',
+                      hasValue: (_selectedRootCategoryName ?? '').isNotEmpty,
+                      isEnabled: false,
+                      isDark: isDark,
+                      borderColor: borderColor,
+                      onTap: () {},
                     );
+
+                    final subField = _buildCategoryLevelSelector(
+                      label: "Sub-Category (Auto from Technical Name)",
+                      tooltipText: "Automatically set from the selected Technical Name",
+                      icon: Icons.lock_outline_rounded,
+                      displayText: _selectedSubCategoryName ?? '',
+                      placeholder: 'Auto-selected from Technical Name',
+                      hasValue: (_selectedSubCategoryName ?? '').isNotEmpty,
+                      isEnabled: false,
+                      isDark: isDark,
+                      borderColor: borderColor,
+                      onTap: () {},
+                    );
+
+                    if (isWide) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: rootField),
+                          const SizedBox(width: 12),
+                          Expanded(child: subField),
+                        ],
+                      );
+                    } else {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          rootField,
+                          const SizedBox(height: 10),
+                          subField,
+                        ],
+                      );
+                    }
                   },
                 ),
                 const SizedBox(height: 12),
@@ -1313,6 +1215,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   }
 
   void _recalculateCourierFromWeight() {
+    if (!_isMarketplace) {
+      _variantCourierChargesController.text = '';
+      return;
+    }
     final weight = double.tryParse(_weightController.text.trim()) ?? 0.0;
     if (weight > 0) {
       final courier = LivePriceCalculation.computeCourierChargeFromWeightGrams(weight);
@@ -1323,18 +1229,97 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
   }
 
   void _recalculateSellingRate() {
+    if (!_isMarketplace) {
+      _recalculateSwgFromSellingRate();
+      return;
+    }
     final swg = double.tryParse(_variantSwgController.text.trim()) ?? 0.0;
     final comm = double.tryParse(_variantCommissionController.text.trim()) ?? 0.0;
     final courier = double.tryParse(_variantCourierChargesController.text.trim()) ?? 0.0;
+    const cod = LivePriceCalculation.fixedCodAndBankCharge;
     if (swg > 0) {
       final calculated = LivePriceCalculation.computeSellingRate(
         swg: swg,
         commissionPercentage: comm,
         courierCharges: courier,
+        codCharge: cod,
+        isMarketplace: true,
       );
       _variantDisplayRateController.text = calculated.round().toString();
     } else {
       _variantDisplayRateController.text = '';
+    }
+  }
+
+  void _recalculateSwgFromSellingRate() {
+    final sellingRate = double.tryParse(_variantDisplayRateController.text.trim()) ?? 0.0;
+    final comm = double.tryParse(_variantCommissionController.text.trim()) ?? 0.0;
+    if (sellingRate > 0) {
+      final calculatedSwg = LivePriceCalculation.computeSwgFromSellingRate(
+        sellingRate: sellingRate,
+        commissionPercentage: comm,
+      );
+      _variantSwgController.text = calculatedSwg.round().toString();
+    } else {
+      _variantSwgController.text = '';
+    }
+  }
+
+  void _applySellerPricingModel(AdminUser? seller) {
+    final isDealer = seller != null && seller.pricingModel == 'DEALER_COMMISSION';
+    _isMarketplace = !isDealer;
+    final comm = isDealer ? seller.commissionPercentage : _defaultTechnicalCommission;
+    _variantCommissionController.text = comm > 0
+        ? (comm == comm.roundToDouble() ? comm.round().toString() : comm.toStringAsFixed(2))
+        : (isDealer ? '0' : '');
+
+    if (!_isMarketplace) {
+      _variantCourierChargesController.text = '';
+      _variantCodChargeController.text = '0';
+      _recalculateSwgFromSellingRate();
+    } else {
+      _variantCodChargeController.text =
+          LivePriceCalculation.fixedCodAndBankCharge.round().toString();
+      _recalculateCourierFromWeight();
+      _recalculateSellingRate();
+    }
+    _syncCurrentVariantFromControllers();
+
+    for (int i = 0; i < _variants.length; i++) {
+      if (i == _activeVariantIndex) continue;
+      final v = _variants[i];
+      if (_isMarketplace) {
+        final newCourier = LivePriceCalculation.computeCourierChargeFromWeightGrams(v.productWeight);
+        const newCod = LivePriceCalculation.fixedCodAndBankCharge;
+        final newRate = v.swg > 0
+            ? LivePriceCalculation.computeSellingRate(
+                swg: v.swg,
+                commissionPercentage: comm,
+                courierCharges: newCourier,
+                codCharge: newCod,
+                isMarketplace: true,
+              ).roundToDouble()
+            : v.displayRate;
+        _variants[i] = v.copyWith(
+          commissionPercentage: comm,
+          courierCharges: newCourier,
+          codCharge: newCod,
+          displayRate: newRate,
+        );
+      } else {
+        final newSwg = v.displayRate > 0
+            ? LivePriceCalculation.computeSwgFromSellingRate(
+                sellingRate: v.displayRate,
+                commissionPercentage: comm,
+              ).roundToDouble()
+            : v.swg;
+        _variants[i] = v.copyWith(
+          commissionPercentage: comm,
+          courierCharges: 0.0,
+          codCharge: 0.0,
+          swg: newSwg,
+        );
+      }
     }
   }
 
@@ -1638,11 +1623,19 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildFormField(
                           'Display Rate (Selling Price ₹) *',
                           _variantDisplayRateController,
-                          'Auto: SWG + Comm + Courier + ₹60',
+                          _isMarketplace
+                              ? 'Auto: SWG + Comm + Courier + ₹60'
+                              : 'e.g. 500',
                           isDark,
                           isNumber: true,
                           isRequired: true,
-                          readOnly: true,
+                          readOnly: _isMarketplace,
+                          onChanged: _isMarketplace
+                              ? null
+                              : (_) {
+                                  _recalculateSwgFromSellingRate();
+                                  setState(() {});
+                                },
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -1662,7 +1655,9 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildFormField(
                           'Commission (%)',
                           _variantCommissionController,
-                          'Auto from Technical Name',
+                          _isMarketplace
+                              ? 'Auto from Technical Name'
+                              : 'Auto from Seller (Dealer Commission)',
                           isDark,
                           isNumber: true,
                           readOnly: true,
@@ -1691,26 +1686,33 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                         child: _buildFormField(
                           'Seller Will Get (SWG ₹)',
                           _variantSwgController,
-                          'e.g. 400',
+                          _isMarketplace
+                              ? 'e.g. 400'
+                              : 'Auto: Selling Rate − Comm%',
                           isDark,
                           isNumber: true,
-                          onChanged: (_) {
-                            _recalculateSellingRate();
-                            setState(() {});
-                          },
+                          readOnly: !_isMarketplace,
+                          onChanged: _isMarketplace
+                              ? (_) {
+                                  _recalculateSellingRate();
+                                  setState(() {});
+                                }
+                              : null,
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _buildFormField(
-                          'Courier Charge (₹)',
-                          _variantCourierChargesController,
-                          'Auto from Weight (g)',
-                          isDark,
-                          isNumber: true,
-                          readOnly: true,
+                      if (_isMarketplace) ...[
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _buildFormField(
+                            'Courier Charge (₹)',
+                            _variantCourierChargesController,
+                            'Auto from Weight (g)',
+                            isDark,
+                            isNumber: true,
+                            readOnly: true,
+                          ),
                         ),
-                      ),
+                      ],
                       const SizedBox(width: 14),
                       Expanded(
                         child: hasPrice
@@ -1733,17 +1735,19 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: _buildFormField(
-                          'COD & Bank Charge (₹)',
-                          _variantCodChargeController,
-                          '60',
-                          isDark,
-                          isNumber: true,
-                          readOnly: true,
+                      if (_isMarketplace) ...[
+                        Expanded(
+                          child: _buildFormField(
+                            'COD & Bank Charge (₹)',
+                            _variantCodChargeController,
+                            '60',
+                            isDark,
+                            isNumber: true,
+                            readOnly: true,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 14),
+                        const SizedBox(width: 14),
+                      ],
                       Expanded(
                         child: _buildDropdownField(
                           label: 'Payment Method *',
@@ -1769,12 +1773,13 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                       mrp: mrp,
                       swg: swg,
                       packQuantity: packQty,
-                      courierCharges: courier,
+                      courierCharges: _isMarketplace ? courier : 0.0,
                       commissionPercentage: double.tryParse(_variantCommissionController.text.trim()) ?? 0.0,
                       gstPercentage: (double.tryParse(_variantGstController.text.trim()) ?? _selectedVariantGst).clamp(0.0, 100.0),
                       discountRs: discountRs,
                       discountPct: discountPct,
                       isDark: isDark,
+                      isMarketplace: _isMarketplace,
                     ),
                   ],
                   const SizedBox(height: 20),
@@ -2038,27 +2043,10 @@ class _AddProductViewState extends State<AddProductView> with SingleTickerProvid
                   isDark,
                 ),
                 const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: Text(
-                    'Is Available for Purchase',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                  ),
-                  subtitle: Text(
-                    'When enabled, product is active and visible on storefront for ordering',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                  ),
+                ProductListingStatusToggle(
                   value: _isAvailable,
-                  activeTrackColor: const Color(0xFF059669),
                   onChanged: (val) => setState(() => _isAvailable = val),
+                  isDark: isDark,
                 ),
               ],
             ),

@@ -514,6 +514,7 @@ class VariantLabelSelector extends StatefulWidget {
   final bool isRequired;
   final VoidCallback? onChanged;
   final ValueChanged<VariantLabelItem>? onSelected;
+  final bool readOnly;
 
   const VariantLabelSelector({
     super.key,
@@ -522,6 +523,7 @@ class VariantLabelSelector extends StatefulWidget {
     this.isRequired = true,
     this.onChanged,
     this.onSelected,
+    this.readOnly = false,
   });
 
   @override
@@ -1110,18 +1112,21 @@ class _VariantLabelSelectorState extends State<VariantLabelSelector> {
             key: _fieldKey,
             controller: widget.controller,
             focusNode: _focusNode,
+            enabled: !widget.readOnly,
             readOnly: true,
-            onTap: () {
-              if (isOpen) {
-                _closeDropdown();
-              } else {
-                _openDropdown();
-              }
-            },
+            onTap: widget.readOnly
+                ? null
+                : () {
+                    if (isOpen) {
+                      _closeDropdown();
+                    } else {
+                      _openDropdown();
+                    }
+                  },
             style: GoogleFonts.plusJakartaSans(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: textPrimary,
+              color: widget.readOnly ? textMuted : textPrimary,
             ),
             decoration: InputDecoration(
               hintText: _isLoading
@@ -1132,26 +1137,36 @@ class _VariantLabelSelectorState extends State<VariantLabelSelector> {
                 color: textMuted,
               ),
               filled: true,
-              fillColor: fillColor,
+              fillColor: widget.readOnly
+                  ? (widget.isDark
+                      ? const Color(0xFF0B1120)
+                      : const Color(0xFFE2E8F0).withValues(alpha: 0.5))
+                  : fillColor,
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              suffixIcon: IconButton(
-                onPressed: () {
-                  if (isOpen) {
-                    _closeDropdown();
-                    _focusNode.unfocus();
-                  } else {
-                    _focusNode.requestFocus();
-                    _openDropdown();
-                  }
-                },
-                icon: Icon(
-                  isOpen
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: textMuted,
-                ),
-              ),
+              suffixIcon: widget.readOnly
+                  ? Icon(
+                      Icons.lock_outline_rounded,
+                      size: 14,
+                      color: textMuted,
+                    )
+                  : IconButton(
+                      onPressed: () {
+                        if (isOpen) {
+                          _closeDropdown();
+                          _focusNode.unfocus();
+                        } else {
+                          _focusNode.requestFocus();
+                          _openDropdown();
+                        }
+                      },
+                      icon: Icon(
+                        isOpen
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: textMuted,
+                      ),
+                    ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(color: borderColor),

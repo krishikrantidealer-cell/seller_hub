@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/models/category.dart';
+import '../../../core/models/admin_user.dart';
 import '../../../core/models/product.dart';
 import '../../../core/models/technical_name.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
@@ -56,8 +58,10 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   final _applicationMethodController = TextEditingController();
 
   // 3. Classification & Collections (Dropdowns)
-  String _selectedCategory = 'Bio Organic Nutrients';
-  String? _selectedCategoryId = '6ab4f6f619ec643fd9bf3621';
+  String _selectedCategory = 'Crop Protection';
+  String? _selectedMainCategoryId;
+  String? _selectedSubCategoryName;
+  String? _selectedCategoryId = '6ab4f6f619ec643fd9bf3620';
   String? _selectedCollectionName;
   String? _selectedSubCollectionName;
 
@@ -87,24 +91,29 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   void _applyTechnicalNameSelection(TechnicalNameModel tech) {
     final comm = tech.commissionPercentage;
     final formatted = comm > 0 ? comm.round().toString() : '';
+
     setState(() {
       _defaultTechnicalCommission = comm;
-      _variantCommissionController.text = formatted;
-      for (int i = 0; i < _variants.length; i++) {
-        final v = _variants[i];
-        final updatedRate = v.swg > 0
-            ? LivePriceCalculation.computeSellingRate(
-                swg: v.swg,
-                commissionPercentage: comm,
-                courierCharges: v.courierCharges,
-              )
-            : v.displayRate;
-        _variants[i] = v.copyWith(
-          commissionPercentage: comm,
-          displayRate: updatedRate,
-        );
+      if (_isMarketplace) {
+        _variantCommissionController.text = formatted;
+        for (int i = 0; i < _variants.length; i++) {
+          final v = _variants[i];
+          final updatedRate = v.swg > 0
+              ? LivePriceCalculation.computeSellingRate(
+                  swg: v.swg,
+                  commissionPercentage: comm,
+                  courierCharges: v.courierCharges,
+                  codCharge: LivePriceCalculation.fixedCodAndBankCharge,
+                  isMarketplace: true,
+                )
+              : v.displayRate;
+          _variants[i] = v.copyWith(
+            commissionPercentage: comm,
+            displayRate: updatedRate,
+          );
+        }
+        _recalculateSellingRate();
       }
-      _recalculateSellingRate();
     });
   }
 
@@ -117,6 +126,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   final String _selectedDimensionUnit = 'cm';
   final _refundPolicyController = TextEditingController(text: '7 Days Returnable if unopened');
   bool _isAvailable = false;
+  bool _isMarketplace = true;
   String? _selectedSellerId;
 
   @override
@@ -249,8 +259,10 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
 
     final disp = double.tryParse(_variantDisplayRateController.text.trim()) ?? cur.displayRate;
     final mrp = double.tryParse(_variantPrintedMrpController.text.trim()) ?? cur.printedMrp;
-    final courier = double.tryParse(_variantCourierChargesController.text.trim()) ?? cur.courierCharges;
-    const cod = LivePriceCalculation.fixedCodAndBankCharge;
+    final courier = _isMarketplace
+        ? (double.tryParse(_variantCourierChargesController.text.trim()) ?? cur.courierCharges)
+        : 0.0;
+    final cod = _isMarketplace ? LivePriceCalculation.fixedCodAndBankCharge : 0.0;
     final swgVal = double.tryParse(_variantSwgController.text.trim()) ?? cur.swg;
     final st = int.tryParse(_variantStockController.text.trim()) ?? cur.stock;
     final ps = int.tryParse(_variantPackSizeController.text.trim()) ?? cur.packSize;
@@ -469,6 +481,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
       subCollections: _selectedSubCollectionName ?? '',
       isAvailable: _isAvailable,
       isFeatured: false,
+      isMarketplace: _isMarketplace,
       variant: defaultVariant.label,
       packSize: defaultVariant.packSize.toString(),
       displayRate: defaultVariant.displayRate,
@@ -666,7 +679,9 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           // Seller Dropdown (NO VENDOR FIELD)
           BlocBuilder<SellerBloc, AdminUserState>(
             builder: (context, sellerState) {
-              final sellers = sellerState.users;
+              final sellers = sellerState.users
+                  .where((s) => !s.isDeleted && !s.isBlocked)
+                  .toList();
               final isLoading = sellerState.status == AdminUserStatus.loading;
 
               return Column(
@@ -726,8 +741,10 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                           );
                         }).toList(),
                         onChanged: (val) {
+                          final picked = sellers.where((s) => s.id == val).firstOrNull;
                           setState(() {
                             _selectedSellerId = val;
+                            _applySellerPricingModel(picked);
                           });
                         },
                       ),
@@ -789,35 +806,79 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           // Taxonomy Dropdowns (Category, Collection, Sub Collection)
           Row(
             children: [
-              // Category Dropdown
+              // Category & Sub-Category Dropdowns
               Expanded(
+                flex: 2,
                 child: BlocBuilder<CategoryBloc, CategoryState>(
                   builder: (context, catState) {
                     final categories = catState.allCategories;
-                    final categoryNames = categories.isNotEmpty
-                        ? categories.map((c) => c.name).toSet().toList()
-                        : const ['Bio Organic Nutrients', 'Insecticides', 'Herbicides', 'Fungicides', 'Seeds', 'Fertilizers', 'PGR & Bio-Nutrients'];
+                    final mainCats = categories.where((c) => c.level == 0).toList();
+                    final mainNames = mainCats.isNotEmpty
+                        ? mainCats.map((c) => c.name).toSet().toList()
+                        : const ['Crop Protection', 'Crop Nutrition', 'Fertilizers', 'Seeds', 'Organic Farming'];
 
-                    final effectiveValue = categoryNames.contains(_selectedCategory)
+                    final effectiveMain = mainNames.contains(_selectedCategory)
                         ? _selectedCategory
-                        : categoryNames.first;
+                        : mainNames.first;
+                    final selectedMainObj = mainCats
+                        .where((c) => c.name == effectiveMain)
+                        .firstOrNull;
+                    final effectiveMainId = _selectedMainCategoryId ?? selectedMainObj?.id;
+                    final subCats = effectiveMainId != null
+                        ? categories.where((c) => c.level == 1 && c.parentId == effectiveMainId).toList()
+                        : <CategoryItem>[];
+                    final subNames = subCats.map((c) => c.name).toSet().toList();
+                    final effectiveSub = (_selectedSubCategoryName != null && subNames.contains(_selectedSubCategoryName))
+                        ? _selectedSubCategoryName!
+                        : (subNames.isNotEmpty ? subNames.first : '');
 
-                    return _buildDropdown(
-                      label: 'Category',
-                      value: effectiveValue,
-                      items: categoryNames,
-                      onChanged: (val) {
-                        if (val == null) return;
-                        setState(() {
-                          _selectedCategory = val;
-                          final match = categories.where((c) => c.name == val).firstOrNull;
-                          if (match != null) {
-                            _selectedCategoryId = match.id;
-                          }
-                        });
-                      },
-                      isDark: isDark,
-                      borderColor: borderColor,
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _buildDropdown(
+                            label: 'Category *',
+                            value: effectiveMain,
+                            items: mainNames,
+                            onChanged: (val) {
+                              if (val == null) return;
+                              setState(() {
+                                _selectedCategory = val;
+                                final match = mainCats.where((c) => c.name == val).firstOrNull;
+                                if (match != null) {
+                                  _selectedMainCategoryId = match.id;
+                                  final firstSub = categories
+                                      .where((c) => c.level == 1 && c.parentId == match.id)
+                                      .firstOrNull;
+                                  _selectedSubCategoryName = firstSub?.name;
+                                  _selectedCategoryId = firstSub?.id ?? match.id;
+                                }
+                              });
+                            },
+                            isDark: isDark,
+                            borderColor: borderColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildDropdown(
+                            label: 'Sub-Category',
+                            value: effectiveSub,
+                            items: subNames.isNotEmpty ? subNames : const [''],
+                            onChanged: (val) {
+                              if (val == null || val.isEmpty) return;
+                              setState(() {
+                                _selectedSubCategoryName = val;
+                                final subMatch = subCats.where((c) => c.name == val).firstOrNull;
+                                if (subMatch != null) {
+                                  _selectedCategoryId = subMatch.id;
+                                }
+                              });
+                            },
+                            isDark: isDark,
+                            borderColor: borderColor,
+                          ),
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -906,6 +967,10 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   }
 
   void _recalculateCourierFromWeight() {
+    if (!_isMarketplace) {
+      _variantCourierChargesController.text = '';
+      return;
+    }
     final weight = double.tryParse(_weightController.text.trim()) ?? 0.0;
     if (weight > 0) {
       final courier = LivePriceCalculation.computeCourierChargeFromWeightGrams(weight);
@@ -916,18 +981,97 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
   }
 
   void _recalculateSellingRate() {
+    if (!_isMarketplace) {
+      _recalculateSwgFromSellingRate();
+      return;
+    }
     final swg = double.tryParse(_variantSwgController.text.trim()) ?? 0.0;
     final comm = double.tryParse(_variantCommissionController.text.trim()) ?? 0.0;
     final courier = double.tryParse(_variantCourierChargesController.text.trim()) ?? 0.0;
+    const cod = LivePriceCalculation.fixedCodAndBankCharge;
     if (swg > 0) {
       final calculated = LivePriceCalculation.computeSellingRate(
         swg: swg,
         commissionPercentage: comm,
         courierCharges: courier,
+        codCharge: cod,
+        isMarketplace: true,
       );
       _variantDisplayRateController.text = calculated.round().toString();
     } else {
       _variantDisplayRateController.text = '';
+    }
+  }
+
+  void _recalculateSwgFromSellingRate() {
+    final sellingRate = double.tryParse(_variantDisplayRateController.text.trim()) ?? 0.0;
+    final comm = double.tryParse(_variantCommissionController.text.trim()) ?? 0.0;
+    if (sellingRate > 0) {
+      final calculatedSwg = LivePriceCalculation.computeSwgFromSellingRate(
+        sellingRate: sellingRate,
+        commissionPercentage: comm,
+      );
+      _variantSwgController.text = calculatedSwg.round().toString();
+    } else {
+      _variantSwgController.text = '';
+    }
+  }
+
+  void _applySellerPricingModel(AdminUser? seller) {
+    final isDealer = seller != null && seller.pricingModel == 'DEALER_COMMISSION';
+    _isMarketplace = !isDealer;
+    final comm = isDealer ? seller.commissionPercentage : _defaultTechnicalCommission;
+    _variantCommissionController.text = comm > 0
+        ? (comm == comm.roundToDouble() ? comm.round().toString() : comm.toStringAsFixed(2))
+        : (isDealer ? '0' : '');
+
+    if (!_isMarketplace) {
+      _variantCourierChargesController.text = '';
+      _variantCodChargeController.text = '0';
+      _recalculateSwgFromSellingRate();
+    } else {
+      _variantCodChargeController.text =
+          LivePriceCalculation.fixedCodAndBankCharge.round().toString();
+      _recalculateCourierFromWeight();
+      _recalculateSellingRate();
+    }
+    _syncCurrentVariantFromControllers();
+
+    for (int i = 0; i < _variants.length; i++) {
+      if (i == _activeVariantIndex) continue;
+      final v = _variants[i];
+      if (_isMarketplace) {
+        final newCourier = LivePriceCalculation.computeCourierChargeFromWeightGrams(v.productWeight);
+        const newCod = LivePriceCalculation.fixedCodAndBankCharge;
+        final newRate = v.swg > 0
+            ? LivePriceCalculation.computeSellingRate(
+                swg: v.swg,
+                commissionPercentage: comm,
+                courierCharges: newCourier,
+                codCharge: newCod,
+                isMarketplace: true,
+              ).roundToDouble()
+            : v.displayRate;
+        _variants[i] = v.copyWith(
+          commissionPercentage: comm,
+          courierCharges: newCourier,
+          codCharge: newCod,
+          displayRate: newRate,
+        );
+      } else {
+        final newSwg = v.displayRate > 0
+            ? LivePriceCalculation.computeSwgFromSellingRate(
+                sellingRate: v.displayRate,
+                commissionPercentage: comm,
+              ).roundToDouble()
+            : v.swg;
+        _variants[i] = v.copyWith(
+          commissionPercentage: comm,
+          courierCharges: 0.0,
+          codCharge: 0.0,
+          swg: newSwg,
+        );
+      }
     }
   }
 
@@ -1117,11 +1261,19 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                   child: _buildFormField(
                     'Display Rate (₹) *',
                     _variantDisplayRateController,
-                    'Auto: SWG + Comm + Courier + ₹60',
+                    _isMarketplace
+                        ? 'Auto: SWG + Comm + Courier + ₹60'
+                        : 'e.g. 500',
                     isDark,
                     isNumber: true,
                     isRequired: true,
-                    readOnly: true,
+                    readOnly: _isMarketplace,
+                    onChanged: _isMarketplace
+                        ? null
+                        : (_) {
+                            _recalculateSwgFromSellingRate();
+                            setState(() {});
+                          },
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -1133,7 +1285,9 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                   child: _buildFormField(
                     'Commission (%)',
                     _variantCommissionController,
-                    'Auto from Technical Name',
+                    _isMarketplace
+                        ? 'Auto from Technical Name'
+                        : 'Auto from Seller (Dealer Commission)',
                     isDark,
                     isNumber: true,
                     readOnly: true,
@@ -1153,26 +1307,33 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                   child: _buildFormField(
                     'Seller Will Get (SWG ₹)',
                     _variantSwgController,
-                    'e.g. 400',
+                    _isMarketplace
+                        ? 'e.g. 400'
+                        : 'Auto: Selling Rate − Comm%',
                     isDark,
                     isNumber: true,
-                    onChanged: (_) {
-                      _recalculateSellingRate();
-                      setState(() {});
-                    },
+                    readOnly: !_isMarketplace,
+                    onChanged: _isMarketplace
+                        ? (_) {
+                            _recalculateSellingRate();
+                            setState(() {});
+                          }
+                        : null,
                   ),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: _buildFormField(
-                    'Courier Charge (₹)',
-                    _variantCourierChargesController,
-                    'Auto from Weight (g)',
-                    isDark,
-                    isNumber: true,
-                    readOnly: true,
+                if (_isMarketplace) ...[
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: _buildFormField(
+                      'Courier Charge (₹)',
+                      _variantCourierChargesController,
+                      'Auto from Weight (g)',
+                      isDark,
+                      isNumber: true,
+                      readOnly: true,
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(width: 14),
                 Expanded(
                   child: hasPrice
@@ -1192,17 +1353,19 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
             const SizedBox(height: 14),
             Row(
               children: [
-                Expanded(
-                  child: _buildFormField(
-                    'COD & Bank Charge (₹)',
-                    _variantCodChargeController,
-                    '60',
-                    isDark,
-                    isNumber: true,
-                    readOnly: true,
+                if (_isMarketplace) ...[
+                  Expanded(
+                    child: _buildFormField(
+                      'COD & Bank Charge (₹)',
+                      _variantCodChargeController,
+                      '60',
+                      isDark,
+                      isNumber: true,
+                      readOnly: true,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 14),
+                  const SizedBox(width: 14),
+                ],
                 Expanded(
                   child: _buildDropdown(
                     label: 'Payment Method *',
@@ -1226,12 +1389,13 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                 mrp: mrp,
                 swg: swg,
                 packQuantity: packQty,
-                courierCharges: courier,
+                courierCharges: _isMarketplace ? courier : 0.0,
                 commissionPercentage: double.tryParse(_variantCommissionController.text.trim()) ?? 0.0,
                 gstPercentage: (double.tryParse(_variantGstController.text.trim()) ?? _selectedVariantGst).clamp(0.0, 100.0),
                 discountRs: discountRs,
                 discountPct: discountPct,
                 isDark: isDark,
+                isMarketplace: _isMarketplace,
               ),
             ],
             const SizedBox(height: 16),
@@ -1370,18 +1534,10 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
           const SizedBox(height: 16),
           _buildFormField('Refund Policy', _refundPolicyController, 'e.g. 7-day replacement if sealed', isDark),
           const SizedBox(height: 20),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Is Available for Purchase',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-              ),
-            ),
+          ProductListingStatusToggle(
             value: _isAvailable,
             onChanged: (val) => setState(() => _isAvailable = val),
+            isDark: isDark,
           ),
         ],
       ),

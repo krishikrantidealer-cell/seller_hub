@@ -106,18 +106,17 @@ class TechnicalNameService {
 
   Future<TechnicalNameModel> createTechnicalName({
     required String name,
-    required String category,
     required double commissionPercentage,
     bool isActive = true,
   }) async {
+    final body = <String, dynamic>{
+      'name': name.trim(),
+      'commissionPercentage': commissionPercentage,
+      'isActive': isActive,
+    };
     final response = await _apiClient.post(
       ApiEndpoints.adminTechnicalNames,
-      body: {
-        'name': name.trim(),
-        'category': category.trim(),
-        'commissionPercentage': commissionPercentage,
-        'isActive': isActive,
-      },
+      body: body,
       requiresAuth: true,
     );
     invalidateCache();
@@ -131,14 +130,12 @@ class TechnicalNameService {
   Future<TechnicalNameModel> updateTechnicalName(
     String id, {
     String? name,
-    String? category,
     double? commissionPercentage,
     bool? isActive,
     bool syncProducts = false,
   }) async {
     final body = <String, dynamic>{'syncProducts': syncProducts};
     if (name != null) body['name'] = name.trim();
-    if (category != null) body['category'] = category.trim();
     if (commissionPercentage != null) {
       body['commissionPercentage'] = commissionPercentage;
     }

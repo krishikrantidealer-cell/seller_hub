@@ -3,16 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/models/admin_user.dart';
 import '../../../core/models/seller.dart';
 import '../../../core/models/product.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/utils/file_download_helper.dart';
+import '../../../core/utils/india_location_helper.dart';
 import '../../../logic/product/product_bloc.dart';
 import '../../../logic/product/product_event.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
 import '../../../domain/repositories/admin_user_repository.dart';
-import '../widgets/add_product_dialog.dart';
 import '../widgets/bulk_add_products_dialog.dart';
+import '../widgets/variant_live_pricing.dart';
 
 class SellerProfileView extends StatefulWidget {
   final SellerProfile seller;
@@ -43,16 +46,30 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   late SellerProfile _currentSeller;
   late bool _isCreating;
   bool _isEditing = false;
+  bool _isSubmitting = false;
+  String? _createErrorMessage;
+  bool _isLookingUpPincode = false;
+  bool _isLoadingCities = false;
+  String? _pincodeStatusText;
+  List<String> _extraPincodeCities = const [];
+  String _pricingModel = 'MARKETPLACE';
 
-  // Staged compliance documents during registration (Create Mode)
+  // Staged documents during seller creation (Create Mode)
   PlatformFile? _stagedGstFile;
   PlatformFile? _stagedPanFile;
   PlatformFile? _stagedAadhaarFile;
+  PlatformFile? _stagedCancelledChequeFile;
+  PlatformFile? _stagedAgreementFile;
   final List<PlatformFile> _stagedLicenceFiles = [];
+
+  // Dynamic Warehouse Addresses (same schema as Address)
+  final List<_WarehouseAddressEntry> _warehouseEntries = [];
 
   // Edit Controllers
   late TextEditingController _companyNameController;
   late TextEditingController _tradeNameController;
+  late TextEditingController _firstNameController;
+  late TextEditingController _lastNameController;
   late TextEditingController _contactPersonController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
@@ -63,8 +80,10 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   late TextEditingController _cityController;
   late TextEditingController _stateController;
   late TextEditingController _pincodeController;
-  late TextEditingController _warehouseAddressController;
   late TextEditingController _commissionController;
+  late TextEditingController _monthlyTargetController;
+  late TextEditingController _notesController;
+  late TextEditingController _passwordController;
 
   // Bank Controllers
   late TextEditingController _bankNameController;
@@ -80,13 +99,21 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     _currentSeller = widget.seller;
     _isCreating = widget.isCreateMode || _currentSeller.id.isEmpty;
     _isEditing = _isCreating;
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _initControllers();
+    IndiaLocationHelper.fetchStates().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _initControllers() {
+    final contactParts = _currentSeller.contactPerson.trim().split(RegExp(r'\s+'));
+    final initFirst = contactParts.isNotEmpty && contactParts.first.isNotEmpty ? contactParts.first : '';
+    final initLast = contactParts.length > 1 ? contactParts.sublist(1).join(' ') : '';
     _companyNameController = TextEditingController(text: _currentSeller.companyName);
     _tradeNameController = TextEditingController(text: _currentSeller.tradeName);
+    _firstNameController = TextEditingController(text: initFirst);
+    _lastNameController = TextEditingController(text: initLast);
     _contactPersonController = TextEditingController(text: _currentSeller.contactPerson);
     _emailController = TextEditingController(text: _currentSeller.email);
     _phoneController = TextEditingController(text: _currentSeller.phone);
@@ -97,8 +124,19 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     _cityController = TextEditingController(text: _currentSeller.city);
     _stateController = TextEditingController(text: _currentSeller.state);
     _pincodeController = TextEditingController(text: _currentSeller.pincode);
-    _warehouseAddressController = TextEditingController(text: _currentSeller.warehouseAddress);
-    _commissionController = TextEditingController(text: _currentSeller.commissionPercentage.toString());
+    _warehouseEntries.clear();
+    for (final wh in _currentSeller.warehouseAddresses) {
+      _warehouseEntries.add(_WarehouseAddressEntry.fromAddress(wh));
+    }
+    _pricingModel = _currentSeller.pricingModel.isNotEmpty ? _currentSeller.pricingModel : 'MARKETPLACE';
+    _commissionController = TextEditingController(
+      text: _currentSeller.commissionPercentage > 0 ? _currentSeller.commissionPercentage.toString() : '',
+    );
+    _monthlyTargetController = TextEditingController(
+      text: _currentSeller.monthlyTarget != null ? _currentSeller.monthlyTarget.toString() : '',
+    );
+    _notesController = TextEditingController(text: _currentSeller.notes ?? '');
+    _passwordController = TextEditingController();
 
     _bankNameController = TextEditingController(text: _currentSeller.bankDetails.bankName);
     _accHolderController = TextEditingController(text: _currentSeller.bankDetails.accountHolderName);
@@ -113,6 +151,8 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     _tabController.dispose();
     _companyNameController.dispose();
     _tradeNameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _contactPersonController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -123,8 +163,13 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     _cityController.dispose();
     _stateController.dispose();
     _pincodeController.dispose();
-    _warehouseAddressController.dispose();
+    for (final entry in _warehouseEntries) {
+      entry.dispose();
+    }
     _commissionController.dispose();
+    _monthlyTargetController.dispose();
+    _notesController.dispose();
+    _passwordController.dispose();
     _bankNameController.dispose();
     _accHolderController.dispose();
     _accNumberController.dispose();
@@ -134,38 +179,47 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     super.dispose();
   }
 
-  void _saveChanges() {
+  Future<void> _saveChanges() async {
     if (_isCreating) {
+      if (_isSubmitting) return;
       final tradeName = _tradeNameController.text.trim().isNotEmpty
           ? _tradeNameController.text.trim()
           : _companyNameController.text.trim();
-      if (tradeName.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter Trade / Shop Name')),
-        );
-        return;
-      }
-
-      final phone = _phoneController.text.trim();
-      final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+      final firstName = _firstNameController.text.trim();
+      final lastName = _lastNameController.text.trim();
+      final email = _emailController.text.trim().toLowerCase();
+      final cleanPhone = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
       final finalPhone = cleanPhone.length > 10 ? cleanPhone.substring(cleanPhone.length - 10) : cleanPhone;
-      if (finalPhone.length != 10) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a valid 10-digit mobile number')),
-        );
-        return;
+      final gstin = _gstinController.text.trim().toUpperCase();
+      final panNumber = _panController.text.trim().toUpperCase();
+      final licenceNo = _licenseController.text.trim();
+      final password = _passwordController.text;
+
+      String? validationError;
+      if (tradeName.isEmpty) {
+        validationError = 'Shop / Trade Name is required.';
+      } else if (firstName.isEmpty || lastName.isEmpty) {
+        validationError = 'Owner First Name and Last Name are required.';
+      } else if (finalPhone.length != 10) {
+        validationError = 'Please enter a valid 10-digit mobile number.';
+      } else if (email.isEmpty || !RegExp(r'^[\w\.\+\-]+@[\w\-]+\.[\w\.\-]+$').hasMatch(email)) {
+        validationError = 'Please enter a valid email address.';
+      } else if (gstin.isNotEmpty && gstin.length != 15) {
+        validationError = 'GSTIN must be exactly 15 alphanumeric characters if provided.';
+      } else if (password.isNotEmpty && password.trim().length < 6) {
+        validationError = 'Password must be at least 6 characters if provided.';
       }
 
-      final contactPerson = _contactPersonController.text.trim();
-      final parts = contactPerson.split(' ');
-      final firstName = parts.isNotEmpty && parts.first.isNotEmpty ? parts.first : tradeName;
-      final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : 'Seller';
+      double? dealerCommission;
+      if (validationError == null && _pricingModel == 'DEALER_COMMISSION') {
+        dealerCommission = double.tryParse(_commissionController.text.trim());
+        if (dealerCommission == null || dealerCommission < 0 || dealerCommission > 100) {
+          validationError = 'Please enter a valid Commission (%) between 0 and 100 for Dealer Commission.';
+        }
+      }
 
-      final gstin = _gstinController.text.trim().toUpperCase();
-      if (gstin.isNotEmpty && gstin.length != 15) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('GSTIN must be exactly 15 alphanumeric characters')),
-        );
+      if (validationError != null) {
+        setState(() => _createErrorMessage = validationError);
         return;
       }
 
@@ -174,135 +228,283 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         'firstName': firstName,
         'lastName': lastName,
         'phoneNumber': finalPhone,
-        if (_emailController.text.trim().isNotEmpty) 'email': _emailController.text.trim(),
+        'email': email,
         if (gstin.isNotEmpty) 'gstNumber': gstin,
-        'address': {
-          if (_registeredAddressController.text.trim().isNotEmpty)
-            'villageArea': _registeredAddressController.text.trim(),
-          'cityTehsil': _cityController.text.trim().isNotEmpty ? _cityController.text.trim() : 'City',
-          'state': _stateController.text.trim().isNotEmpty ? _stateController.text.trim() : 'Madhya Pradesh',
-          'pincode': _pincodeController.text.trim().isNotEmpty ? _pincodeController.text.trim() : '462001',
-        },
+        if (panNumber.isNotEmpty) 'panNumber': panNumber,
+        if (licenceNo.isNotEmpty) 'licenceNo': licenceNo,
+        if (password.trim().isNotEmpty) 'password': password.trim(),
+        'pricingModel': _pricingModel,
+        'commissionPercentage': _pricingModel == 'DEALER_COMMISSION' ? (dealerCommission ?? 0.0) : 0.0,
       };
 
-      context.read<SellerBloc>().add(
-            CreateAdminUser(
-              userData: payload,
-              onSuccess: (created) {
-                final profile = SellerProfile.fromAdminUser(created);
-                setState(() {
-                  _currentSeller = profile;
-                  _isCreating = false;
-                  _isEditing = false;
-                });
-                widget.onSellerCreated?.call(profile);
-                widget.onSellerUpdated(profile);
+      final regAddr = _registeredAddressController.text.trim();
+      final city = _cityController.text.trim();
+      final state = _stateController.text.trim();
+      final pincode = _pincodeController.text.trim();
+      if (regAddr.isNotEmpty || city.isNotEmpty || state.isNotEmpty || pincode.isNotEmpty) {
+        payload['address'] = {
+          if (regAddr.isNotEmpty) 'villageArea': regAddr,
+          if (city.isNotEmpty) 'cityTehsil': city,
+          if (state.isNotEmpty) 'state': state,
+          if (pincode.isNotEmpty) 'pincode': pincode,
+          'country': 'India',
+        };
+      }
 
-                final hasStagedDocs = _stagedGstFile != null ||
-                    _stagedPanFile != null ||
-                    _stagedAadhaarFile != null ||
-                    _stagedLicenceFiles.isNotEmpty;
+      final warehouseList = _warehouseEntries
+          .where((e) => !e.isEmpty)
+          .map((e) => e.toAddressMap())
+          .toList();
+      if (warehouseList.isNotEmpty) {
+        payload['warehouseAddresses'] = warehouseList;
+      }
 
-                if (hasStagedDocs) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Seller registered! Uploading staged compliance documents to secure storage...'),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
-                  context.read<SellerBloc>().add(
-                        UploadAdminUserKycDocuments(
-                          userId: created.id,
-                          gstCertificate: _stagedGstFile,
-                          panCard: _stagedPanFile,
-                          aadhaarCard: _stagedAadhaarFile,
-                          licenceFiles: _stagedLicenceFiles.isNotEmpty ? List.from(_stagedLicenceFiles) : null,
-                          onSuccess: (updated) {
-                            if (!mounted) return;
-                            setState(() {
-                              _currentSeller = SellerProfile.fromAdminUser(updated);
-                              _stagedGstFile = null;
-                              _stagedPanFile = null;
-                              _stagedAadhaarFile = null;
-                              _stagedLicenceFiles.clear();
-                            });
-                            widget.onSellerUpdated(_currentSeller);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                backgroundColor: const Color(0xFF059669),
-                                content: Text(
-                                  'Seller "${profile.tradeName}" registered and all compliance documents uploaded successfully!',
-                                ),
-                              ),
-                            );
-                          },
-                          onError: (err) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                backgroundColor: const Color(0xFFE11D48),
-                                content: Text('Seller registered, but document upload failed: $err'),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: const Color(0xFF059669),
-                      content: Text(
-                        'Seller "${profile.tradeName}" registered successfully! You can now upload KYC documents below.',
-                      ),
-                    ),
-                  );
-                }
-              },
+      final bankName = _bankNameController.text.trim();
+      final accHolder = _accHolderController.text.trim();
+      final accNumber = _accNumberController.text.trim();
+      final ifsc = _ifscController.text.trim().toUpperCase();
+      final branch = _branchController.text.trim();
+      final upi = _upiController.text.trim();
+      if (bankName.isNotEmpty ||
+          accHolder.isNotEmpty ||
+          accNumber.isNotEmpty ||
+          ifsc.isNotEmpty ||
+          branch.isNotEmpty ||
+          upi.isNotEmpty) {
+        payload['bankDetails'] = {
+          if (bankName.isNotEmpty) 'bankName': bankName,
+          if (accHolder.isNotEmpty) 'accountHolderName': accHolder,
+          if (accNumber.isNotEmpty) 'accountNumber': accNumber,
+          if (ifsc.isNotEmpty) 'ifscCode': ifsc,
+          if (branch.isNotEmpty) 'branch': branch,
+          if (upi.isNotEmpty) 'upiId': upi,
+        };
+      }
+
+      final targetInt = int.tryParse(_monthlyTargetController.text.trim());
+      if (targetInt != null && targetInt >= 0) {
+        payload['monthlyTarget'] = targetInt;
+      }
+      final notes = _notesController.text.trim();
+      if (notes.isNotEmpty) {
+        payload['notes'] = notes;
+      }
+
+      setState(() {
+        _isSubmitting = true;
+        _createErrorMessage = null;
+      });
+
+      try {
+        final repository = context.read<AdminUserRepository>();
+        final created = await repository.createSeller(payload);
+        if (!mounted) return;
+
+        context.read<SellerBloc>().add(UpdateLocalAdminUser(created));
+        context.read<SellerBloc>().add(const InitializeAdminUsers(forceRefresh: true));
+
+        final profile = SellerProfile.fromAdminUser(created);
+        setState(() {
+          _currentSeller = profile;
+          _isCreating = false;
+          _isEditing = false;
+          _isSubmitting = false;
+        });
+        widget.onSellerCreated?.call(profile);
+        widget.onSellerUpdated(profile);
+
+        final hasStagedDocs = _stagedGstFile != null ||
+            _stagedPanFile != null ||
+            _stagedAadhaarFile != null ||
+            _stagedCancelledChequeFile != null ||
+            _stagedAgreementFile != null ||
+            _stagedLicenceFiles.isNotEmpty;
+
+        if (hasStagedDocs) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Seller registered! Uploading staged documents...'),
+              duration: Duration(seconds: 3),
             ),
           );
+          context.read<SellerBloc>().add(
+                UploadSellerDocuments(
+                  userId: created.id,
+                  gstCertificate: _stagedGstFile,
+                  panCard: _stagedPanFile,
+                  aadhaarCard: _stagedAadhaarFile,
+                  cancelledCheque: _stagedCancelledChequeFile,
+                  agreement: _stagedAgreementFile,
+                  licenceFiles: _stagedLicenceFiles.isNotEmpty ? List.from(_stagedLicenceFiles) : null,
+                  onSuccess: (updated) {
+                    if (!mounted) return;
+                    setState(() {
+                      _currentSeller = SellerProfile.fromAdminUser(updated);
+                      _stagedGstFile = null;
+                      _stagedPanFile = null;
+                      _stagedAadhaarFile = null;
+                      _stagedCancelledChequeFile = null;
+                      _stagedAgreementFile = null;
+                      _stagedLicenceFiles.clear();
+                    });
+                    widget.onSellerUpdated(_currentSeller);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: const Color(0xFF059669),
+                        content: Text('Seller "${profile.tradeName}" registered and all documents uploaded!'),
+                      ),
+                    );
+                  },
+                  onError: (err) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: const Color(0xFFE11D48),
+                        content: Text('Seller registered, but document upload failed: $err'),
+                      ),
+                    );
+                  },
+                ),
+              );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF059669),
+              content: Text('Seller "${profile.tradeName}" registered successfully!'),
+            ),
+          );
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isSubmitting = false;
+          _createErrorMessage = e is ApiException
+              ? e.message
+              : e.toString().replaceAll('ApiException: ', '').replaceAll('Exception: ', '');
+        });
+      }
       return;
     }
 
-    final updated = _currentSeller.copyWith(
-      companyName: _companyNameController.text.trim(),
-      tradeName: _tradeNameController.text.trim(),
-      contactPerson: _contactPersonController.text.trim(),
-      email: _emailController.text.trim(),
-      phone: _phoneController.text.trim(),
-      gstin: _gstinController.text.trim(),
-      panNumber: _panController.text.trim(),
-      licenseNumber: _licenseController.text.trim(),
-      registeredAddress: _registeredAddressController.text.trim(),
-      city: _cityController.text.trim(),
-      state: _stateController.text.trim(),
-      pincode: _pincodeController.text.trim(),
-      warehouseAddress: _warehouseAddressController.text.trim(),
-      commissionPercentage: double.tryParse(_commissionController.text) ?? _currentSeller.commissionPercentage,
-      bankDetails: _currentSeller.bankDetails.copyWith(
-        bankName: _bankNameController.text.trim(),
-        accountHolderName: _accHolderController.text.trim(),
-        accountNumber: _accNumberController.text.trim(),
-        ifscCode: _ifscController.text.trim(),
-        branch: _branchController.text.trim(),
-        upiId: _upiController.text.trim(),
-      ),
-      updatedAt: DateTime.now(),
-    );
+    double effectiveCommission = 0.0;
+    if (_pricingModel == 'DEALER_COMMISSION') {
+      final parsedComm = double.tryParse(_commissionController.text.trim());
+      if (parsedComm == null || parsedComm < 0 || parsedComm > 100) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter a valid Commission (%) between 0 and 100 for Dealer Commission.'),
+            backgroundColor: Color(0xFFE11D48),
+          ),
+        );
+        return;
+      }
+      effectiveCommission = parsedComm;
+    }
 
-    setState(() {
-      _currentSeller = updated;
-      _isEditing = false;
-    });
+    final pricingChanged = _currentSeller.pricingModel != _pricingModel ||
+        _currentSeller.commissionPercentage != effectiveCommission;
 
-    widget.onSellerUpdated(updated);
+    final contactParts = _contactPersonController.text.trim().split(RegExp(r'\s+'));
+    final firstName = contactParts.isNotEmpty && contactParts.first.isNotEmpty
+        ? contactParts.first
+        : _firstNameController.text.trim();
+    final lastName = contactParts.length > 1
+        ? contactParts.sublist(1).join(' ')
+        : _lastNameController.text.trim();
+    final tradeName = _tradeNameController.text.trim().isNotEmpty
+        ? _tradeNameController.text.trim()
+        : _companyNameController.text.trim();
+    final gstin = _gstinController.text.trim().toUpperCase();
+    final panNumber = _panController.text.trim().toUpperCase();
+    final licenceNo = _licenseController.text.trim();
+    final regAddr = _registeredAddressController.text.trim();
+    final city = _cityController.text.trim();
+    final state = _stateController.text.trim();
+    final pincode = _pincodeController.text.trim();
+    final warehouseList = _warehouseEntries
+        .where((e) => !e.isEmpty)
+        .map((e) => e.toAddressMap())
+        .toList();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Seller profile for "${updated.tradeName}" updated successfully.'),
-        backgroundColor: const Color(0xFF059669),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    final cleanEditPhone = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+    final finalEditPhone = cleanEditPhone.length > 10
+        ? cleanEditPhone.substring(cleanEditPhone.length - 10)
+        : cleanEditPhone;
+    final targetInt = int.tryParse(_monthlyTargetController.text.trim());
+
+    final updatePayload = <String, dynamic>{
+      if (tradeName.isNotEmpty) 'shopName': tradeName,
+      if (firstName.isNotEmpty) 'firstName': firstName,
+      if (lastName.isNotEmpty) 'lastName': lastName,
+      if (finalEditPhone.length == 10) 'phoneNumber': finalEditPhone,
+      if (_emailController.text.trim().isNotEmpty) 'email': _emailController.text.trim().toLowerCase(),
+      'gstNumber': gstin,
+      'panNumber': panNumber,
+      'licenceNo': licenceNo,
+      if (regAddr.isNotEmpty || city.isNotEmpty || state.isNotEmpty || pincode.isNotEmpty)
+        'address': {
+          if (regAddr.isNotEmpty) 'villageArea': regAddr,
+          if (city.isNotEmpty) 'cityTehsil': city,
+          if (state.isNotEmpty) 'state': state,
+          if (pincode.isNotEmpty) 'pincode': pincode,
+          'country': 'India',
+        },
+      'warehouseAddresses': warehouseList,
+      'pricingModel': _pricingModel,
+      'commissionPercentage': effectiveCommission,
+      if (targetInt != null && targetInt >= 0) 'monthlyTarget': targetInt,
+      'notes': _notesController.text.trim(),
+      if (_passwordController.text.trim().length >= 6) 'password': _passwordController.text.trim(),
+      'bankDetails': {
+        'bankName': _bankNameController.text.trim(),
+        'accountHolderName': _accHolderController.text.trim(),
+        'accountNumber': _accNumberController.text.trim(),
+        'ifscCode': _ifscController.text.trim().toUpperCase(),
+        'branch': _branchController.text.trim(),
+        'upiId': _upiController.text.trim(),
+        if (_currentSeller.bankDetails.cancelledCheque.isNotEmpty)
+          'cancelledCheque': _currentSeller.bankDetails.cancelledCheque,
+      },
+    };
+
+    try {
+      final repository = context.read<AdminUserRepository>();
+      final savedUser = await repository.updateUser(
+        userId: _currentSeller.id,
+        data: updatePayload,
+      );
+      if (!mounted) return;
+      context.read<SellerBloc>().add(UpdateLocalAdminUser(savedUser));
+      final updated = SellerProfile.fromAdminUser(savedUser);
+      setState(() {
+        _currentSeller = updated;
+        _isEditing = false;
+      });
+      widget.onSellerUpdated(updated);
+      if (pricingChanged) {
+        try {
+          context.read<ProductBloc>().add(const InitializeProducts());
+        } catch (_) {}
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Seller profile for "${updated.tradeName}" updated successfully.'),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is ApiException ? e.message : 'Failed to update seller: $e',
+          ),
+          backgroundColor: const Color(0xFFE11D48),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _toggleStatus() {
@@ -439,57 +641,153 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
           const SizedBox(height: 18),
         ],
 
-        // Seller Header Banner Card
-        _buildSellerHeaderCard(context, isDark, surfaceColor, borderColor, isWide),
+        if (_isCreating) ...[
+          _buildCreateSellerForm(context, isDark, surfaceColor, borderColor, isWide),
+        ] else ...[
+          // Seller Header Banner Card
+          _buildSellerHeaderCard(context, isDark, surfaceColor, borderColor, isWide),
 
-        const SizedBox(height: 18),
+          const SizedBox(height: 18),
 
-        // KPI Metric Strip
-        if (!_isCreating) ...[
+          // KPI Metric Strip
           _buildSellerMetricsGrid(context, isDark, surfaceColor, borderColor, sellerProducts.length, isWide),
           const SizedBox(height: 18),
-        ],
 
-        // Tab Bar for Profile Sections
-        Container(
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor),
+          // 2-Tab Bar: Profile & Business Details | Products Catalog
+          Container(
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              labelColor: const Color(0xFF059669),
+              unselectedLabelColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              indicatorColor: const Color(0xFF059669),
+              indicatorWeight: 3,
+              labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700),
+              unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+              tabs: [
+                const Tab(icon: Icon(Icons.business_center_rounded, size: 18), text: 'Profile & Business Details'),
+                Tab(icon: const Icon(Icons.inventory_2_rounded, size: 18), text: 'Products Catalog (${sellerProducts.length})'),
+              ],
+            ),
           ),
-          child: Column(
+          const SizedBox(height: 16),
+
+          AnimatedBuilder(
+            animation: _tabController,
+            builder: (context, _) {
+              if (_tabController.index == 1) {
+                return _buildProductsTab(isDark, surfaceColor, borderColor, sellerProducts);
+              }
+              return _buildSellerProfileCards(context, isDark, surfaceColor, borderColor, isWide);
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSellerProfileCards(
+    BuildContext context,
+    bool isDark,
+    Color surfaceColor,
+    Color borderColor,
+    bool isWide,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isWide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TabBar(
-                controller: _tabController,
-                labelColor: const Color(0xFF059669),
-                unselectedLabelColor: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                indicatorColor: const Color(0xFF059669),
-                indicatorWeight: 3,
-                labelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700),
-                unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
-                tabs: const [
-                  Tab(icon: Icon(Icons.business_rounded, size: 18), text: 'Business & Legal'),
-                  Tab(icon: Icon(Icons.contact_phone_rounded, size: 18), text: 'Contact & Personnel'),
-                  Tab(icon: Icon(Icons.account_balance_rounded, size: 18), text: 'Bank & Settlement'),
-                  Tab(icon: Icon(Icons.inventory_2_rounded, size: 18), text: 'Products Catalog'),
-                ],
-              ),
-              Divider(height: 1, color: borderColor),
-              SizedBox(
-                height: 580,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildBusinessTab(isDark, borderColor),
-                    _buildContactTab(isDark, borderColor),
-                    _buildBankTab(isDark, borderColor),
-                    _buildProductsTab(isDark, surfaceColor, borderColor, sellerProducts),
-                  ],
-                ),
-              ),
+              Expanded(child: _buildCreateBusinessCard(isDark, surfaceColor, borderColor)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildCreateContactCard(isDark, surfaceColor, borderColor)),
             ],
+          )
+        else ...[
+          _buildCreateBusinessCard(isDark, surfaceColor, borderColor),
+          const SizedBox(height: 16),
+          _buildCreateContactCard(isDark, surfaceColor, borderColor),
+        ],
+        const SizedBox(height: 16),
+        if (isWide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildCreateAddressCard(isDark, surfaceColor, borderColor)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildCreateBankCard(isDark, surfaceColor, borderColor)),
+            ],
+          )
+        else ...[
+          _buildCreateAddressCard(isDark, surfaceColor, borderColor),
+          const SizedBox(height: 16),
+          _buildCreateBankCard(isDark, surfaceColor, borderColor),
+        ],
+        const SizedBox(height: 16),
+        if (_isEditing)
+          _buildCreateWarehousesCard(isDark, surfaceColor, borderColor)
+        else
+          _buildCreateSectionCard(
+            icon: Icons.warehouse_outlined,
+            stepNumber: '05',
+            title: 'Warehouse & Dispatch Addresses',
+            subtitle: 'Registered fulfillment and dispatch warehouse locations',
+            isDark: isDark,
+            surfaceColor: surfaceColor,
+            borderColor: borderColor,
+            child: _buildWarehouseAddressesSection(isDark, borderColor),
           ),
-        ),
+        const SizedBox(height: 16),
+        _buildDocumentsSection(context, isDark, borderColor),
+        if (_isEditing) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _isEditing = false;
+                      _initControllers();
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                    side: BorderSide(color: borderColor),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text('Cancel', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton.icon(
+                  onPressed: _saveChanges,
+                  icon: const Icon(Icons.check_circle_rounded, size: 18),
+                  label: Text('Save Changes', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -646,9 +944,18 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 child: Text('Cancel', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
               ),
               ElevatedButton.icon(
-                onPressed: _saveChanges,
-                icon: const Icon(Icons.add_business_rounded, size: 17),
-                label: Text('Create Seller Account', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+                onPressed: _isSubmitting ? null : _saveChanges,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.add_business_rounded, size: 17),
+                label: Text(
+                  _isSubmitting ? 'Creating Seller...' : 'Create Seller Account',
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,
@@ -673,20 +980,6 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                 ),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Color(0xFF7C3AED)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => _openAddSingleProduct(context),
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: Text(
-                  '+ Add Product',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
@@ -813,7 +1106,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
             ? const Color(0xFF10B981)
             : (_currentSeller.status == 'ACTIVE'
                 ? const Color(0xFF059669)
-                : (_currentSeller.status == 'KYC_PENDING' ? const Color(0xFFF59E0B) : const Color(0xFFEF4444))));
+                : const Color(0xFFEF4444)));
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -911,8 +1204,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                     runSpacing: 6,
                     children: [
                       _buildSimpleBadge(Icons.storefront_rounded, 'Role: ROLE_SELLER', isDark, borderColor),
-                      _buildSimpleBadge(Icons.app_registration_rounded, 'Step 1: Registration Form', isDark, borderColor),
-                      _buildSimpleBadge(Icons.cloud_upload_rounded, 'Step 2: KYC Cloud Upload', isDark, borderColor),
+                      _buildSimpleBadge(Icons.app_registration_rounded, 'Seller Onboarding', isDark, borderColor),
                     ],
                   )
                 else
@@ -921,12 +1213,27 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                     runSpacing: 6,
                     children: [
                       _buildCopyableBadge('Seller No', _currentSeller.sellerNumber, isDark, borderColor),
+                      _buildSimpleBadge(
+                        _currentSeller.pricingModel == 'DEALER_COMMISSION'
+                            ? Icons.handshake_outlined
+                            : Icons.storefront_rounded,
+                        _currentSeller.pricingModel == 'DEALER_COMMISSION'
+                            ? 'Dealer Commission (${_currentSeller.commissionPercentage.toStringAsFixed(_currentSeller.commissionPercentage == _currentSeller.commissionPercentage.roundToDouble() ? 0 : 1)}%)'
+                            : 'Marketplace Pricing',
+                        isDark,
+                        borderColor,
+                      ),
                       if (_currentSeller.phone.isNotEmpty)
                         _buildCopyableBadge('Mobile', _currentSeller.phone, isDark, borderColor),
                       if (_currentSeller.gstin.isNotEmpty)
                         _buildCopyableBadge('GSTIN', _currentSeller.gstin, isDark, borderColor),
-                      _buildSimpleBadge(Icons.business_rounded, _currentSeller.businessType, isDark, borderColor),
-                      _buildSimpleBadge(Icons.location_on_rounded, '${_currentSeller.city}, ${_currentSeller.state}', isDark, borderColor),
+                      if (_currentSeller.city.isNotEmpty || _currentSeller.state.isNotEmpty)
+                        _buildSimpleBadge(
+                          Icons.location_on_rounded,
+                          [_currentSeller.city, _currentSeller.state].where((s) => s.isNotEmpty).join(', '),
+                          isDark,
+                          borderColor,
+                        ),
                     ],
                   ),
               ],
@@ -1001,7 +1308,6 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
       {'label': 'Total Orders', 'value': '${_currentSeller.totalOrders}', 'icon': Icons.shopping_bag_rounded, 'color': const Color(0xFF3B82F6)},
       {'label': 'Gross Revenue', 'value': '₹${(_currentSeller.grossSalesValue / 100000).toStringAsFixed(1)}L', 'icon': Icons.currency_rupee_rounded, 'color': const Color(0xFF10B981)},
       {'label': 'Commission', 'value': '${_currentSeller.commissionPercentage}%', 'icon': Icons.percent_rounded, 'color': const Color(0xFF8B5CF6)},
-      {'label': 'Seller Rating', 'value': '${_currentSeller.rating} ★', 'icon': Icons.star_rounded, 'color': const Color(0xFFF59E0B)},
     ];
 
     return Row(
@@ -1062,173 +1368,152 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     );
   }
 
-  // --- TAB 1: BUSINESS & LEGAL ---
-  Widget _buildBusinessTab(bool isDark, Color borderColor) {
-    final panVal = _panController.text.trim().isNotEmpty
-        ? _panController.text.trim()
-        : (_currentSeller.gstin.length == 15 ? _currentSeller.gstin.substring(2, 12).toUpperCase() : 'AABCK1234F');
-    final gstinVal = _gstinController.text.trim().isNotEmpty ? _gstinController.text.trim() : _currentSeller.gstin;
-    final licVal = _licenseController.text.trim().isNotEmpty ? _licenseController.text.trim() : _currentSeller.licenseNumber;
-
-    final docItems = <Map<String, String>>[
-      {
-        'label': 'GST Registration Certificate',
-        'title': 'Goods & Services Tax (GST) Certificate',
-        'type': 'Tax Registration Document',
-        'number': gstinVal,
-        'url': 'https://storage.googleapis.com/sellerhub-prod-media-us/compliance/gst_${_currentSeller.id}.pdf',
-      },
-      {
-        'label': 'PAN Card Document ($panVal)',
-        'title': 'Permanent Account Number (PAN Card)',
-        'type': 'Income Tax Department Identity',
-        'number': panVal,
-        'url': 'https://storage.googleapis.com/sellerhub-prod-media-us/compliance/pan_${_currentSeller.id}.pdf',
-      },
-      {
-        'label': 'Agri & Pesticide Trading License',
-        'title': 'Government Fertilizer & Pesticide Dealership License',
-        'type': 'Department of Agriculture License',
-        'number': licVal.isNotEmpty ? licVal : 'LIC-AGRI-2026-GUJ',
-        'url': licVal.startsWith('http')
-            ? licVal
-            : 'https://storage.googleapis.com/sellerhub-prod-media-us/compliance/lic_fertilizer_${_currentSeller.id}.pdf',
-      },
-      {
-        'label': 'Storefront Verification Photo',
-        'title': 'Physical Retail Shop & Warehouse Verification',
-        'type': 'Premises Location Proof',
-        'number': 'PREMISES-GEO-VERIFIED',
-        'url': 'https://images.unsplash.com/photo-1586771107445-d3ca888129ff?w=600',
-      },
-    ];
-
-    if (_currentSeller.kycDocuments.isNotEmpty) {
-      for (final doc in _currentSeller.kycDocuments) {
-        if (!docItems.any((d) => d['label'] == doc)) {
-          docItems.add({
-            'label': doc,
-            'title': doc,
-            'type': 'Compliance Certificate',
-            'number': 'DOC-${doc.hashCode.abs().toString().substring(0, 6)}',
-            'url': 'https://storage.googleapis.com/sellerhub-prod-media-us/compliance/doc_${_currentSeller.id}.pdf',
-          });
-        }
-      }
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField('Legal Company Name', _companyNameController, isDark, borderColor, enabled: _isEditing),
+  // --- WAREHOUSE ADDRESSES SECTION ---
+  Widget _buildWarehouseAddressesSection(bool isDark, Color borderColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.warehouse_outlined, size: 18, color: Color(0xFF059669)),
+            const SizedBox(width: 8),
+            Text(
+              'Warehouse & Dispatch Addresses (${_isEditing ? _warehouseEntries.length : _currentSeller.warehouseAddresses.length})',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('Trade / Brand Name', _tradeNameController, isDark, borderColor, enabled: _isEditing),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField(
-                  'GSTIN Number',
-                  _gstinController,
-                  isDark,
-                  borderColor,
-                  enabled: _isEditing,
+            ),
+            const Spacer(),
+            if (_isEditing)
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _warehouseEntries.add(_WarehouseAddressEntry());
+                  });
+                },
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add Warehouse'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF059669),
+                  side: BorderSide(color: const Color(0xFF059669).withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField(
-                  'PAN Card Number',
-                  _panController,
-                  isDark,
-                  borderColor,
-                  enabled: _isEditing,
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_isEditing) ...[
+          if (_warehouseEntries.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor),
+              ),
+              child: Text(
+                'No warehouse addresses configured. Click "Add Warehouse" above to add one.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField(
-                  'Agri / Pesticide License',
-                  _licenseController,
-                  isDark,
-                  borderColor,
-                  enabled: _isEditing,
-                ),
-              ),
+            )
+          else
+            for (int i = 0; i < _warehouseEntries.length; i++) ...[
+              _buildWarehouseEntryCard(i, _warehouseEntries[i], isDark, borderColor),
+              if (i < _warehouseEntries.length - 1) const SizedBox(height: 12),
             ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: _buildTextField('Registered Office Address', _registeredAddressController, isDark, borderColor, enabled: _isEditing),
+        ] else if (_currentSeller.warehouseAddresses.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor),
+            ),
+            child: Text(
+              'No warehouse addresses added.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('City', _cityController, isDark, borderColor, enabled: _isEditing),
+            ),
+          )
+        else
+          for (int i = 0; i < _currentSeller.warehouseAddresses.length; i++) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('State', _stateController, isDark, borderColor, enabled: _isEditing),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF059669).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.warehouse_outlined, size: 16, color: Color(0xFF059669)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Warehouse #${i + 1}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF059669),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _currentSeller.warehouseAddresses[i].formatted,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('Pincode', _pincodeController, isDark, borderColor, enabled: _isEditing),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildTextField('Warehouse & Dispatch Hub Address', _warehouseAddressController, isDark, borderColor, enabled: _isEditing, maxLines: 2),
-          const SizedBox(height: 24),
-          _buildKycComplianceSection(context, isDark, borderColor),
-        ],
-      ),
+            ),
+            if (i < _currentSeller.warehouseAddresses.length - 1) const SizedBox(height: 10),
+          ],
+      ],
     );
   }
 
-  // --- KYC & COMPLIANCE SECTION ---
-  Widget _buildKycComplianceSection(BuildContext context, bool isDark, Color borderColor) {
+  // --- BUSINESS & COMPLIANCE DOCUMENTS SECTION ---
+  Widget _buildDocumentsSection(BuildContext context, bool isDark, Color borderColor) {
     final hasGst = _stagedGstFile != null || (_currentSeller.gstCertificate != null && _currentSeller.gstCertificate!.trim().isNotEmpty);
     final hasPan = _stagedPanFile != null || (_currentSeller.panCard != null && _currentSeller.panCard!.trim().isNotEmpty);
     final hasAadhaar = _stagedAadhaarFile != null || (_currentSeller.aadhaarCard != null && _currentSeller.aadhaarCard!.trim().isNotEmpty);
-    final hasLicence = _stagedLicenceFiles.isNotEmpty || _currentSeller.licenceImages.isNotEmpty || _currentSeller.licenseNumber.trim().isNotEmpty;
+    final hasCheque = _stagedCancelledChequeFile != null || _currentSeller.bankDetails.cancelledCheque.trim().isNotEmpty;
+    final hasAgreement = _stagedAgreementFile != null || (_currentSeller.agreement != null && _currentSeller.agreement!.trim().isNotEmpty);
+    final hasLicence = _stagedLicenceFiles.isNotEmpty || _currentSeller.licenceImages.isNotEmpty;
 
     int readyCount = 0;
     if (hasGst) readyCount++;
     if (hasPan) readyCount++;
     if (hasAadhaar) readyCount++;
+    if (hasCheque) readyCount++;
+    if (hasAgreement) readyCount++;
     if (hasLicence) readyCount++;
-
-    final allDocsReady = readyCount == 4;
-    final isApproved = _currentSeller.isKycComplete;
-
-    final statusColor = isApproved
-        ? const Color(0xFF10B981)
-        : (allDocsReady ? const Color(0xFFF59E0B) : const Color(0xFFE11D48));
-
-    String statusText;
-    if (isApproved) {
-      statusText = 'KYC APPROVED & VERIFIED';
-    } else if (_isCreating) {
-      statusText = allDocsReady
-          ? '4/4 COMPLIANCE DOCS STAGED'
-          : 'ONBOARDING DRAFT ($readyCount/4 Docs Staged)';
-    } else {
-      statusText = allDocsReady
-          ? 'READY FOR APPROVAL (4/4 Documents Uploaded)'
-          : 'KYC INCOMPLETE ($readyCount/4 Documents Uploaded)';
-    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1240,197 +1525,153 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Bar
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
+                  color: const Color(0xFF059669).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.verified_user_rounded, color: statusColor, size: 22),
+                child: const Icon(Icons.folder_copy_outlined, size: 18, color: Color(0xFF059669)),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 10,
-                      runSpacing: 4,
-                      children: [
-                        Text(
-                          'KYC & COMPLIANCE VERIFICATION',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                          ),
-                          child: Text(
-                            statusText,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              color: statusColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
                     Text(
-                      _isCreating
-                          ? 'Select all 4 compliance documents below. They will be uploaded automatically to secure cloud storage when you create the account.'
-                          : 'All 4 documents (GST, PAN, Aadhaar, Agri License) must be stored in private cloud storage to qualify for marketplace verification.',
+                      'BUSINESS & COMPLIANCE DOCUMENTS',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$readyCount / 6 Documents Uploaded (PDF, PNG, JPG, WEBP)',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              // Approve / Return KYC Button
-              if (!_isCreating) ...[
-                if (isApproved)
-                  OutlinedButton.icon(
-                    onPressed: _toggleKycApproval,
-                    icon: const Icon(Icons.assignment_return_rounded, size: 15),
-                    label: Text('Return for Review', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFD97706),
-                      side: const BorderSide(color: Color(0xFFD97706)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                  )
-                else
-                  ElevatedButton.icon(
-                    onPressed: _toggleKycApproval,
-                    icon: const Icon(Icons.check_circle_rounded, size: 16),
-                    label: Text(
-                      allDocsReady ? 'Approve KYC Verification' : 'Approve KYC (Review)',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: allDocsReady ? const Color(0xFF059669) : const Color(0xFF64748B),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    ),
-                  ),
-              ],
             ],
           ),
-
           const SizedBox(height: 16),
-          Divider(height: 1, color: borderColor),
-          const SizedBox(height: 16),
-
-          // 4 Document Slots
           LayoutBuilder(
             builder: (context, constraints) {
-              final isWideLayout = constraints.maxWidth > 650;
+              final twoCol = constraints.maxWidth >= 680;
               final slots = [
-                _buildKycDocSlot(
-                  title: '1. GST Registration Certificate',
-                  docKey: 'gstCertificate',
+                _buildDocSlot(
+                  title: 'GST Certificate',
+                  docType: 'gstCertificate',
                   backendDocType: 'gst-certificate',
-                  subtitle: 'Official Tax Form REG-06 matching GSTIN',
-                  docNumber: _currentSeller.gstin.isNotEmpty ? _currentSeller.gstin : 'GSTIN Pending',
+                  subtitle: _currentSeller.gstin.isNotEmpty ? 'GSTIN: ${_currentSeller.gstin}' : 'Optional',
                   fileUrl: _currentSeller.gstCertificate,
                   isUploaded: _currentSeller.gstCertificate != null && _currentSeller.gstCertificate!.trim().isNotEmpty,
-                  stagedFile: _stagedGstFile,
+                  stagedFiles: _stagedGstFile != null ? [_stagedGstFile!] : [],
                   isDark: isDark,
                   borderColor: borderColor,
                 ),
-                _buildKycDocSlot(
-                  title: '2. Company / Proprietor PAN Card',
-                  docKey: 'panCard',
+                _buildDocSlot(
+                  title: 'PAN Card',
+                  docType: 'panCard',
                   backendDocType: 'pan-card',
-                  subtitle: 'Income Tax Department Business Identity',
-                  docNumber: _currentSeller.panNumber.isNotEmpty ? _currentSeller.panNumber : 'PAN Pending',
+                  subtitle: _currentSeller.panNumber.isNotEmpty ? 'PAN: ${_currentSeller.panNumber}' : 'Company / Proprietor PAN',
                   fileUrl: _currentSeller.panCard,
                   isUploaded: _currentSeller.panCard != null && _currentSeller.panCard!.trim().isNotEmpty,
-                  stagedFile: _stagedPanFile,
+                  stagedFiles: _stagedPanFile != null ? [_stagedPanFile!] : [],
                   isDark: isDark,
                   borderColor: borderColor,
                 ),
-                _buildKycDocSlot(
-                  title: '3. Signatory Aadhaar Card',
-                  docKey: 'aadhaarCard',
+                _buildDocSlot(
+                  title: 'Aadhaar Card',
+                  docType: 'aadhaarCard',
                   backendDocType: 'aadhaar-card',
-                  subtitle: 'Authorized Signatory / Proprietor Identity',
-                  docNumber: 'UIDAI Identity Verification',
+                  subtitle: 'Authorized Signatory Identity',
                   fileUrl: _currentSeller.aadhaarCard,
                   isUploaded: _currentSeller.aadhaarCard != null && _currentSeller.aadhaarCard!.trim().isNotEmpty,
-                  stagedFile: _stagedAadhaarFile,
+                  stagedFiles: _stagedAadhaarFile != null ? [_stagedAadhaarFile!] : [],
                   isDark: isDark,
                   borderColor: borderColor,
                 ),
-                _buildKycDocSlot(
-                  title: '4. Agri & Pesticide Licenses',
-                  docKey: 'licenceImage',
+                _buildDocSlot(
+                  title: 'Agri / Trade Licence',
+                  docType: 'licenceImage',
                   backendDocType: 'licence',
-                  subtitle: 'Fertilizer, Insecticide, or Seed Dealership',
-                  docNumber: _currentSeller.licenceImages.isNotEmpty
-                      ? '${_currentSeller.licenceImages.length} License(s) Uploaded'
-                      : (_currentSeller.licenseNumber.isNotEmpty ? _currentSeller.licenseNumber : 'License Pending'),
-                  fileUrl: _currentSeller.licenceImages.isNotEmpty ? _currentSeller.licenceImages.first : _currentSeller.licenseNumber,
+                  subtitle: _currentSeller.licenseNumber.isNotEmpty ? 'Licence: ${_currentSeller.licenseNumber}' : 'Fertilizer / Pesticide Licence',
+                  fileUrl: _currentSeller.licenceImages.isNotEmpty ? _currentSeller.licenceImages.first : null,
                   isUploaded: _currentSeller.licenceImages.isNotEmpty,
                   stagedFiles: _stagedLicenceFiles,
                   isDark: isDark,
                   borderColor: borderColor,
-                  isMultiple: true,
-                  count: _currentSeller.licenceImages.length,
+                ),
+                _buildDocSlot(
+                  title: 'Bank Cancelled Cheque',
+                  docType: 'cancelledCheque',
+                  backendDocType: 'cancelled-cheque',
+                  subtitle: 'Payout Bank Verification Cheque',
+                  fileUrl: _currentSeller.bankDetails.cancelledCheque.isNotEmpty
+                      ? _currentSeller.bankDetails.cancelledCheque
+                      : null,
+                  isUploaded: _currentSeller.bankDetails.cancelledCheque.trim().isNotEmpty,
+                  stagedFiles: _stagedCancelledChequeFile != null ? [_stagedCancelledChequeFile!] : [],
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+                _buildDocSlot(
+                  title: 'Seller Agreement',
+                  docType: 'agreement',
+                  backendDocType: 'agreement',
+                  subtitle: 'Signed Seller Onboarding Agreement',
+                  fileUrl: _currentSeller.agreement,
+                  isUploaded: _currentSeller.agreement != null && _currentSeller.agreement!.trim().isNotEmpty,
+                  stagedFiles: _stagedAgreementFile != null ? [_stagedAgreementFile!] : [],
+                  isDark: isDark,
+                  borderColor: borderColor,
                 ),
               ];
-
-              if (isWideLayout) {
+              if (!twoCol) {
                 return Column(
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: slots[0]),
-                        const SizedBox(width: 14),
-                        Expanded(child: slots[1]),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: slots[2]),
-                        const SizedBox(width: 14),
-                        Expanded(child: slots[3]),
-                      ],
-                    ),
+                    for (int i = 0; i < slots.length; i++) ...[
+                      slots[i],
+                      if (i < slots.length - 1) const SizedBox(height: 12),
+                    ],
                   ],
                 );
               }
-
               return Column(
                 children: [
-                  slots[0],
+                  Row(
+                    children: [
+                      Expanded(child: slots[0]),
+                      const SizedBox(width: 12),
+                      Expanded(child: slots[1]),
+                    ],
+                  ),
                   const SizedBox(height: 12),
-                  slots[1],
+                  Row(
+                    children: [
+                      Expanded(child: slots[2]),
+                      const SizedBox(width: 12),
+                      Expanded(child: slots[3]),
+                    ],
+                  ),
                   const SizedBox(height: 12),
-                  slots[2],
-                  const SizedBox(height: 12),
-                  slots[3],
+                  Row(
+                    children: [
+                      Expanded(child: slots[4]),
+                      const SizedBox(width: 12),
+                      Expanded(child: slots[5]),
+                    ],
+                  ),
                 ],
               );
             },
@@ -1440,51 +1681,21 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     );
   }
 
-  Widget _buildKycDocSlot({
+  Widget _buildDocSlot({
     required String title,
-    required String docKey,
+    required String docType,
+    required String backendDocType,
     required String subtitle,
-    required String docNumber,
     required String? fileUrl,
     required bool isUploaded,
+    required List<PlatformFile> stagedFiles,
     required bool isDark,
     required Color borderColor,
-    String? backendDocType,
-    bool isMultiple = false,
-    int count = 0,
-    PlatformFile? stagedFile,
-    List<PlatformFile>? stagedFiles,
   }) {
-    final isStaged = stagedFile != null || (stagedFiles != null && stagedFiles.isNotEmpty);
+    final isStaged = stagedFiles.isNotEmpty;
     final isReady = isUploaded || isStaged;
-    final statusColor = isReady ? const Color(0xFF10B981) : const Color(0xFFE11D48);
-
-    String statusBadge;
-    if (isStaged) {
-      statusBadge = isMultiple && (stagedFiles?.length ?? 0) > 1
-          ? '${stagedFiles!.length} STAGED'
-          : 'STAGED';
-    } else if (isUploaded) {
-      statusBadge = isMultiple && count > 1 ? '$count UPLOADED' : 'UPLOADED';
-    } else {
-      statusBadge = 'REQUIRED';
-    }
-
-    String displayInfo;
-    if (isStaged) {
-      if (isMultiple && (stagedFiles?.length ?? 0) > 1) {
-        displayInfo = '${stagedFiles!.length} document(s) staged for registration';
-      } else {
-        final f = stagedFile ?? stagedFiles?.first;
-        final sizeSync = f?.lengthSync() ?? 0;
-        final sizeText = sizeSync > 0 ? ' (${(sizeSync / 1024).toStringAsFixed(1)} KB)' : '';
-        displayInfo = 'Staged: ${f?.name ?? ''}$sizeText';
-      }
-    } else if (isUploaded && fileUrl != null && fileUrl.isNotEmpty) {
-      displayInfo = '$docNumber • ${fileUrl.split('/').last}';
-    } else {
-      displayInfo = docNumber;
-    }
+    final statusColor = isReady ? const Color(0xFF10B981) : const Color(0xFF64748B);
+    final statusBadge = isStaged ? 'STAGED' : (isUploaded ? 'UPLOADED' : 'NOT UPLOADED');
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1501,7 +1712,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
           Row(
             children: [
               Icon(
-                isReady ? Icons.task_alt_rounded : Icons.pending_actions_rounded,
+                isReady ? Icons.task_alt_rounded : Icons.upload_file_outlined,
                 size: 16,
                 color: statusColor,
               ),
@@ -1520,7 +1731,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: (isStaged ? const Color(0xFF3B82F6) : statusColor).withValues(alpha: 0.12),
+                  color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -1528,7 +1739,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
-                    color: isStaged ? const Color(0xFF3B82F6) : statusColor,
+                    color: statusColor,
                   ),
                 ),
               ),
@@ -1541,36 +1752,27 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
               fontSize: 11,
               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            displayInfo,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-            ),
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (isReady) ...[
+              if (isReady && !_isCreating) ...[
                 TextButton.icon(
                   onPressed: () {
-                    _showProperDocumentReview(
-                      context,
-                      title: title,
-                      docType: subtitle,
-                      documentNumber: docNumber,
-                      fileUrl: fileUrl,
-                      backendDocType: backendDocType,
-                      stagedFile: stagedFile ?? (stagedFiles != null && stagedFiles.isNotEmpty ? stagedFiles.first : null),
+                    showDialog(
+                      context: context,
+                      builder: (_) => _SellerDocumentPreviewDialog(
+                        title: title,
+                        sellerId: _currentSeller.id,
+                        backendDocType: backendDocType,
+                        availableLicences: _currentSeller.licenceImages,
+                      ),
                     );
                   },
-                  icon: const Icon(Icons.remove_red_eye_outlined, size: 14),
-                  label: Text('Review Document', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700)),
+                  icon: const Icon(Icons.visibility_outlined, size: 14),
+                  label: const Text('View', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
                   style: TextButton.styleFrom(
                     foregroundColor: const Color(0xFF059669),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1578,29 +1780,12 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
-                if (isStaged) ...[
-                  const SizedBox(width: 4),
-                  TextButton.icon(
-                    onPressed: () => _removeStagedDocument(docKey),
-                    icon: const Icon(Icons.close_rounded, size: 14),
-                    label: Text('Remove', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600)),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFEF4444),
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ],
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
               ],
               ElevatedButton.icon(
-                onPressed: () => _pickAndUploadDocument(docKey),
-                icon: Icon(isReady ? Icons.refresh_rounded : Icons.file_upload_outlined, size: 14),
-                label: Text(
-                  isReady ? (isMultiple ? 'Add / Replace' : 'Replace') : 'Upload Document',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700),
-                ),
+                onPressed: () => _pickAndUploadDocument(docType),
+                icon: Icon(isReady ? Icons.sync_rounded : Icons.upload_rounded, size: 13),
+                label: Text(isReady ? 'Replace' : 'Upload', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isReady ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)) : const Color(0xFF059669),
                   foregroundColor: isReady ? (isDark ? Colors.white : const Color(0xFF0F172A)) : Colors.white,
@@ -1625,6 +1810,10 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         _stagedPanFile = null;
       } else if (docKey == 'aadhaarCard') {
         _stagedAadhaarFile = null;
+      } else if (docKey == 'cancelledCheque') {
+        _stagedCancelledChequeFile = null;
+      } else if (docKey == 'agreement') {
+        _stagedAgreementFile = null;
       } else if (docKey == 'licenceImage') {
         _stagedLicenceFiles.clear();
       }
@@ -1638,7 +1827,6 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         type: FileType.custom,
         allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'],
       );
-
       if (files.isEmpty) return;
 
       if (_isCreating) {
@@ -1649,70 +1837,46 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
             _stagedPanFile = files.first;
           } else if (docType == 'aadhaarCard') {
             _stagedAadhaarFile = files.first;
+          } else if (docType == 'cancelledCheque') {
+            _stagedCancelledChequeFile = files.first;
+          } else if (docType == 'agreement') {
+            _stagedAgreementFile = files.first;
           } else if (isLicence) {
             _stagedLicenceFiles.addAll(files);
           }
         });
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF059669),
-            content: Text(
-              '${files.first.name} staged! It will be uploaded automatically when you create the seller.',
-            ),
-          ),
-        );
         return;
       }
 
       if (!mounted) return;
-      if (_currentSeller.id.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Color(0xFFE11D48),
-            content: Text('Please save the seller profile first before uploading documents.'),
-          ),
-        );
-        return;
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Uploading document to secure cloud storage...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-
       context.read<SellerBloc>().add(
-            UploadAdminUserKycDocuments(
+            UploadSellerDocuments(
               userId: _currentSeller.id,
               gstCertificate: docType == 'gstCertificate' ? files.first : null,
               panCard: docType == 'panCard' ? files.first : null,
               aadhaarCard: docType == 'aadhaarCard' ? files.first : null,
+              cancelledCheque: docType == 'cancelledCheque' ? files.first : null,
+              agreement: docType == 'agreement' ? files.first : null,
               licenceFiles: isLicence ? files : null,
               replaceLicenceFiles: false,
               onSuccess: (updatedUser) {
                 if (!mounted) return;
-                setState(() {
-                  _currentSeller = SellerProfile.fromAdminUser(updatedUser);
-                });
-                widget.onSellerUpdated(_currentSeller);
+                final updatedProfile = SellerProfile.fromAdminUser(updatedUser);
+                setState(() => _currentSeller = updatedProfile);
+                widget.onSellerUpdated(updatedProfile);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: const Color(0xFF059669),
-                    content: Text(
-                      'Document uploaded successfully for "${_currentSeller.tradeName}"',
-                    ),
+                  const SnackBar(
+                    content: Text('Document uploaded successfully!'),
+                    backgroundColor: Color(0xFF059669),
                   ),
                 );
               },
-              onError: (error) {
+              onError: (err) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
+                    content: Text('Upload failed: $err'),
                     backgroundColor: const Color(0xFFE11D48),
-                    content: Text('Upload failed: $error'),
                   ),
                 );
               },
@@ -1721,751 +1885,340 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('File selection error: $e')),
+        SnackBar(content: Text('Could not pick file: $e'), backgroundColor: const Color(0xFFE11D48)),
       );
     }
   }
 
-  void _toggleKycApproval() {
-    final willApprove = !_currentSeller.isKycComplete;
-    final hasAllDocs = (_currentSeller.gstCertificate != null && _currentSeller.gstCertificate!.isNotEmpty) &&
-        (_currentSeller.panCard != null && _currentSeller.panCard!.isNotEmpty) &&
-        (_currentSeller.aadhaarCard != null && _currentSeller.aadhaarCard!.isNotEmpty) &&
-        (_currentSeller.licenceImages.isNotEmpty || _currentSeller.licenseNumber.isNotEmpty);
-
-    if (willApprove && !hasAllDocs) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Missing KYC Documents',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-          content: Text(
-            'The seller must have all 4 compliance documents uploaded before KYC can be approved:\n\n'
-            '• GST Registration Certificate\n'
-            '• Company / Proprietor PAN Card\n'
-            '• Authorized Signatory Aadhaar Card\n'
-            '• Agriculture / Pesticide Trade License\n\n'
-            'Please upload the remaining documents first.',
-            style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Understood'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          willApprove ? 'Approve Seller KYC Verification?' : 'Return Seller KYC for Review?',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          willApprove
-              ? 'Are you sure you want to approve KYC for "${_currentSeller.tradeName}" (ID: ${_currentSeller.id})?\n\n'
-                'This certifies that all tax and agricultural trade documents have been inspected. The seller will receive the VERIFIED status on the marketplace.'
-              : 'Are you sure you want to return KYC for "${_currentSeller.tradeName}" for review?\n\n'
-                'Their verification badge will revert to pending until re-approved.',
-          style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<SellerBloc>().add(
-                    ReviewAdminUserKyc(
-                      userId: _currentSeller.id,
-                      approved: willApprove,
-                      onSuccess: (updatedUser) {
-                        if (!mounted) return;
-                        setState(() {
-                          _currentSeller = SellerProfile.fromAdminUser(updatedUser);
-                        });
-                        widget.onSellerUpdated(_currentSeller);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: willApprove ? const Color(0xFF059669) : const Color(0xFFD97706),
-                            content: Text(
-                              willApprove
-                                  ? 'Seller KYC approved successfully!'
-                                  : 'Seller KYC returned for review',
-                            ),
-                          ),
-                        );
-                      },
-                      onError: (err) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: const Color(0xFFE11D48),
-                            content: Text('KYC review error: $err'),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: willApprove ? const Color(0xFF059669) : const Color(0xFFD97706),
-              foregroundColor: Colors.white,
-            ),
-            child: Text(willApprove ? 'Approve KYC' : 'Return for Review'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- TAB 2: CONTACT & PERSONNEL ---
-  Widget _buildContactTab(bool isDark, Color borderColor) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField('Primary Contact Person', _contactPersonController, isDark, borderColor, enabled: _isEditing),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('Primary Business Email', _emailController, isDark, borderColor, enabled: _isEditing),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField(
-                  'Mobile / Phone Number',
-                  _phoneController,
-                  isDark,
-                  borderColor,
-                  enabled: _isEditing,
-                  suffixAction: _buildCopyButton(
-                    'Mobile',
-                    _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : _currentSeller.phone,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('Platform Commission Rate (%)', _commissionController, isDark, borderColor, enabled: _isEditing),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- TAB 3: BANK & SETTLEMENT (WITH STATEMENTS) ---
-  Widget _buildBankTab(bool isDark, Color borderColor) {
-    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
-
-    final statements = [
-      {
-        'id': 'STMT-2026-W43',
-        'period': '15 Oct 2026 - 21 Oct 2026',
-        'orders': 18,
-        'gross': 142000.0,
-        'commission': 12070.0,
-        'net': 129930.0,
-        'status': 'PAID',
-        'utr': 'SBIN0029104882',
-        'paidAt': '24 Oct 2026',
-      },
-      {
-        'id': 'STMT-2026-W42',
-        'period': '08 Oct 2026 - 14 Oct 2026',
-        'orders': 24,
-        'gross': 198400.0,
-        'commission': 16864.0,
-        'net': 181536.0,
-        'status': 'PAID',
-        'utr': 'SBIN0019284711',
-        'paidAt': '17 Oct 2026',
-      },
-      {
-        'id': 'STMT-2026-W41',
-        'period': '01 Oct 2026 - 07 Oct 2026',
-        'orders': 15,
-        'gross': 112000.0,
-        'commission': 9520.0,
-        'net': 102480.0,
-        'status': 'PAID',
-        'utr': 'SBIN0093847261',
-        'paidAt': '10 Oct 2026',
-      },
-      {
-        'id': 'STMT-2026-W44',
-        'period': '22 Oct 2026 - 28 Oct 2026',
-        'orders': 9,
-        'gross': 68500.0,
-        'commission': 5822.0,
-        'net': 62678.0,
-        'status': 'PROCESSING',
-        'utr': 'Pending Batch Transfer',
-        'paidAt': 'Scheduled 31 Oct',
-      },
-    ];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'PAYOUT BANK ACCOUNT & INSTANT UPI',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.6,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF10B981)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Direct Bank Settlement Active',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF10B981)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField('Account Holder Name', _accHolderController, isDark, borderColor, enabled: _isEditing),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('Bank Name', _bankNameController, isDark, borderColor, enabled: _isEditing),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField('Bank Account Number', _accNumberController, isDark, borderColor, enabled: _isEditing),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('IFSC Code', _ifscController, isDark, borderColor, enabled: _isEditing),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTextField('Branch Name', _branchController, isDark, borderColor, enabled: _isEditing),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTextField('UPI ID for Instant Payouts', _upiController, isDark, borderColor, enabled: _isEditing),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-          Divider(height: 1, color: borderColor),
-          const SizedBox(height: 20),
-
-          // 2. Settlement Statements & Disbursements
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SETTLEMENT STATEMENTS & PAYOUT DISBURSEMENTS',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Weekly payout statements reconciled with orders, commissions, and tax',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'Cycle: ${_currentSeller.settlementCycle}',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF3B82F6)),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          Container(
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: borderColor),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0A0F1D) : const Color(0xFFF8FAFC),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(flex: 3, child: _buildTableColHeader('STATEMENT ID & PERIOD', isDark)),
-                      Expanded(flex: 2, child: _buildTableColHeader('ORDERS', isDark)),
-                      Expanded(flex: 2, child: _buildTableColHeader('GROSS SALES', isDark)),
-                      Expanded(flex: 2, child: _buildTableColHeader('COMMISSION', isDark)),
-                      Expanded(flex: 3, child: _buildTableColHeader('NET DISBURSED', isDark)),
-                      Expanded(flex: 2, child: _buildTableColHeader('STATUS', isDark)),
-                      Expanded(flex: 2, child: _buildTableColHeader('ACTION', isDark, alignRight: true)),
-                    ],
-                  ),
-                ),
-                Divider(height: 1, color: borderColor),
-                ...statements.map((stmt) {
-                  final isPaid = stmt['status'] == 'PAID';
-                  final statusColor = isPaid ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: borderColor.withValues(alpha: 0.6))),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stmt['id'] as String,
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                ),
-                              ),
-                              Text(
-                                stmt['period'] as String,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            '${stmt['orders']} Orders',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            '₹${(stmt['gross'] as double).toStringAsFixed(0)}',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            '-₹${(stmt['commission'] as double).toStringAsFixed(0)}',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: const Color(0xFFEF4444),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 3,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '₹${(stmt['net'] as double).toStringAsFixed(0)}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF059669),
-                                ),
-                              ),
-                              Text(
-                                stmt['paidAt'] as String,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 9.5,
-                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                            ),
-                            child: Text(
-                              stmt['status'] as String,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                color: statusColor,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(6),
-                              onTap: () => _showStatementReceiptDialog(context, stmt),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF059669).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.receipt_long_rounded, size: 12, color: Color(0xFF059669)),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'View',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF059669),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- TAB 4: PRODUCTS CATALOG QUICK VIEW ---
   Widget _buildProductsTab(
     bool isDark,
     Color surfaceColor,
     Color borderColor,
     List<Product> products,
   ) {
-    if (products.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.inventory_2_outlined, size: 48, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
-              const SizedBox(height: 12),
-              Text(
-                'No products currently listed under ${_currentSeller.tradeName}',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+    Widget colHeader(String label, {bool alignRight = false}) => Text(
+          label,
+          textAlign: alignRight ? TextAlign.right : TextAlign.left,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.6,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+          ),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(
+              children: [
+                Text(
+                  '${products.length} products listed under ${_currentSeller.tradeName}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Add single products or bulk assign / import products for this seller below.',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: const Color(0xFF94A3B8)),
-              ),
-              const SizedBox(height: 20),
-              Row(
+                const Spacer(),
+                OutlinedButton.icon(
+                  onPressed: () => _openBulkAddProducts(context),
+                  icon: const Icon(Icons.playlist_add_rounded, size: 16, color: Color(0xFF7C3AED)),
+                  label: Text(
+                    'Bulk Add / Assign Products',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF7C3AED)),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF7C3AED)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () => widget.onViewSellerProducts(_currentSeller.tradeName),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                  label: Text(
+                    'Open in Catalog',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: borderColor),
+          if (products.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: () => _openAddSingleProduct(context),
-                    icon: const Icon(Icons.add_rounded, size: 16),
-                    label: Text('+ Add Single Product', style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  Icon(Icons.inventory_2_outlined, size: 44, color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No products currently listed under ${_currentSeller.tradeName}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: () => _openBulkAddProducts(context),
-                    icon: const Icon(Icons.playlist_add_rounded, size: 18, color: Color(0xFF7C3AED)),
-                    label: Text(
-                      'Bulk Add / Assign Products',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFF7C3AED)),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF7C3AED)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Use "Bulk Add / Assign Products" above to assign or import products for this seller.',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: const Color(0xFF94A3B8)),
                   ),
                 ],
               ),
+            )
+          else ...[
+            // Table Header matching ProductCatalogView
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+              child: Row(
+                children: [
+                  Expanded(flex: 5, child: colHeader('PRODUCT & COMPOSITION')),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 2, child: colHeader('PRODUCT CODE / HSN')),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 2, child: colHeader('CATEGORY & PACK')),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 2, child: colHeader('PRICE / MRP')),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 2, child: colHeader('STOCK LEVEL')),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 110, child: colHeader('AVAILABILITY')),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 88, child: colHeader('ACTIONS', alignRight: true)),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: borderColor),
+            for (int i = 0; i < products.length; i++) ...[
+              _buildSellerProductRow(products[i], isDark, borderColor),
+              if (i < products.length - 1) Divider(height: 1, color: borderColor),
             ],
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            border: Border(bottom: BorderSide(color: borderColor)),
-          ),
-          child: Row(
-            children: [
-              Text(
-                '${products.length} products listed under ${_currentSeller.tradeName}',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                ),
-              ),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: () => _openBulkAddProducts(context),
-                icon: const Icon(Icons.playlist_add_rounded, size: 15, color: Color(0xFF7C3AED)),
-                label: Text(
-                  'Bulk Add',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: const Color(0xFF7C3AED)),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF7C3AED)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: () => _openAddSingleProduct(context),
-                icon: const Icon(Icons.add_rounded, size: 15),
-                label: Text(
-                  '+ Add Product',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: products.length,
-            separatorBuilder: (context, index) => Divider(height: 1, color: borderColor),
-            itemBuilder: (context, index) {
-              final p = products[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF059669).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.inventory_2_outlined, color: Color(0xFF059669), size: 18),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            p.title,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${p.productCode} • ${p.category} • HSN: ${p.hsnCode} • ${p.technicalName}',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '₹${p.displayRate.toStringAsFixed(0)}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF059669),
-                          ),
-                        ),
-                        Text(
-                          'Stock: ${p.stock}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: p.stock > 50 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 
-  void _openAddSingleProduct(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AddProductDialog(
-        sellerId: _currentSeller.id,
-        onProductAdded: (newProduct) {
-          context.read<ProductBloc>().add(CreateProduct(
-            newProduct,
-            onSuccess: (created) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Product "${created.title}" successfully created and assigned to ${_currentSeller.tradeName} (SKU: ${created.sku}).',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+  Widget _buildSellerProductRow(Product p, bool isDark, Color borderColor) {
+    final isActive = p.status.toUpperCase() == 'ACTIVE';
+    final statusColor = isActive ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final mrp = p.variants.isNotEmpty ? p.variants.first.printedMrp : p.printedMrp;
+    final packCount = p.variants.length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      child: Row(
+        children: [
+          // PRODUCT & COMPOSITION
+          Expanded(
+            flex: 5,
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF059669).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: borderColor),
                   ),
-                  backgroundColor: const Color(0xFF059669),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  clipBehavior: Clip.antiAlias,
+                  child: p.candidateImageUrls.isNotEmpty
+                      ? Image.network(
+                          p.candidateImageUrls.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const Icon(Icons.inventory_2_outlined, size: 18, color: Color(0xFF059669)),
+                        )
+                      : const Icon(Icons.inventory_2_outlined, size: 18, color: Color(0xFF059669)),
                 ),
-              );
-            },
-            onError: (err) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Failed to create product on backend: $err',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (p.technicalName.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          p.technicalName,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
                   ),
-                  backgroundColor: const Color(0xFFEF4444),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-              );
-            },
-          ));
-        },
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // PRODUCT CODE / HSN
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.productCode,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'HSN: ${p.hsnCode.isNotEmpty ? p.hsnCode : "—"}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // CATEGORY & PACK
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.category.isNotEmpty ? p.category : 'Uncategorized',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '$packCount ${packCount == 1 ? "variant" : "variants"}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // PRICE / MRP
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '₹${p.displayRate.toStringAsFixed(0)}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF059669),
+                  ),
+                ),
+                Text(
+                  'MRP: ₹${mrp.toStringAsFixed(0)}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // STOCK LEVEL
+          Expanded(
+            flex: 2,
+            child: Text(
+              '${p.stock} units',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: p.stock > 50 ? const Color(0xFF10B981) : (p.stock > 0 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // AVAILABILITY
+          SizedBox(
+            width: 110,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  p.status.toUpperCase(),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // ACTIONS
+          SizedBox(
+            width: 88,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => widget.onViewSellerProducts(_currentSeller.tradeName),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF059669),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Catalog →',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2479,46 +2232,88 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         onProductsAdded: (products) {
           int count = 0;
           for (final p in products) {
-            final pToCreate = p.copyWith(
+            final pToAssign = p.copyWith(
               sellerId: _currentSeller.id,
               vendor: _currentSeller.tradeName,
               sellerName: _currentSeller.tradeName,
             );
-            context.read<ProductBloc>().add(CreateProduct(
-              pToCreate,
-              onSuccess: (created) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Assigned "${created.title}" to ${_currentSeller.tradeName} (SKU: ${created.sku}).',
-                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            final isExistingUnassignedProduct = p.id.isNotEmpty &&
+                !p.id.startsWith('temp_') &&
+                !p.id.startsWith('assigned_');
+
+            if (isExistingUnassignedProduct) {
+              context.read<ProductBloc>().add(UpdateProduct(
+                pToAssign,
+                onSuccess: (updated) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Assigned "${updated.title}" to ${_currentSeller.tradeName} (SKU: ${updated.sku}).',
+                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                        ),
+                        backgroundColor: const Color(0xFF059669),
+                        duration: const Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      backgroundColor: const Color(0xFF059669),
-                      duration: const Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  );
-                }
-              },
-              onError: (err) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to assign product: $err',
-                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                    );
+                  }
+                },
+                onError: (err) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Failed to assign product: $err',
+                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                        ),
+                        backgroundColor: const Color(0xFFEF4444),
+                        duration: const Duration(seconds: 4),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      backgroundColor: const Color(0xFFEF4444),
-                      duration: const Duration(seconds: 4),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  );
-                }
-              },
-            ));
+                    );
+                  }
+                },
+              ));
+            } else {
+              context.read<ProductBloc>().add(CreateProduct(
+                pToAssign,
+                onSuccess: (created) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Assigned "${created.title}" to ${_currentSeller.tradeName} (SKU: ${created.sku}).',
+                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                        ),
+                        backgroundColor: const Color(0xFF059669),
+                        duration: const Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    );
+                  }
+                },
+                onError: (err) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Failed to assign product: $err',
+                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                        ),
+                        backgroundColor: const Color(0xFFEF4444),
+                        duration: const Duration(seconds: 4),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    );
+                  }
+                },
+              ));
+            }
             count++;
           }
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2538,102 +2333,6 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   }
 
   // --- HELPERS ---
-  Widget _buildTextField(
-    String label,
-    TextEditingController controller,
-    bool isDark,
-    Color borderColor, {
-    bool enabled = false,
-    int maxLines = 1,
-    Widget? suffixAction,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (suffixAction != null) ...[
-              const SizedBox(width: 6),
-              suffixAction,
-            ],
-          ],
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          enabled: enabled,
-          maxLines: maxLines,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-          ),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: enabled
-                ? (isDark ? const Color(0xFF161E2E) : Colors.white)
-                : (isDark ? const Color(0xFF0A0F1D) : const Color(0xFFF8FAFC)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: borderColor)),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: borderColor.withValues(alpha: 0.5)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCopyButton(String label, String value) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(4),
-      onTap: () {
-        if (value.trim().isEmpty) return;
-        Clipboard.setData(ClipboardData(text: value.trim()));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Copied $label: $value to clipboard'),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.copy_rounded, size: 12, color: Color(0xFF059669)),
-            const SizedBox(width: 4),
-            Text(
-              'Copy',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF059669),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildCopyableBadge(String label, String value, bool isDark, Color borderColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -2707,220 +2406,152 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   }
 
 
-  Widget _buildTableColHeader(String title, bool isDark, {bool alignRight = false}) {
-    return Align(
-      alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
-      child: Text(
-        title,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-        ),
-      ),
-    );
+  String _formatDate(DateTime? dt) {
+    if (dt == null) return 'N/A';
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 
-  void _showProperDocumentReview(
-    BuildContext context, {
-    required String title,
-    required String docType,
-    required String documentNumber,
-    String? fileUrl,
-    String? backendDocType,
-    int index = 0,
-    PlatformFile? stagedFile,
-  }) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => _KycDocumentReviewDialog(
-        title: title,
-        docType: docType,
-        documentNumber: documentNumber,
-        fileUrl: fileUrl,
-        backendDocType: backendDocType,
-        initialIndex: index,
-        sellerId: _currentSeller.id,
-        sellerName: _currentSeller.tradeName,
-        sellerNumber: _currentSeller.sellerNumber,
-        isKycComplete: _currentSeller.isKycComplete,
-        availableLicences: _currentSeller.licenceImages,
-        stagedFile: stagedFile,
-      ),
-    );
-  }
+  Widget _buildCreateSellerForm(
+    BuildContext context,
+    bool isDark,
+    Color surfaceColor,
+    Color borderColor,
+    bool isWide,
+  ) {
+    final shopPreview = _tradeNameController.text.trim().isNotEmpty
+        ? _tradeNameController.text.trim()
+        : (_companyNameController.text.trim().isNotEmpty
+            ? _companyNameController.text.trim()
+            : 'New Seller Store');
+    final phoneDigits = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+    final readyCount = [
+      _tradeNameController.text.trim().isNotEmpty || _companyNameController.text.trim().isNotEmpty,
+      _firstNameController.text.trim().isNotEmpty,
+      _lastNameController.text.trim().isNotEmpty,
+      phoneDigits.length >= 10,
+      RegExp(r'^[\w\.\+\-]+@[\w\-]+\.[\w\.\-]+$').hasMatch(_emailController.text.trim()),
+    ].where((ok) => ok).length;
 
-  void _showStatementReceiptDialog(BuildContext context, Map<String, dynamic> stmt) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 580),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Hero Onboarding Header
+        Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF064E3B).withValues(alpha: 0.45), const Color(0xFF0F172A)]
+                  : [const Color(0xFFECFDF5), Colors.white],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: const Color(0xFF059669).withValues(alpha: isDark ? 0.35 : 0.25),
+            ),
+          ),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
+            runSpacing: 14,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  border: Border(bottom: BorderSide(color: borderColor)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF059669).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF059669), Color(0xFF10B981)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      child: const Icon(Icons.receipt_long_rounded, color: Color(0xFF059669), size: 20),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF059669).withValues(alpha: 0.28),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
                           Text(
-                            'Settlement Receipt • ${stmt['id']}',
+                            shopPreview,
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
+                              fontSize: 19,
                               fontWeight: FontWeight.w800,
                               color: isDark ? Colors.white : const Color(0xFF0F172A),
                             ),
                           ),
-                          Text(
-                            'Period: ${stmt['period']}',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 20),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: surfaceColor,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildReceiptItem('Gross Sales GMV (${stmt['orders']} Orders)', '₹${(stmt['gross'] as double).toStringAsFixed(2)}', isDark),
-                          const Divider(height: 16),
-                          _buildReceiptItem('Platform Marketplace Commission (${_currentSeller.commissionPercentage}%)', '-₹${(stmt['commission'] as double).toStringAsFixed(2)}', isDark, isNegative: true),
-                          const Divider(height: 16),
-                          _buildReceiptItem('GST on Platform Fee (18%)', 'Included', isDark),
-                          const Divider(height: 16),
-                          _buildReceiptItem('TCS / TDS on E-Commerce (1%)', '₹0.00 (Exempted)', isDark),
-                          const Divider(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Net Disbursed Amount',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                ),
-                              ),
-                              Text(
-                                '₹${(stmt['net'] as double).toStringAsFixed(2)}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  color: const Color(0xFF059669),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0A0F1D) : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.account_balance_rounded, size: 18, color: Color(0xFF059669)),
                           const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Banking Reference (UTR)',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
-                                ),
-                                Text(
-                                  stmt['utr'] as String,
-                                  style: GoogleFonts.jetBrainsMono(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white : const Color(0xFF0F172A)),
-                                ),
-                              ],
-                            ),
-                          ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                             decoration: BoxDecoration(
-                              color: (stmt['status'] == 'PAID' ? const Color(0xFF10B981) : const Color(0xFFF59E0B)).withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
+                              color: const Color(0xFF059669).withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              stmt['status'] as String,
+                              'NEW SELLER ONBOARDING',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
-                                color: stmt['status'] == 'PAID' ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                                letterSpacing: 0.5,
+                                color: const Color(0xFF059669),
                               ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Register a seller store with business identity, owner contact, address, warehouses, and bank settlement.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                 decoration: BoxDecoration(
                   color: surfaceColor,
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                  border: Border(top: BorderSide(color: borderColor)),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: readyCount == 5
+                        ? const Color(0xFF059669).withValues(alpha: 0.5)
+                        : borderColor,
+                  ),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Close'),
+                    Icon(
+                      readyCount == 5 ? Icons.check_circle_rounded : Icons.fact_check_outlined,
+                      size: 17,
+                      color: readyCount == 5 ? const Color(0xFF059669) : const Color(0xFFF59E0B),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$readyCount / 5 Required Fields Ready',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
                     ),
                   ],
                 ),
@@ -2928,194 +2559,1260 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
             ],
           ),
         ),
-      ),
-    );
-  }
+        const SizedBox(height: 16),
 
-  Widget _buildReceiptItem(String label, String value, bool isDark, {bool isNegative = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w500,
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+        // Inline Validation / API Error Banner
+        if (_createErrorMessage != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.16 : 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 19),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _createErrorMessage!,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() => _createErrorMessage = null),
+                  icon: const Icon(Icons.close_rounded, size: 17, color: Color(0xFFEF4444)),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
           ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: isNegative ? const Color(0xFFEF4444) : (isDark ? Colors.white : const Color(0xFF0F172A)),
+          const SizedBox(height: 16),
+        ],
+
+        // Row 1: Business & Tax Identity + Owner & Contact Details
+        if (isWide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildCreateBusinessCard(isDark, surfaceColor, borderColor)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildCreateContactCard(isDark, surfaceColor, borderColor)),
+            ],
+          )
+        else ...[
+          _buildCreateBusinessCard(isDark, surfaceColor, borderColor),
+          const SizedBox(height: 16),
+          _buildCreateContactCard(isDark, surfaceColor, borderColor),
+        ],
+        const SizedBox(height: 16),
+
+        // Row 2: Business Address + Bank & Settlement
+        if (isWide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildCreateAddressCard(isDark, surfaceColor, borderColor)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildCreateBankCard(isDark, surfaceColor, borderColor)),
+            ],
+          )
+        else ...[
+          _buildCreateAddressCard(isDark, surfaceColor, borderColor),
+          const SizedBox(height: 16),
+          _buildCreateBankCard(isDark, surfaceColor, borderColor),
+        ],
+        const SizedBox(height: 16),
+
+        // Row 3: Warehouse Addresses (Multiple)
+        _buildCreateWarehousesCard(isDark, surfaceColor, borderColor),
+        const SizedBox(height: 16),
+
+        // Row 4: Business & Compliance Documents (Optional)
+        _buildCreateDocumentsCard(isDark, surfaceColor, borderColor),
+        const SizedBox(height: 20),
+
+        // Bottom Action Footer
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              Text(
+                'Fields marked with * are required to provision the seller account.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton(
+                    onPressed: _isSubmitting ? null : widget.onBack,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                      side: BorderSide(color: borderColor),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text('Cancel', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    onPressed: _isSubmitting ? null : _saveChanges,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.add_business_rounded, size: 18),
+                    label: Text(
+                      _isSubmitting ? 'Creating Seller...' : 'Create Seller Account',
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  String _formatDate(DateTime? dt) {
-    if (dt == null) return 'N/A';
-    return '${dt.day}/${dt.month}/${dt.year}';
+  Widget _buildCreateSectionCard({
+    required IconData icon,
+    required String stepNumber,
+    required String title,
+    required String subtitle,
+    required bool isDark,
+    required Color surfaceColor,
+    required Color borderColor,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF059669).withValues(alpha: 0.16),
+                      const Color(0xFF10B981).withValues(alpha: 0.08),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.2)),
+                ),
+                child: Icon(icon, size: 19, color: const Color(0xFF059669)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          margin: const EdgeInsets.only(right: 7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: Text(
+                            stepNumber,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF059669),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Divider(height: 1, color: borderColor),
+          const SizedBox(height: 18),
+          child,
+        ],
+      ),
+    );
   }
-}
 
-class _KycDocumentReviewDialog extends StatefulWidget {
-  final String title;
-  final String docType;
-  final String documentNumber;
-  final String? fileUrl;
-  final String? backendDocType;
-  final int initialIndex;
-  final String sellerId;
-  final String sellerName;
-  final String sellerNumber;
-  final bool isKycComplete;
-  final List<String> availableLicences;
-  final PlatformFile? stagedFile;
-
-  const _KycDocumentReviewDialog({
-    required this.title,
-    required this.docType,
-    required this.documentNumber,
-    this.fileUrl,
-    this.backendDocType,
-    this.initialIndex = 0,
-    required this.sellerId,
-    required this.sellerName,
-    required this.sellerNumber,
-    required this.isKycComplete,
-    this.availableLicences = const [],
-    this.stagedFile,
-  });
-
-  @override
-  State<_KycDocumentReviewDialog> createState() => _KycDocumentReviewDialogState();
-}
-
-class _KycDocumentReviewDialogState extends State<_KycDocumentReviewDialog> {
-  late int _currentIndex;
-  Uint8List? _fileBytes;
-  String? _filename;
-  bool _isLoading = false;
-  String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _loadDocument();
+  Widget _buildCreateInput({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required bool isDark,
+    required Color borderColor,
+    IconData? prefixIcon,
+    String? prefixText,
+    String? helperText,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    int maxLines = 1,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          enabled: _isEditing,
+          readOnly: !_isEditing,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
+          maxLines: maxLines,
+          onChanged: (val) {
+            setState(() {});
+            onChanged?.call(val);
+          },
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            helperText: helperText,
+            helperStyle: GoogleFonts.plusJakartaSans(fontSize: 11, color: const Color(0xFF64748B)),
+            hintStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+            ),
+            prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 18, color: const Color(0xFF64748B)) : null,
+            prefixText: prefixText,
+            prefixStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF059669),
+            ),
+            filled: true,
+            fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: BorderSide(color: borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: BorderSide(color: borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  Future<void> _loadDocument() async {
-    if (widget.stagedFile != null) {
-      final file = widget.stagedFile!;
-      final bytes = await file.readAsBytes();
-      if (mounted) {
+  Widget _buildCreateBusinessCard(bool isDark, Color surfaceColor, Color borderColor) {
+    final gstLen = _gstinController.text.trim().length;
+    return _buildCreateSectionCard(
+      icon: Icons.business_center_rounded,
+      stepNumber: '01',
+      title: 'Business & Tax Identity',
+      subtitle: 'Storefront name, legal entity & GST compliance',
+      isDark: isDark,
+      surfaceColor: surfaceColor,
+      borderColor: borderColor,
+      child: Column(
+        children: [
+          _buildCreateInput(
+            controller: _tradeNameController,
+            label: 'Shop / Trade Name *',
+            hint: 'e.g. GreenField Agro Kendra',
+            prefixIcon: Icons.store_outlined,
+            isDark: isDark,
+            borderColor: borderColor,
+          ),
+          const SizedBox(height: 14),
+          _buildCreateInput(
+            controller: _companyNameController,
+            label: 'Legal Company Name',
+            hint: 'e.g. GreenField Agro Pvt. Ltd.',
+            prefixIcon: Icons.apartment_rounded,
+            isDark: isDark,
+            borderColor: borderColor,
+          ),
+          const SizedBox(height: 14),
+          _buildCreateInput(
+            controller: _gstinController,
+            label: 'GSTIN (15 Characters, Optional)',
+            hint: 'e.g. 23AABCU9603R1ZM',
+            prefixIcon: Icons.receipt_long_outlined,
+            helperText: '$gstLen / 15 characters',
+            inputFormatters: [
+              LengthLimitingTextInputFormatter(15),
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+            ],
+            isDark: isDark,
+            borderColor: borderColor,
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _panController,
+                  label: 'PAN Number',
+                  hint: 'e.g. AABCU9603R',
+                  inputFormatters: [LengthLimitingTextInputFormatter(10)],
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _licenseController,
+                  label: 'Agri / Trade License No.',
+                  hint: 'Optional license ID',
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCreateContactCard(bool isDark, Color surfaceColor, Color borderColor) {
+    return _buildCreateSectionCard(
+      icon: Icons.person_outline_rounded,
+      stepNumber: '02',
+      title: 'Owner & Contact Details',
+      subtitle: 'Primary account holder & login credentials',
+      isDark: isDark,
+      surfaceColor: surfaceColor,
+      borderColor: borderColor,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _firstNameController,
+                  label: 'First Name *',
+                  hint: 'e.g. Rajesh',
+                  prefixIcon: Icons.badge_outlined,
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _lastNameController,
+                  label: 'Last Name *',
+                  hint: 'e.g. Sharma',
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: _buildEnhancedPhoneInput(isDark, borderColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: _buildCreateInput(
+                  controller: _monthlyTargetController,
+                  label: 'Monthly Sales Target (₹)',
+                  hint: 'Optional e.g. 250000',
+                  prefixIcon: Icons.trending_up_rounded,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildCreateInput(
+            controller: _emailController,
+            label: 'Email Address *',
+            hint: 'seller@example.com',
+            prefixIcon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+            isDark: isDark,
+            borderColor: borderColor,
+          ),
+          if (_isEditing) ...[
+            const SizedBox(height: 14),
+            _buildCreateInput(
+              controller: _passwordController,
+              label: _isCreating
+                  ? 'Login Password (Optional)'
+                  : 'Set / Reset Login Password (Optional)',
+              hint: 'Min 6 characters (for email & password login)',
+              prefixIcon: Icons.lock_outline_rounded,
+              isDark: isDark,
+              borderColor: borderColor,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnhancedPhoneInput(bool isDark, Color borderColor) {
+    final digits = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+    final isValid = digits.length == 10;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Mobile Number *',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: (isValid ? const Color(0xFF059669) : const Color(0xFF64748B)).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${digits.length} / 10 digits',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: isValid ? const Color(0xFF059669) : const Color(0xFF64748B),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color: isValid ? const Color(0xFF059669).withValues(alpha: 0.65) : borderColor,
+              width: isValid ? 1.3 : 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0).withValues(alpha: 0.55),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    bottomLeft: Radius.circular(8),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.phone_android_rounded, size: 16, color: Color(0xFF059669)),
+                    const SizedBox(width: 6),
+                    Text(
+                      '+91',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(width: 1, height: 26, color: borderColor),
+              Expanded(
+                child: TextField(
+                  controller: _phoneController,
+                  enabled: _isEditing,
+                  readOnly: !_isEditing,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  onChanged: (_) => setState(() {}),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: '98765 43210',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.5,
+                      letterSpacing: 0.5,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                    suffixIcon: isValid
+                        ? const Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF059669))
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _onPincodeChanged(String val) async {
+    final clean = val.trim();
+    if (clean.length != 6) {
+      if (_pincodeStatusText != null || _isLookingUpPincode) {
         setState(() {
-          _fileBytes = bytes;
-          _filename = file.name;
-          _isLoading = false;
-          _errorMessage = null;
+          _isLookingUpPincode = false;
+          _pincodeStatusText = null;
         });
       }
       return;
     }
-
-    if (widget.backendDocType == null || widget.sellerId.isEmpty) {
-      setState(() {
-        _errorMessage = 'No document reference found in storage';
-        _isLoading = false;
-      });
-      return;
-    }
-
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      _isLookingUpPincode = true;
+      _pincodeStatusText = null;
     });
-
-    try {
-      final bytes = await context.read<AdminUserRepository>().downloadKycDocument(
-            userId: widget.sellerId,
-            documentType: widget.backendDocType!,
-            index: _currentIndex,
-          );
-      if (!mounted) return;
-      final resolvedUrl = widget.backendDocType == 'licence' && widget.availableLicences.length > _currentIndex
-          ? widget.availableLicences[_currentIndex]
-          : widget.fileUrl;
-      setState(() {
-        _fileBytes = bytes;
-        _filename = resolvedUrl?.split('/').last ?? '${widget.backendDocType}-$_currentIndex';
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  bool get _isPdf {
-    if (_filename != null && _filename!.toLowerCase().endsWith('.pdf')) return true;
-    if (_fileBytes != null && _fileBytes!.length >= 4) {
-      if (_fileBytes![0] == 0x25 && _fileBytes![1] == 0x50 && _fileBytes![2] == 0x44 && _fileBytes![3] == 0x46) {
-        return true;
+    final result = await IndiaLocationHelper.lookupPincode(clean);
+    if (!mounted || _pincodeController.text.trim() != clean) return;
+    setState(() {
+      _isLookingUpPincode = false;
+      if (result != null) {
+        _stateController.text = result.state;
+        _extraPincodeCities = result.cities;
+        _cityController.text = result.primaryCity;
+        _pincodeStatusText = 'Auto-filled: ${result.primaryCity}, ${result.state}';
+      } else {
+        _pincodeStatusText = 'PIN not found — select State & City manually';
       }
-    }
-    return false;
+    });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
-    final viewerBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
-    final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
+  Future<void> _onStateSelected(String val) async {
+    setState(() {
+      _stateController.text = val;
+      _cityController.text = '';
+      _extraPincodeCities = const [];
+      _isLoadingCities = true;
+    });
+    await IndiaLocationHelper.fetchCitiesForState(val);
+    if (!mounted || _stateController.text != val) return;
+    setState(() => _isLoadingCities = false);
+  }
 
-    final isStaged = widget.stagedFile != null;
-    final statusColor = isStaged
-        ? const Color(0xFF3B82F6)
-        : (widget.isKycComplete ? const Color(0xFF10B981) : const Color(0xFFF59E0B));
-    final statusText = isStaged
-        ? 'STAGED FOR ONBOARDING'
-        : (widget.isKycComplete ? 'VERIFIED & APPROVED' : 'ATTACHED • PENDING APPROVAL');
+  Widget _buildCreateAddressCard(bool isDark, Color surfaceColor, Color borderColor) {
+    final selectedState = IndiaLocationHelper.normalizeState(_stateController.text);
+    final stateOptions = IndiaLocationHelper.states;
+    final effectiveState = stateOptions.contains(selectedState) ? selectedState : null;
+    final cityOptions = effectiveState != null
+        ? IndiaLocationHelper.cachedCitiesForState(
+            effectiveState,
+            extraCities: [
+              ..._extraPincodeCities,
+              if (_cityController.text.trim().isNotEmpty) _cityController.text.trim(),
+            ],
+          )
+        : <String>[];
+    final currentCity = _cityController.text.trim();
+    final effectiveCity = cityOptions.contains(currentCity) ? currentCity : null;
 
-    return Dialog(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header Bar
+    InputDecoration dropdownDecoration(String hint, IconData icon) => InputDecoration(
+          hintText: hint,
+          hintStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+          ),
+          prefixIcon: Icon(icon, size: 18, color: const Color(0xFF64748B)),
+          filled: true,
+          fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(9),
+            borderSide: BorderSide(color: borderColor),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(9),
+            borderSide: BorderSide(color: borderColor),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(9),
+            borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+          ),
+        );
+
+    return _buildCreateSectionCard(
+      icon: Icons.location_on_outlined,
+      stepNumber: '03',
+      title: 'Business Address & Notes',
+      subtitle: 'Enter 6-digit PIN Code to auto-fetch State & City, or select manually',
+      isDark: isDark,
+      surfaceColor: surfaceColor,
+      borderColor: borderColor,
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PIN Code (Auto-Fetch)',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _pincodeController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      onChanged: _onPincodeChanged,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. 132001',
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        ),
+                        prefixIcon: const Icon(Icons.pin_drop_outlined, size: 18, color: Color(0xFF64748B)),
+                        suffixIcon: _isLookingUpPincode
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)),
+                                ),
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(9),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(9),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(9),
+                          borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+                        ),
+                      ),
+                    ),
+                    if (_pincodeStatusText != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _pincodeStatusText!,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _pincodeStatusText!.startsWith('Auto-filled')
+                              ? const Color(0xFF059669)
+                              : const Color(0xFFF59E0B),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 3,
+                child: _buildCreateInput(
+                  controller: _registeredAddressController,
+                  label: 'Street / Village / Area',
+                  hint: 'e.g. Shop 12, Krishi Upaj Mandi Road',
+                  prefixIcon: Icons.home_work_outlined,
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'State',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: effectiveState,
+                      isExpanded: true,
+                      dropdownColor: surfaceColor,
+                      decoration: dropdownDecoration('-- Select State --', Icons.map_outlined),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                      items: stateOptions
+                          .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
+                          .toList(),
+                      onChanged: !_isEditing
+                          ? null
+                          : (val) {
+                              if (val != null) _onStateSelected(val);
+                            },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'City / Tehsil',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: effectiveCity,
+                      isExpanded: true,
+                      dropdownColor: surfaceColor,
+                      decoration: dropdownDecoration(
+                        _isLoadingCities
+                            ? 'Loading cities...'
+                            : (effectiveState == null ? 'Select State first' : '-- Select City --'),
+                        Icons.location_city_rounded,
+                      ),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                      items: cityOptions
+                          .map((c) => DropdownMenuItem(value: c, child: Text(c, overflow: TextOverflow.ellipsis)))
+                          .toList(),
+                      onChanged: (!_isEditing || effectiveState == null)
+                          ? null
+                          : (val) {
+                              if (val == null) return;
+                              setState(() => _cityController.text = val);
+                            },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildCreateInput(
+            controller: _notesController,
+            label: 'Internal Onboarding Notes',
+            hint: 'Optional notes about dealer agreement or pickup schedule...',
+            maxLines: 2,
+            isDark: isDark,
+            borderColor: borderColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCreateBankCard(bool isDark, Color surfaceColor, Color borderColor) {
+    return _buildCreateSectionCard(
+      icon: Icons.account_balance_outlined,
+      stepNumber: '04',
+      title: 'Commercial Pricing & Bank Settlement',
+      subtitle: 'Pricing model, dealer commission & optional payout account',
+      isDark: isDark,
+      surfaceColor: surfaceColor,
+      borderColor: borderColor,
+      child: Column(
+        children: [
+          if (_isCreating)
+            PricingModeToggle(
+              isMarketplace: _pricingModel != 'DEALER_COMMISSION',
+              onChanged: (isMarketplace) {
+                setState(() {
+                  _pricingModel = isMarketplace ? 'MARKETPLACE' : 'DEALER_COMMISSION';
+                  if (isMarketplace) {
+                    _commissionController.clear();
+                  }
+                });
+              },
+              isDark: isDark,
+            )
+          else
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                border: Border(bottom: BorderSide(color: borderColor)),
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor),
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
+                  Icon(
+                    _pricingModel == 'DEALER_COMMISSION'
+                        ? Icons.handshake_outlined
+                        : Icons.storefront_rounded,
+                    size: 18,
+                    color: const Color(0xFF059669),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _pricingModel == 'DEALER_COMMISSION'
+                          ? 'Pricing Model: Dealer Commission (${_currentSeller.commissionPercentage.toStringAsFixed(_currentSeller.commissionPercentage == _currentSeller.commissionPercentage.roundToDouble() ? 0 : 1)}%)'
+                          : 'Pricing Model: Marketplace',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
                     ),
-                    child: Icon(
-                      isStaged ? Icons.file_present_rounded : Icons.verified_user_rounded,
-                      color: statusColor,
-                      size: 20,
+                  ),
+                  if (_isEditing) ...[
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.lock_outline_rounded,
+                      size: 14,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Locked',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          if (_pricingModel == 'DEALER_COMMISSION') ...[
+            const SizedBox(height: 12),
+            _buildCreateInput(
+              controller: _commissionController,
+              label: 'Commission (%) *',
+              hint: 'e.g. 12.5',
+              prefixIcon: Icons.percent_rounded,
+              helperText: 'Dealer commission deducted from selling rate (0 – 100%)',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,2})?$')),
+              ],
+              isDark: isDark,
+              borderColor: borderColor,
+            ),
+          ],
+          const SizedBox(height: 16),
+          Divider(height: 1, color: borderColor),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _accHolderController,
+                  label: 'Account Holder Name',
+                  hint: 'As per bank passbook',
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _bankNameController,
+                  label: 'Bank Name',
+                  hint: 'e.g. State Bank of India',
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _accNumberController,
+                  label: 'Account Number',
+                  hint: 'Enter account number',
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _ifscController,
+                  label: 'IFSC Code',
+                  hint: 'e.g. SBIN0001234',
+                  inputFormatters: [LengthLimitingTextInputFormatter(11)],
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _branchController,
+                  label: 'Branch Name',
+                  hint: 'e.g. Main Market Branch',
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCreateInput(
+                  controller: _upiController,
+                  label: 'UPI ID',
+                  hint: 'e.g. shop@okaxis',
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCreateWarehousesCard(bool isDark, Color surfaceColor, Color borderColor) {
+    return _buildCreateSectionCard(
+      icon: Icons.warehouse_outlined,
+      stepNumber: '05',
+      title: 'Warehouse Addresses (Optional)',
+      subtitle: 'Add one or more dispatch warehouse addresses (same structure as business address)',
+      isDark: isDark,
+      surfaceColor: surfaceColor,
+      borderColor: borderColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_warehouseEntries.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warehouse_outlined, size: 20, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'No warehouse addresses added yet. Click "Add Warehouse" to add one or more warehouse locations.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _warehouseEntries.add(_WarehouseAddressEntry());
+                      });
+                    },
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: const Text('Add Warehouse'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF059669),
+                      side: BorderSide(color: const Color(0xFF059669).withValues(alpha: 0.5)),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            for (int i = 0; i < _warehouseEntries.length; i++) ...[
+              _buildWarehouseEntryCard(i, _warehouseEntries[i], isDark, borderColor),
+              if (i < _warehouseEntries.length - 1) const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _warehouseEntries.add(_WarehouseAddressEntry());
+                  });
+                },
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add Another Warehouse'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF059669),
+                  side: BorderSide(color: const Color(0xFF059669).withValues(alpha: 0.5)),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWarehouseEntryCard(int index, _WarehouseAddressEntry entry, bool isDark, Color borderColor) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warehouse_outlined, size: 16, color: Color(0xFF059669)),
+              const SizedBox(width: 8),
+              Text(
+                'Warehouse #${index + 1}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    final removed = _warehouseEntries.removeAt(index);
+                    removed.dispose();
+                  });
+                },
+                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                tooltip: 'Remove Warehouse',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildCreateInput(
+                  controller: entry.villageAreaController,
+                  label: 'Street / Village / Area',
+                  hint: 'e.g. Plot 42, Industrial Estate',
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCreateInput(
+                  controller: entry.address2Controller,
+                  label: 'Landmark / Address 2',
+                  hint: 'Optional',
+                  isDark: isDark,
+                  borderColor: borderColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Builder(
+            builder: (context) {
+              final selectedState = IndiaLocationHelper.normalizeState(entry.stateController.text);
+              final stateOptions = IndiaLocationHelper.states;
+              final effectiveState = stateOptions.contains(selectedState) ? selectedState : null;
+              final cityOptions = effectiveState != null
+                  ? IndiaLocationHelper.cachedCitiesForState(
+                      effectiveState,
+                      extraCities: [
+                        ...entry.extraCities,
+                        if (entry.cityTehsilController.text.trim().isNotEmpty)
+                          entry.cityTehsilController.text.trim(),
+                      ],
+                    )
+                  : (entry.cityTehsilController.text.trim().isNotEmpty
+                      ? <String>[entry.cityTehsilController.text.trim()]
+                      : <String>[]);
+              final currentCity = entry.cityTehsilController.text.trim();
+              final effectiveCity = cityOptions.contains(currentCity) ? currentCity : null;
+
+              InputDecoration dropdownDecoration(String hint, IconData icon) => InputDecoration(
+                    hintText: hint,
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                    prefixIcon: Icon(icon, size: 18, color: const Color(0xFF64748B)),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(9),
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(9),
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(9),
+                      borderSide: const BorderSide(color: Color(0xFF059669), width: 1.5),
+                    ),
+                  );
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildCreateInput(
+                      controller: entry.pincodeController,
+                      label: 'PIN Code (Auto-Fetch)',
+                      hint: 'e.g. 462039',
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      onChanged: (val) => _onWarehousePincodeChanged(entry, val),
+                      isDark: isDark,
+                      borderColor: borderColor,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -3124,360 +3821,414 @@ class _KycDocumentReviewDialogState extends State<_KycDocumentReviewDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.title,
+                          'State',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${widget.sellerNumber} • ${widget.sellerName} | ${widget.docType}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: statusColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-
-            // Metadata Strip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: viewerBg,
-                border: Border(bottom: BorderSide(color: borderColor)),
-              ),
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Document ID: ',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        ),
-                      ),
-                      Text(
-                        widget.documentNumber.isNotEmpty ? widget.documentNumber : 'N/A',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
-                      if (widget.documentNumber.isNotEmpty) ...[
-                        const SizedBox(width: 4),
-                        InkWell(
-                          onTap: () {
-                            Clipboard.setData(ClipboardData(text: widget.documentNumber));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Copied ${widget.documentNumber} to clipboard'),
-                                duration: const Duration(seconds: 1),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                          child: const Icon(Icons.copy_rounded, size: 12, color: Color(0xFF059669)),
-                        ),
-                      ],
-                    ],
-                  ),
-                  if (_filename != null)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
-                          size: 13,
-                          color: _isPdf ? const Color(0xFFEF4444) : const Color(0xFF3B82F6),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _filename!,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                             color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
                           ),
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        DropdownButtonFormField<String>(
+                          initialValue: effectiveState,
+                          isExpanded: true,
+                          decoration: dropdownDecoration('Select State', Icons.map_outlined),
+                          items: stateOptions
+                              .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) _onWarehouseStateSelected(entry, val);
+                          },
                         ),
                       ],
                     ),
-                  if (_fileBytes != null)
-                    Text(
-                      '${(_fileBytes!.lengthInBytes / 1024).toStringAsFixed(1)} KB • ${_isPdf ? "PDF Document" : "Image"}',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                  if (widget.backendDocType == 'licence' && widget.availableLicences.length > 1)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('License: ', style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600)),
-                        for (int i = 0; i < widget.availableLicences.length; i++)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: ChoiceChip(
-                              label: Text('${i + 1}', style: const TextStyle(fontSize: 10)),
-                              selected: _currentIndex == i,
-                              onSelected: (selected) {
-                                if (selected) {
-                                  setState(() => _currentIndex = i);
-                                  _loadDocument();
-                                }
-                              },
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                            ),
+                        Text(
+                          'City / Tehsil',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
                           ),
+                        ),
+                        const SizedBox(height: 6),
+                        DropdownButtonFormField<String>(
+                          initialValue: effectiveCity,
+                          isExpanded: true,
+                          decoration: dropdownDecoration(
+                            entry.isLoadingCities ? 'Loading...' : 'Select City',
+                            Icons.location_city_outlined,
+                          ),
+                          items: cityOptions
+                              .map((c) => DropdownMenuItem(value: c, child: Text(c, overflow: TextOverflow.ellipsis)))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) setState(() => entry.cityTehsilController.text = val);
+                          },
+                        ),
                       ],
                     ),
+                  ),
+                ],
+              );
+            },
+          ),
+          if (entry.pincodeStatusText != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              entry.pincodeStatusText!,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF059669),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _onWarehouseStateSelected(_WarehouseAddressEntry entry, String val) async {
+    setState(() {
+      entry.stateController.text = val;
+      entry.cityTehsilController.text = '';
+      entry.extraCities = const [];
+      entry.isLoadingCities = true;
+    });
+    await IndiaLocationHelper.fetchCitiesForState(val);
+    if (!mounted || entry.stateController.text != val) return;
+    setState(() => entry.isLoadingCities = false);
+  }
+
+  Future<void> _onWarehousePincodeChanged(_WarehouseAddressEntry entry, String val) async {
+    final clean = val.trim();
+    if (clean.length != 6) {
+      if (entry.pincodeStatusText != null) {
+        setState(() => entry.pincodeStatusText = null);
+      }
+      return;
+    }
+    final result = await IndiaLocationHelper.lookupPincode(clean);
+    if (!mounted || entry.pincodeController.text.trim() != clean) return;
+    setState(() {
+      if (result != null) {
+        entry.stateController.text = result.state;
+        entry.extraCities = result.cities;
+        entry.cityTehsilController.text = result.primaryCity;
+        entry.pincodeStatusText = 'Auto-filled: ${result.primaryCity}, ${result.state}';
+      } else {
+        entry.pincodeStatusText = 'PIN not found — select State & City manually';
+      }
+    });
+  }
+  Widget _buildCreateDocumentsCard(bool isDark, Color surfaceColor, Color borderColor) {
+    Widget docTile({
+      required String title,
+      required String docKey,
+      required IconData icon,
+      PlatformFile? singleFile,
+      List<PlatformFile>? multiFiles,
+    }) {
+      final hasFile = singleFile != null || (multiFiles != null && multiFiles.isNotEmpty);
+      final fileName = singleFile?.name ??
+          (multiFiles != null && multiFiles.isNotEmpty
+              ? '${multiFiles.length} file(s) attached'
+              : 'PDF, PNG, JPG or WEBP');
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: hasFile
+              ? const Color(0xFF059669).withValues(alpha: isDark ? 0.14 : 0.06)
+              : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: hasFile ? const Color(0xFF059669).withValues(alpha: 0.45) : borderColor,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              hasFile ? Icons.check_circle_rounded : icon,
+              size: 20,
+              color: hasFile ? const Color(0xFF059669) : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  Text(
+                    fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: hasFile ? const Color(0xFF059669) : const Color(0xFF64748B),
+                    ),
+                  ),
                 ],
               ),
             ),
+            if (hasFile)
+              IconButton(
+                onPressed: () => _removeStagedDocument(docKey),
+                icon: const Icon(Icons.close_rounded, size: 17, color: Color(0xFFEF4444)),
+                tooltip: 'Remove',
+              )
+            else
+              OutlinedButton(
+                onPressed: () => _pickAndUploadDocument(docKey),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF059669),
+                  side: BorderSide(color: const Color(0xFF059669).withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+                ),
+                child: Text('Attach', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+          ],
+        ),
+      );
+    }
 
-            // Document Display Body
-            Flexible(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                color: isDark ? const Color(0xFF0B132B) : const Color(0xFFF8FAFC),
-                child: Center(
-                  child: _isLoading
-                      ? Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(color: Color(0xFF059669)),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Retrieving encrypted file from secure cloud storage...',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        )
-                      : _errorMessage != null
-                          ? Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 40),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Could not load document preview',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                                  child: Text(
-                                    _errorMessage!,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11.5,
-                                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                ElevatedButton.icon(
-                                  onPressed: _loadDocument,
-                                  icon: const Icon(Icons.refresh_rounded, size: 14),
-                                  label: const Text('Retry'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF059669),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                  ),
-                                ),
-                              ],
-                            )
+    return _buildCreateSectionCard(
+      icon: Icons.upload_file_outlined,
+      stepNumber: '06',
+      title: 'Business & Compliance Documents (Optional)',
+      subtitle: 'Attached files are uploaded automatically right after seller creation',
+      isDark: isDark,
+      surfaceColor: surfaceColor,
+      borderColor: borderColor,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final twoCol = constraints.maxWidth >= 680;
+          if (!twoCol) {
+            return Column(
+              children: [
+                docTile(title: 'GST Certificate', docKey: 'gstCertificate', icon: Icons.receipt_long_outlined, singleFile: _stagedGstFile),
+                const SizedBox(height: 10),
+                docTile(title: 'PAN Card', docKey: 'panCard', icon: Icons.credit_card_outlined, singleFile: _stagedPanFile),
+                const SizedBox(height: 10),
+                docTile(title: 'Aadhaar Card', docKey: 'aadhaarCard', icon: Icons.badge_outlined, singleFile: _stagedAadhaarFile),
+                const SizedBox(height: 10),
+                docTile(title: 'Agri / Trade Licence', docKey: 'licenceImage', icon: Icons.workspace_premium_outlined, multiFiles: _stagedLicenceFiles),
+                const SizedBox(height: 10),
+                docTile(title: 'Bank Cancelled Cheque', docKey: 'cancelledCheque', icon: Icons.account_balance_wallet_outlined, singleFile: _stagedCancelledChequeFile),
+                const SizedBox(height: 10),
+                docTile(title: 'Seller Agreement', docKey: 'agreement', icon: Icons.handshake_outlined, singleFile: _stagedAgreementFile),
+              ],
+            );
+          }
+          return Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: docTile(title: 'GST Certificate', docKey: 'gstCertificate', icon: Icons.receipt_long_outlined, singleFile: _stagedGstFile)),
+                  const SizedBox(width: 12),
+                  Expanded(child: docTile(title: 'PAN Card', docKey: 'panCard', icon: Icons.credit_card_outlined, singleFile: _stagedPanFile)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: docTile(title: 'Aadhaar Card', docKey: 'aadhaarCard', icon: Icons.badge_outlined, singleFile: _stagedAadhaarFile)),
+                  const SizedBox(width: 12),
+                  Expanded(child: docTile(title: 'Agri / Trade Licence', docKey: 'licenceImage', icon: Icons.workspace_premium_outlined, multiFiles: _stagedLicenceFiles)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: docTile(title: 'Bank Cancelled Cheque', docKey: 'cancelledCheque', icon: Icons.account_balance_wallet_outlined, singleFile: _stagedCancelledChequeFile)),
+                  const SizedBox(width: 12),
+                  Expanded(child: docTile(title: 'Seller Agreement', docKey: 'agreement', icon: Icons.handshake_outlined, singleFile: _stagedAgreementFile)),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SellerDocumentPreviewDialog extends StatefulWidget {
+  final String title;
+  final String sellerId;
+  final String backendDocType;
+  final List<String> availableLicences;
+
+  const _SellerDocumentPreviewDialog({
+    required this.title,
+    required this.sellerId,
+    required this.backendDocType,
+    this.availableLicences = const [],
+  });
+
+  @override
+  State<_SellerDocumentPreviewDialog> createState() => _SellerDocumentPreviewDialogState();
+}
+
+class _SellerDocumentPreviewDialogState extends State<_SellerDocumentPreviewDialog> {
+  Uint8List? _fileBytes;
+  bool _loading = true;
+  String? _error;
+  int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDocument();
+  }
+
+  Future<void> _loadDocument() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final bytes = await context.read<AdminUserRepository>().downloadSellerDocument(
+            userId: widget.sellerId,
+            documentType: widget.backendDocType,
+            index: _selectedIndex,
+          );
+      if (!mounted) return;
+      setState(() {
+        _fileBytes = bytes;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  bool get _isPdf =>
+      _fileBytes != null &&
+      _fileBytes!.length >= 4 &&
+      _fileBytes![0] == 0x25 &&
+      _fileBytes![1] == 0x50 &&
+      _fileBytes![2] == 0x44 &&
+      _fileBytes![3] == 0x46;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Dialog(
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 580),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.description_outlined, color: Color(0xFF059669)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              if (widget.backendDocType == 'licence' && widget.availableLicences.length > 1) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (int i = 0; i < widget.availableLicences.length; i++)
+                      ChoiceChip(
+                        label: Text('File ${i + 1}'),
+                        selected: _selectedIndex == i,
+                        onSelected: (selected) {
+                          if (selected) {
+                            _selectedIndex = i;
+                            _loadDocument();
+                          }
+                        },
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? Center(child: Text('Unable to load preview: $_error'))
                           : _fileBytes == null || _fileBytes!.isEmpty
-                              ? Text(
-                                  'No document preview available',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12,
-                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                  ),
-                                )
+                              ? const Center(child: Text('No document data'))
                               : _isPdf
-                                  ? Container(
-                                      constraints: const BoxConstraints(maxWidth: 480),
-                                      padding: const EdgeInsets.all(24),
-                                      decoration: BoxDecoration(
-                                        color: surfaceColor,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: borderColor),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.05),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
+                                  ? Center(
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(16),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: const Icon(
-                                              Icons.picture_as_pdf_rounded,
-                                              color: Color(0xFFEF4444),
-                                              size: 44,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 14),
+                                          const Icon(Icons.picture_as_pdf_rounded, size: 52, color: Color(0xFFE11D48)),
+                                          const SizedBox(height: 10),
                                           Text(
-                                            _filename ?? 'Document.pdf',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w700,
-                                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                            ),
-                                            textAlign: TextAlign.center,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Official Multi-Page PDF Document • ${(_fileBytes!.lengthInBytes / 1024).toStringAsFixed(1)} KB',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 11,
-                                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                          const SizedBox(height: 20),
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              ElevatedButton.icon(
-                                                onPressed: () => openInNewTab(_fileBytes!, 'application/pdf'),
-                                                icon: const Icon(Icons.open_in_new_rounded, size: 15),
-                                                label: const Text('Open in New Window'),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: const Color(0xFF059669),
-                                                  foregroundColor: Colors.white,
-                                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 10),
-                                              OutlinedButton.icon(
-                                                onPressed: () => downloadBytes(_fileBytes!, _filename ?? 'document.pdf'),
-                                                icon: const Icon(Icons.download_rounded, size: 15),
-                                                label: const Text('Download PDF'),
-                                                style: OutlinedButton.styleFrom(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                                ),
-                                              ),
-                                            ],
+                                            'PDF Document (${(_fileBytes!.length / 1024).toStringAsFixed(1)} KB)',
+                                            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
                                           ),
                                         ],
                                       ),
                                     )
-                                  : Container(
-                                      constraints: const BoxConstraints(maxHeight: 460),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: borderColor),
-                                      ),
-                                      clipBehavior: Clip.antiAlias,
-                                      child: InteractiveViewer(
-                                        maxScale: 4.0,
-                                        child: Image.memory(
-                                          _fileBytes!,
-                                          fit: BoxFit.contain,
-                                        ),
-                                      ),
+                                  : InteractiveViewer(
+                                      child: Image.memory(_fileBytes!, fit: BoxFit.contain),
                                     ),
                 ),
               ),
-            ),
-
-            // Footer
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                border: Border(top: BorderSide(color: borderColor)),
-              ),
-              child: Row(
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Icon(
-                    Icons.lock_outline_rounded,
-                    size: 14,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isStaged ? 'Staged in local memory • Will commit to GCS on save' : 'Private GCS Cloud Storage • SHA-256 Validated',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                  ),
-                  const Spacer(),
                   if (_fileBytes != null && _fileBytes!.isNotEmpty) ...[
                     ElevatedButton.icon(
-                      onPressed: () => downloadBytes(_fileBytes!, _filename ?? 'kyc-document'),
-                      icon: const Icon(Icons.download_rounded, size: 14),
-                      label: const Text('Download Document'),
+                      onPressed: () => downloadBytes(
+                        _fileBytes!,
+                        '${widget.backendDocType}-${_selectedIndex + 1}.${_isPdf ? "pdf" : "png"}',
+                      ),
+                      icon: const Icon(Icons.download_rounded, size: 15),
+                      label: const Text('Download'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF059669),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -3488,10 +4239,67 @@ class _KycDocumentReviewDialogState extends State<_KycDocumentReviewDialog> {
                   ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+class _WarehouseAddressEntry {
+  final TextEditingController villageAreaController;
+  final TextEditingController address2Controller;
+  final TextEditingController cityTehsilController;
+  final TextEditingController stateController;
+  final TextEditingController pincodeController;
+  String? pincodeStatusText;
+  List<String> extraCities = const [];
+  bool isLoadingCities = false;
+
+  _WarehouseAddressEntry({
+    String villageArea = '',
+    String address2 = '',
+    String cityTehsil = '',
+    String state = '',
+    String pincode = '',
+  })  : villageAreaController = TextEditingController(text: villageArea),
+        address2Controller = TextEditingController(text: address2),
+        cityTehsilController = TextEditingController(text: cityTehsil),
+        stateController = TextEditingController(text: state),
+        pincodeController = TextEditingController(text: pincode);
+
+  factory _WarehouseAddressEntry.fromAddress(UserAddress address) {
+    return _WarehouseAddressEntry(
+      villageArea: address.villageArea,
+      address2: address.address2,
+      cityTehsil: address.cityTehsil,
+      state: address.state,
+      pincode: address.pincode,
+    );
+  }
+
+  bool get isEmpty =>
+      villageAreaController.text.trim().isEmpty &&
+      address2Controller.text.trim().isEmpty &&
+      cityTehsilController.text.trim().isEmpty &&
+      stateController.text.trim().isEmpty &&
+      pincodeController.text.trim().isEmpty;
+
+  Map<String, dynamic> toAddressMap() => {
+        if (villageAreaController.text.trim().isNotEmpty) 'villageArea': villageAreaController.text.trim(),
+        if (address2Controller.text.trim().isNotEmpty) 'address2': address2Controller.text.trim(),
+        if (cityTehsilController.text.trim().isNotEmpty) 'cityTehsil': cityTehsilController.text.trim(),
+        if (stateController.text.trim().isNotEmpty) 'state': stateController.text.trim(),
+        if (pincodeController.text.trim().isNotEmpty) 'pincode': pincodeController.text.trim(),
+        'country': 'India',
+      };
+
+  void dispose() {
+    villageAreaController.dispose();
+    address2Controller.dispose();
+    cityTehsilController.dispose();
+    stateController.dispose();
+    pincodeController.dispose();
   }
 }

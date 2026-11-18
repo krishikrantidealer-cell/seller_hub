@@ -94,7 +94,6 @@ class _CustomersViewState extends State<CustomersView> {
 
           if (!_showTrash) {
             if (state.statusFilter == 'VERIFIED' && !u.isVerified) return false;
-            if (state.statusFilter == 'KYC_PENDING' && u.isKycComplete) return false;
             if (state.statusFilter == 'BLOCKED' && !u.isBlocked) return false;
           }
 
@@ -313,16 +312,6 @@ class _CustomersViewState extends State<CustomersView> {
             borderColor: borderColor,
           ),
           _buildMetricCard(
-            title: 'KYC PENDING',
-            value: '${activeCustomers.where((u) => !u.isKycComplete).length}',
-            subtitle: 'Documentation incomplete',
-            icon: Icons.pending_actions_rounded,
-            color: const Color(0xFFD97706),
-            isDark: isDark,
-            surfaceColor: surfaceColor,
-            borderColor: borderColor,
-          ),
-          _buildMetricCard(
             title: 'BLOCKED ACCOUNTS',
             value: '${activeCustomers.where((u) => u.isBlocked).length}',
             subtitle: 'Access restricted by admin',
@@ -520,7 +509,6 @@ class _CustomersViewState extends State<CustomersView> {
                   items: const [
                     DropdownMenuItem(value: 'ALL', child: Text('All Statuses')),
                     DropdownMenuItem(value: 'VERIFIED', child: Text('Verified Only')),
-                    DropdownMenuItem(value: 'KYC_PENDING', child: Text('KYC Pending')),
                     DropdownMenuItem(value: 'BLOCKED', child: Text('Blocked Only')),
                   ],
                   onChanged: (val) {
@@ -1486,7 +1474,6 @@ class _CustomersViewState extends State<CustomersView> {
                           _sectionHeader('ACCOUNT STATUS & VERIFICATION', isDark),
                           _infoRow('Phone Verified', user.isVerified ? 'Yes' : 'No', isDark),
                           _infoRow('Profile Completed', user.isProfileComplete ? 'Yes' : 'No', isDark),
-                          _infoRow('KYC Complete', user.isKycComplete ? 'Yes' : 'No', isDark),
                           _infoRow('Account Blocked', user.isBlocked ? 'Yes' : 'No', isDark),
 
                           const SizedBox(height: 14),

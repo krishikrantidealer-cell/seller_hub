@@ -4,9 +4,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/admin_user.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/utils/india_location_helper.dart';
 import '../../../domain/repositories/admin_user_repository.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/seller_bloc.dart';
+import 'variant_live_pricing.dart';
 
 class CreateSellerDialog extends StatefulWidget {
   final void Function(AdminUser createdSeller)? onSellerCreated;
@@ -35,9 +37,42 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
   final _stateController = TextEditingController();
   final _pincodeController = TextEditingController();
   final _monthlyTargetController = TextEditingController();
+  final _commissionController = TextEditingController();
+  String _pricingModel = 'MARKETPLACE';
 
   bool _isSubmitting = false;
   String? _errorMessage;
+  bool _isLookingUpPincode = false;
+  bool _isLoadingCities = false;
+  List<String> _extraPincodeCities = const [];
+
+  Future<void> _onStateSelected(String val) async {
+    setState(() {
+      _stateController.text = val;
+      _cityController.text = '';
+      _extraPincodeCities = const [];
+      _isLoadingCities = true;
+    });
+    await IndiaLocationHelper.fetchCitiesForState(val);
+    if (!mounted || _stateController.text != val) return;
+    setState(() => _isLoadingCities = false);
+  }
+
+  Future<void> _onPincodeChanged(String val) async {
+    final clean = val.trim();
+    if (clean.length != 6) return;
+    setState(() => _isLookingUpPincode = true);
+    final result = await IndiaLocationHelper.lookupPincode(clean);
+    if (!mounted || _pincodeController.text.trim() != clean) return;
+    setState(() {
+      _isLookingUpPincode = false;
+      if (result != null) {
+        _stateController.text = result.state;
+        _extraPincodeCities = result.cities;
+        _cityController.text = result.primaryCity;
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -52,6 +87,7 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
     _stateController.dispose();
     _pincodeController.dispose();
     _monthlyTargetController.dispose();
+    _commissionController.dispose();
     super.dispose();
   }
 
@@ -66,13 +102,17 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
     });
 
     final payload = <String, dynamic>{
-      'role': 'SELLER',
       'shopName': _shopNameController.text.trim(),
       'firstName': _firstNameController.text.trim(),
       'lastName': _lastNameController.text.trim(),
       'phoneNumber': _phoneController.text.trim(),
       'email': _emailController.text.trim().toLowerCase(),
-      'gstNumber': _gstController.text.trim().toUpperCase(),
+      if (_gstController.text.trim().isNotEmpty)
+        'gstNumber': _gstController.text.trim().toUpperCase(),
+      'pricingModel': _pricingModel,
+      'commissionPercentage': _pricingModel == 'DEALER_COMMISSION'
+          ? (double.tryParse(_commissionController.text.trim()) ?? 0.0)
+          : 0.0,
     };
 
     final village = _villageController.text.trim();
@@ -397,7 +437,7 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
                         const SizedBox(height: 14),
 
                         // GST Number
-                        _buildFieldLabel('GST Number (GSTIN) *', textPrimary),
+                        _buildFieldLabel('GST Number (GSTIN, Optional)', textPrimary),
                         TextFormField(
                           controller: _gstController,
                           textCapitalization: TextCapitalization.characters,
@@ -414,8 +454,10 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
                             textSecondary: textSecondary,
                           ),
                           validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'GST number is required';
-                            if (v.trim().length != 15) return 'GSTIN must be exactly 15 alphanumeric characters';
+                            final trimmed = v?.trim() ?? '';
+                            if (trimmed.isNotEmpty && trimmed.length != 15) {
+                              return 'GSTIN must be 15 characters if provided';
+                            }
                             return null;
                           },
                         ),
@@ -424,48 +466,6 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
                         // Address Row: City / Tehsil + State + Pincode
                         Row(
                           children: [
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildFieldLabel('City / Tehsil', textPrimary),
-                                  TextFormField(
-                                    controller: _cityController,
-                                    decoration: _inputDecoration(
-                                      hint: 'e.g. Indore',
-                                      icon: Icons.location_city_rounded,
-                                      isDark: isDark,
-                                      borderColor: borderColor,
-                                      cardBgColor: cardBgColor,
-                                      textSecondary: textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildFieldLabel('State', textPrimary),
-                                  TextFormField(
-                                    controller: _stateController,
-                                    decoration: _inputDecoration(
-                                      hint: 'e.g. Madhya Pradesh',
-                                      icon: Icons.map_outlined,
-                                      isDark: isDark,
-                                      borderColor: borderColor,
-                                      cardBgColor: cardBgColor,
-                                      textSecondary: textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
                             Expanded(
                               flex: 2,
                               child: Column(
@@ -479,6 +479,7 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
                                       FilteringTextInputFormatter.digitsOnly,
                                       LengthLimitingTextInputFormatter(6),
                                     ],
+                                    onChanged: _onPincodeChanged,
                                     decoration: _inputDecoration(
                                       hint: '452001',
                                       icon: Icons.pin_drop_outlined,
@@ -486,7 +487,105 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
                                       borderColor: borderColor,
                                       cardBgColor: cardBgColor,
                                       textSecondary: textSecondary,
+                                    ).copyWith(
+                                      suffixIcon: _isLookingUpPincode
+                                          ? const Padding(
+                                              padding: EdgeInsets.all(10),
+                                              child: SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF059669)),
+                                              ),
+                                            )
+                                          : null,
                                     ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldLabel('State', textPrimary),
+                                  Builder(
+                                    builder: (context) {
+                                      final normState = IndiaLocationHelper.normalizeState(_stateController.text);
+                                      final states = IndiaLocationHelper.states;
+                                      final selectedState = states.contains(normState) ? normState : null;
+                                      return DropdownButtonFormField<String>(
+                                        initialValue: selectedState,
+                                        isExpanded: true,
+                                        dropdownColor: surfaceColor,
+                                        decoration: _inputDecoration(
+                                          hint: 'Select State',
+                                          icon: Icons.map_outlined,
+                                          isDark: isDark,
+                                          borderColor: borderColor,
+                                          cardBgColor: cardBgColor,
+                                          textSecondary: textSecondary,
+                                        ),
+                                        items: states
+                                            .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
+                                            .toList(),
+                                        onChanged: (val) {
+                                          if (val != null) _onStateSelected(val);
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldLabel('City / Tehsil', textPrimary),
+                                  Builder(
+                                    builder: (context) {
+                                      final normState = IndiaLocationHelper.normalizeState(_stateController.text);
+                                      final hasState = IndiaLocationHelper.states.contains(normState);
+                                      final cities = hasState
+                                          ? IndiaLocationHelper.cachedCitiesForState(
+                                              normState,
+                                              extraCities: [
+                                                ..._extraPincodeCities,
+                                                if (_cityController.text.trim().isNotEmpty) _cityController.text.trim(),
+                                              ],
+                                            )
+                                          : <String>[];
+                                      final curCity = _cityController.text.trim();
+                                      final selectedCity = cities.contains(curCity) ? curCity : null;
+                                      return DropdownButtonFormField<String>(
+                                        initialValue: selectedCity,
+                                        isExpanded: true,
+                                        dropdownColor: surfaceColor,
+                                        decoration: _inputDecoration(
+                                          hint: _isLoadingCities
+                                              ? 'Loading...'
+                                              : (hasState ? 'Select City' : 'State first'),
+                                          icon: Icons.location_city_rounded,
+                                          isDark: isDark,
+                                          borderColor: borderColor,
+                                          cardBgColor: cardBgColor,
+                                          textSecondary: textSecondary,
+                                        ),
+                                        items: cities
+                                            .map((c) => DropdownMenuItem(value: c, child: Text(c, overflow: TextOverflow.ellipsis)))
+                                            .toList(),
+                                        onChanged: !hasState
+                                            ? null
+                                            : (val) {
+                                                if (val == null) return;
+                                                setState(() => _cityController.text = val);
+                                              },
+                                      );
+                                    },
                                   ),
                                 ],
                               ),
@@ -544,6 +643,46 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        PricingModeToggle(
+                          isMarketplace: _pricingModel != 'DEALER_COMMISSION',
+                          onChanged: (isMarketplace) {
+                            setState(() {
+                              _pricingModel = isMarketplace ? 'MARKETPLACE' : 'DEALER_COMMISSION';
+                              if (isMarketplace) {
+                                _commissionController.clear();
+                              }
+                            });
+                          },
+                          isDark: isDark,
+                        ),
+                        if (_pricingModel == 'DEALER_COMMISSION') ...[
+                          const SizedBox(height: 12),
+                          _buildFieldLabel('Commission (%) *', textPrimary),
+                          TextFormField(
+                            controller: _commissionController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d{0,2})?$')),
+                            ],
+                            decoration: _inputDecoration(
+                              hint: 'e.g. 12.5',
+                              icon: Icons.percent_rounded,
+                              isDark: isDark,
+                              borderColor: borderColor,
+                              cardBgColor: cardBgColor,
+                              textSecondary: textSecondary,
+                            ),
+                            validator: (v) {
+                              if (_pricingModel != 'DEALER_COMMISSION') return null;
+                              final val = double.tryParse(v?.trim() ?? '');
+                              if (val == null || val < 0 || val > 100) {
+                                return 'Enter commission between 0 and 100%';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
                       ],
                     ),
                   ),

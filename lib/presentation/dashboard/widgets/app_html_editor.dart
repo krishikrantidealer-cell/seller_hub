@@ -26,6 +26,7 @@ class AppHtmlEditor extends StatefulWidget {
   final String hintText;
   final bool isRequired;
   final double minHeight;
+  final bool readOnly;
 
   const AppHtmlEditor({
     super.key,
@@ -35,6 +36,7 @@ class AppHtmlEditor extends StatefulWidget {
     this.hintText = 'Write a comprehensive description with dosage, application, and benefits...',
     this.isRequired = false,
     this.minHeight = 260,
+    this.readOnly = false,
   });
 
   @override
@@ -3069,6 +3071,7 @@ class _AppHtmlEditorState extends State<AppHtmlEditor> {
   @override
   void initState() {
     super.initState();
+    _mode = widget.readOnly ? EditorMode.preview : EditorMode.visual;
     _sourceController = TextEditingController(text: widget.controller.text);
     _lastSyncedHtml = widget.controller.text;
 
@@ -3090,6 +3093,16 @@ class _AppHtmlEditorState extends State<AppHtmlEditor> {
     _docChangesSub = _quillController.document.changes.listen(_onQuillDocChanged);
     widget.controller.addListener(_onExternalControllerChanged);
     _sourceController.addListener(_onSourceChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant AppHtmlEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.readOnly != oldWidget.readOnly) {
+      setState(() {
+        _mode = widget.readOnly ? EditorMode.preview : EditorMode.visual;
+      });
+    }
   }
 
   @override
@@ -3535,7 +3548,7 @@ class _AppHtmlEditorState extends State<AppHtmlEditor> {
                     runSpacing: 8,
                     children: [
                       labelWidget,
-                      modeSelector,
+                      if (!widget.readOnly) modeSelector,
                     ],
                   ),
                   if (widget.subtitle != null && widget.subtitle!.isNotEmpty) ...[

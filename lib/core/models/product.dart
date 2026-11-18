@@ -482,6 +482,7 @@ class Product extends Equatable {
   final String applicationMethod;
   final String category;
   final String categoryId;
+  final List<String> subCategoryIds;
   final String collections;
   final List<String> collectionIds;
   final String subCollections;
@@ -489,6 +490,7 @@ class Product extends Equatable {
   final List<String> assignedCollections;
   final bool isAvailable;
   final bool isFeatured;
+  final bool isMarketplace;
   final List<ProductVariant> variants;
   final double ratings;
   final int totalReviews;
@@ -547,6 +549,7 @@ class Product extends Equatable {
     this.applicationMethod = '',
     this.category = '',
     this.categoryId = '',
+    this.subCategoryIds = const [],
     this.collections = '',
     this.collectionIds = const [],
     this.subCollections = '',
@@ -554,6 +557,7 @@ class Product extends Equatable {
     this.assignedCollections = const [],
     this.isAvailable = false,
     this.isFeatured = false,
+    this.isMarketplace = true,
     this.variants = const [],
     this.ratings = 0.0,
     this.totalReviews = 0,
@@ -884,6 +888,7 @@ class Product extends Equatable {
       categoryId = _parseString(json['categoryId'] ?? json['category_id']);
     }
 
+    final subCategoryIds = _parseListString(json['subCategoryIds'] ?? json['sub_category_ids']);
     final collections = _parseString(json['collections'] ?? json['Collections']);
     var collectionIds = _parseListString(json['collectionIds'] ?? json['collection_ids']);
     final subCollections = _parseString(json['subCollections'] ?? json['Sub Collections']);
@@ -895,6 +900,7 @@ class Product extends Equatable {
 
     final isAvailable = json['isAvailable'] as bool? ?? json['Is_Available'] as bool? ?? true;
     final isFeatured = json['isFeatured'] as bool? ?? json['Is_featured'] as bool? ?? false;
+    final isMarketplace = json['isMarketplace'] as bool? ?? true;
 
     final ratings = _parseDouble(json['averageRating'] ?? json['ratings'] ?? json['Ratings']);
     final totalReviews = _parseInt(json['totalReviews'] ?? json['Total Reviews'], 0);
@@ -974,6 +980,7 @@ class Product extends Equatable {
       applicationMethod: applicationMethod,
       category: category,
       categoryId: categoryId,
+      subCategoryIds: subCategoryIds,
       collections: collections,
       collectionIds: collectionIds,
       subCollections: subCollections,
@@ -983,6 +990,7 @@ class Product extends Equatable {
           : [...collectionIds, ...subCollectionIds],
       isAvailable: isAvailable,
       isFeatured: isFeatured,
+      isMarketplace: isMarketplace,
       variants: parsedVariants,
       ratings: ratings,
       totalReviews: totalReviews,
@@ -1044,6 +1052,7 @@ class Product extends Equatable {
     'dimensions': productDimensions.toJson(),
     'isAvailable': isAvailable,
     'isFeatured': isFeatured,
+    'isMarketplace': isMarketplace,
     'variants': variants.map((v) => v.toJson()).toList(),
     'ratings': ratings,
     'averageRating': ratings,
@@ -1071,9 +1080,11 @@ class Product extends Equatable {
     if (technicalName.isNotEmpty) 'technicalName': technicalName,
     'description': description.isNotEmpty ? description : title,
     'categoryId': categoryId.isNotEmpty ? categoryId : '6ab4f6f619ec643fd9bf3621',
+    if (subCategoryIds.isNotEmpty) 'subCategoryIds': subCategoryIds,
     if (refundPolicy.isNotEmpty) 'refundPolicy': refundPolicy,
     'productWeight': productWeight > 0 ? productWeight : 500.0,
     'productWeightUnit': productWeightUnit.isNotEmpty ? productWeightUnit : 'g',
+    'isMarketplace': isMarketplace,
     if (ratings > 0) 'averageRating': ratings,
     'variants': variants.isNotEmpty
         ? variants.map((v) => v.toAdminPayload()).toList()
@@ -1118,9 +1129,11 @@ class Product extends Equatable {
     if (categoryId.isNotEmpty && RegExp(r'^[a-fA-F0-9]{24}$').hasMatch(categoryId)) {
       payload['categoryId'] = categoryId;
     }
+    payload['subCategoryIds'] = subCategoryIds;
     if (refundPolicy.isNotEmpty) payload['refundPolicy'] = refundPolicy;
     if (productWeight > 0) payload['productWeight'] = productWeight;
     if (productWeightUnit.isNotEmpty) payload['productWeightUnit'] = productWeightUnit;
+    payload['isMarketplace'] = isMarketplace;
     if (ratings > 0) payload['averageRating'] = ratings;
 
     if (variants.isNotEmpty) {
@@ -1175,6 +1188,7 @@ class Product extends Equatable {
     'variants': variants.map((v) => v.toJson()).toList(),
     'Is_Available': isAvailable,
     'Is_featured': isFeatured,
+    'isMarketplace': isMarketplace,
     'Varient': variant,
     'Pack Size': packSize,
     'Display Rate': displayRate,
@@ -1230,6 +1244,7 @@ class Product extends Equatable {
     String? applicationMethod,
     String? category,
     String? categoryId,
+    List<String>? subCategoryIds,
     String? collections,
     List<String>? collectionIds,
     String? subCollections,
@@ -1237,6 +1252,7 @@ class Product extends Equatable {
     List<String>? assignedCollections,
     bool? isAvailable,
     bool? isFeatured,
+    bool? isMarketplace,
     List<ProductVariant>? variants,
     String? variant,
     String? packSize,
@@ -1263,9 +1279,11 @@ class Product extends Equatable {
     DateTime? updatedAt,
     int? version,
   }) {
-    // If variants exist, update the default variant with any new commercial parameters
+    // If variants exist and caller did NOT explicitly pass a full variants list,
+    // sync the default variant with any new top-level commercial parameters.
     List<ProductVariant> updatedVariants = variants ?? this.variants;
-    if (updatedVariants.isNotEmpty &&
+    if (variants == null &&
+        updatedVariants.isNotEmpty &&
         (displayRate != null || printedMrp != null || stock != null || variant != null)) {
       final defaultIdx = updatedVariants.indexWhere((v) => v.isDefault);
       final targetIdx = defaultIdx != -1 ? defaultIdx : 0;
@@ -1331,6 +1349,7 @@ class Product extends Equatable {
       applicationMethod: applicationMethod ?? this.applicationMethod,
       category: category ?? this.category,
       categoryId: categoryId ?? this.categoryId,
+      subCategoryIds: subCategoryIds ?? this.subCategoryIds,
       collections: collections ?? this.collections,
       collectionIds: collectionIds ?? this.collectionIds,
       subCollections: subCollections ?? this.subCollections,
@@ -1338,6 +1357,7 @@ class Product extends Equatable {
       assignedCollections: assignedCollections ?? this.assignedCollections,
       isAvailable: isAvailable ?? this.isAvailable,
       isFeatured: isFeatured ?? this.isFeatured,
+      isMarketplace: isMarketplace ?? this.isMarketplace,
       variants: updatedVariants,
       ratings: ratings ?? this.ratings,
       totalReviews: totalReviews ?? this.totalReviews,
@@ -1391,6 +1411,7 @@ class Product extends Equatable {
     stock,
     isAvailable,
     isFeatured,
+    isMarketplace,
     status,
     isDeleted,
     version,

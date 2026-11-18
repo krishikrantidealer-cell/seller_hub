@@ -18,9 +18,7 @@ import '../../../logic/collection/collection_event.dart';
 import '../../../logic/product/product_bloc.dart';
 import '../../../logic/product/product_event.dart';
 import '../widgets/app_product_image.dart';
-import '../widgets/app_html_view.dart';
 import '../widgets/app_html_editor.dart';
-import '../widgets/assign_collections_dialog.dart';
 import '../widgets/technical_name_selector.dart';
 import '../widgets/variant_label_selector.dart';
 import '../widgets/variant_live_pricing.dart';
@@ -108,15 +106,20 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   String _selectedSellerName = '';
   String _selectedCategoryId = '';
   String _selectedCategoryName = '';
+  String _selectedMainCategoryId = '';
+  String _selectedMainCategoryName = '';
+  List<String> _selectedSubCategoryIds = [];
+  List<String> _selectedSubCategoryNames = [];
   List<String> _selectedCollectionIds = [];
   List<String> _selectedCollectionNames = [];
-  String _selectedSubCollectionId = '';
-  String _selectedSubCollectionName = '';
+  List<String> _selectedSubCollectionIds = [];
+  List<String> _selectedSubCollectionNames = [];
 
   final List<ProductImageUploadItem> _pendingImages = [];
   int _activePreviewImageIndex = 0;
 
   late bool _editIsAvailable;
+  late bool _editIsMarketplace;
   // late bool _editIsFeatured; // isFeatured temporarily commented out
 
   int _selectedVariantIndex = 0;
@@ -156,14 +159,52 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
 
   void _hydrateCategory(List<CategoryItem> categories) {
-    if (_selectedCategoryId.isEmpty || _selectedCategoryName.isNotEmpty) return;
-    final match = categories.where((c) => c.id == _selectedCategoryId).firstOrNull;
-    if (match != null && mounted) {
-      setState(() {
-        _selectedCategoryName = match.name;
-        _categoryController.text = match.name;
-      });
+    if ((_selectedCategoryId.isEmpty && _selectedSubCategoryIds.isEmpty) ||
+        _selectedMainCategoryId.isNotEmpty) {
+      return;
     }
+    final targetIds = <String>{
+      ..._selectedSubCategoryIds,
+      if (_selectedCategoryId.isNotEmpty) _selectedCategoryId,
+    };
+    final matchedItems = categories.where((c) => targetIds.contains(c.id)).toList();
+    if (matchedItems.isEmpty) return;
+
+    String resolvedMainId = '';
+    String resolvedMainName = '';
+    final resolvedSubIds = <String>[];
+    final resolvedSubNames = <String>[];
+
+    for (final item in matchedItems) {
+      if (item.level == 1 && item.parentId != null && item.parentId!.isNotEmpty) {
+        if (resolvedMainId.isEmpty) {
+          final parent = categories.where((c) => c.id == item.parentId).firstOrNull;
+          resolvedMainId = parent?.id ?? '';
+          resolvedMainName = parent?.name ?? '';
+        }
+        if (!resolvedSubIds.contains(item.id)) {
+          resolvedSubIds.add(item.id);
+          resolvedSubNames.add(item.name);
+        }
+      } else if (item.level == 0 && resolvedMainId.isEmpty) {
+        resolvedMainId = item.id;
+        resolvedMainName = item.name;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _selectedMainCategoryId = resolvedMainId;
+      _selectedMainCategoryName = resolvedMainName;
+      _selectedSubCategoryIds = resolvedSubIds;
+      _selectedSubCategoryNames = resolvedSubNames;
+      _selectedCategoryName = resolvedSubNames.isNotEmpty
+          ? (resolvedMainName.isNotEmpty
+              ? '$resolvedMainName > ${resolvedSubNames.join(", ")}'
+              : resolvedSubNames.join(', '))
+          : resolvedMainName;
+      _categoryController.text = _selectedCategoryName;
+    });
   }
 
   void _hydrateCollections(List<CollectionItem> collections) {
@@ -174,36 +215,33 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       ..._currentProduct.assignedCollections,
       ..._currentProduct.collectionIds,
       ..._selectedCollectionIds,
-      if (_selectedSubCollectionId.isNotEmpty) _selectedSubCollectionId,
+      ..._selectedSubCollectionIds,
       ..._currentProduct.subCollectionIds,
     };
 
-    if (allIds.isEmpty && _selectedCollectionNames.isEmpty && _selectedSubCollectionName.isEmpty) {
+    if (allIds.isEmpty && _selectedCollectionNames.isEmpty && _selectedSubCollectionNames.isEmpty) {
       return;
     }
 
     final resolvedColIds = <String>[];
     final resolvedColNames = <String>[];
-    String resolvedSubId = '';
-    String resolvedSubName = '';
+    final resolvedSubIds = <String>[];
+    final resolvedSubNames = <String>[];
 
     for (final col in collections) {
       final colMatched = allIds.contains(col.id) || _selectedCollectionNames.contains(col.name);
-      SubCollectionItem? matchedSub;
+      bool hasMatchedSub = false;
       for (final sub in col.subCollections) {
-        if (allIds.contains(sub.id) ||
-            (_selectedSubCollectionName.isNotEmpty && sub.name == _selectedSubCollectionName)) {
-          matchedSub = sub;
-          break;
+        if (allIds.contains(sub.id) || _selectedSubCollectionNames.contains(sub.name)) {
+          hasMatchedSub = true;
+          if (!resolvedSubIds.contains(sub.id)) {
+            resolvedSubIds.add(sub.id);
+            resolvedSubNames.add(sub.name);
+          }
         }
       }
 
-      if (matchedSub != null && resolvedSubId.isEmpty) {
-        resolvedSubId = matchedSub.id;
-        resolvedSubName = matchedSub.name;
-      }
-
-      if (colMatched || matchedSub != null) {
+      if (colMatched || hasMatchedSub) {
         if (!resolvedColIds.contains(col.id)) {
           resolvedColIds.add(col.id);
           resolvedColNames.add(col.name);
@@ -216,9 +254,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _selectedCollectionIds = resolvedColIds;
       _selectedCollectionNames = resolvedColNames;
       _collectionsController.text = resolvedColNames.join(', ');
-      _selectedSubCollectionId = resolvedSubId;
-      _selectedSubCollectionName = resolvedSubName;
-      _subCollectionsController.text = resolvedSubName;
+      _selectedSubCollectionIds = resolvedSubIds;
+      _selectedSubCollectionNames = resolvedSubNames;
+      _subCollectionsController.text = resolvedSubNames.join(', ');
     });
   }
 
@@ -294,6 +332,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
       _selectedCategoryId = p.categoryId;
       _selectedCategoryName = p.category;
+      _selectedMainCategoryId = '';
+      _selectedMainCategoryName = '';
+      _selectedSubCategoryIds = List<String>.from(p.subCategoryIds);
+      _selectedSubCategoryNames = [];
       _selectedCollectionIds = List<String>.from(p.collectionIds);
       if (p.collections.isNotEmpty) {
         _selectedCollectionNames = p.collections
@@ -307,10 +349,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       if (_selectedCollectionIds.isEmpty && p.assignedCollections.isNotEmpty) {
         _selectedCollectionIds = List<String>.from(p.assignedCollections);
       }
-      _selectedSubCollectionId = p.subCollectionIds.isNotEmpty ? p.subCollectionIds.first : '';
-      _selectedSubCollectionName = p.subCollections;
+      _selectedSubCollectionIds = List<String>.from(p.subCollectionIds);
+      _selectedSubCollectionNames = p.subCollections.isNotEmpty
+          ? p.subCollections.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+          : [];
 
       _editIsAvailable = true;
+      _editIsMarketplace = p.isMarketplace;
       return;
     }
 
@@ -413,6 +458,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     _selectedSellerName = p.sellerName.isNotEmpty ? p.sellerName : p.vendor;
     _selectedCategoryId = p.categoryId;
     _selectedCategoryName = p.category;
+    _selectedMainCategoryId = '';
+    _selectedMainCategoryName = '';
+    _selectedSubCategoryIds = List<String>.from(p.subCategoryIds);
+    _selectedSubCategoryNames = [];
     _collectionsHydrated = false;
     _selectedCollectionIds = List<String>.from(p.collectionIds);
     if (p.collections.isNotEmpty) {
@@ -427,12 +476,29 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     if (_selectedCollectionIds.isEmpty && p.assignedCollections.isNotEmpty) {
       _selectedCollectionIds = List<String>.from(p.assignedCollections);
     }
-    _selectedSubCollectionId = p.subCollectionIds.isNotEmpty ? p.subCollectionIds.first : '';
-    _selectedSubCollectionName = p.subCollections;
+    _selectedSubCollectionIds = List<String>.from(p.subCollectionIds);
+    _selectedSubCollectionNames = p.subCollections.isNotEmpty
+        ? p.subCollections.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
+        : [];
+    _editIsAvailable = p.isAvailable;
+    _editIsMarketplace = p.isMarketplace;
+    if (_selectedSellerId.isNotEmpty) {
+      try {
+        final sellerState = context.read<SellerBloc>().state;
+        final matchedSeller = sellerState.users.where((s) => s.id == _selectedSellerId).firstOrNull;
+        if (matchedSeller != null) {
+          if (matchedSeller.pricingModel == 'DEALER_COMMISSION') {
+            _editIsMarketplace = false;
+            final comm = matchedSeller.commissionPercentage;
+            _commissionController.text = comm == comm.roundToDouble() ? comm.round().toString() : comm.toStringAsFixed(2);
+          } else {
+            _editIsMarketplace = true;
+          }
+        }
+      } catch (_) {}
+    }
     _recalculateCourierFromWeight();
     _recalculateSellingRate();
-
-    _editIsAvailable = p.isAvailable;
     // _editIsFeatured = p.isFeatured;
   }
 
@@ -445,8 +511,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final cur = _workingVariants[_selectedVariantIndex];
     final disp = double.tryParse(_displayRateController.text.trim()) ?? 0.0;
     final mrp = double.tryParse(_printedMrpController.text.trim()) ?? 0.0;
-    final courier = double.tryParse(_courierChargesController.text.trim()) ?? 0.0;
-    const cod = LivePriceCalculation.fixedCodAndBankCharge;
+    final courier = _editIsMarketplace
+        ? (double.tryParse(_courierChargesController.text.trim()) ?? 0.0)
+        : 0.0;
+    final cod = _editIsMarketplace ? LivePriceCalculation.fixedCodAndBankCharge : 0.0;
     final commission = double.tryParse(_commissionController.text.trim()) ?? 0.0;
     final st = int.tryParse(_stockController.text.trim()) ?? 0;
     final ps = int.tryParse(_packSizeController.text.trim()) ?? 0;
@@ -509,6 +577,10 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
 
   void _recalculateCourierFromWeight() {
+    if (!_editIsMarketplace) {
+      _courierChargesController.text = '';
+      return;
+    }
     final weight = double.tryParse(_weightController.text.trim()) ?? 0.0;
     if (weight > 0) {
       final courier = LivePriceCalculation.computeCourierChargeFromWeightGrams(weight);
@@ -519,18 +591,125 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
   }
 
   void _recalculateSellingRate() {
+    if (!_editIsMarketplace) {
+      _recalculateSwgFromSellingRate();
+      return;
+    }
     final swg = double.tryParse(_swgController.text.trim()) ?? 0.0;
     final comm = double.tryParse(_commissionController.text.trim()) ?? 0.0;
     final courier = double.tryParse(_courierChargesController.text.trim()) ?? 0.0;
+    const cod = LivePriceCalculation.fixedCodAndBankCharge;
     if (swg > 0) {
       final calculated = LivePriceCalculation.computeSellingRate(
         swg: swg,
         commissionPercentage: comm,
         courierCharges: courier,
+        codCharge: cod,
+        isMarketplace: true,
       );
       _displayRateController.text = calculated.round().toString();
     } else {
       _displayRateController.text = '';
+    }
+  }
+
+  void _recalculateSwgFromSellingRate() {
+    final sellingRate = double.tryParse(_displayRateController.text.trim()) ?? 0.0;
+    final comm = double.tryParse(_commissionController.text.trim()) ?? 0.0;
+    if (sellingRate > 0) {
+      final calculatedSwg = LivePriceCalculation.computeSwgFromSellingRate(
+        sellingRate: sellingRate,
+        commissionPercentage: comm,
+      );
+      _swgController.text = calculatedSwg.round().toString();
+    } else {
+      _swgController.text = '';
+    }
+  }
+
+  void _applySellerPricingModel(AdminUser? seller) {
+    final isDealer = seller != null && seller.pricingModel == 'DEALER_COMMISSION';
+    final isAssigningToDealer =
+        !widget.isCreateMode && _currentProduct.sellerId.isEmpty && isDealer;
+    _editIsMarketplace = !isDealer;
+    final comm = isDealer ? seller.commissionPercentage : _defaultTechnicalCommission;
+    _commissionController.text = comm > 0
+        ? (comm == comm.roundToDouble() ? comm.round().toString() : comm.toStringAsFixed(2))
+        : (isDealer ? '0' : '');
+
+    if (isAssigningToDealer) {
+      // Assigning an unassigned product to a Dealer Commission seller cleans variant pricing/stock
+      // and marks the product unavailable until dealer pricing & stock are entered.
+      _editIsAvailable = false;
+      _swgController.clear();
+      _displayRateController.clear();
+      _printedMrpController.clear();
+      _courierChargesController.clear();
+      _codChargeController.text = '0';
+      _stockController.text = '0';
+      for (int i = 0; i < _workingVariants.length; i++) {
+        _workingVariants[i] = _workingVariants[i].copyWith(
+          swg: 0.0,
+          displayRate: 0.0,
+          printedMrp: 0.0,
+          courierCharges: 0.0,
+          codCharge: 0.0,
+          discountRs: 0.0,
+          discountPercentage: 0.0,
+          pricePerBaseUnit: 0.0,
+          stock: 0,
+          commissionPercentage: comm,
+        );
+      }
+      return;
+    }
+
+    if (!_editIsMarketplace) {
+      _courierChargesController.text = '';
+      _codChargeController.text = '0';
+      _recalculateSwgFromSellingRate();
+    } else {
+      _codChargeController.text = LivePriceCalculation.fixedCodAndBankCharge.round().toString();
+      _recalculateCourierFromWeight();
+      _recalculateSellingRate();
+    }
+    _syncCurrentVariantFromControllers();
+
+    for (int i = 0; i < _workingVariants.length; i++) {
+      if (i == _selectedVariantIndex) continue;
+      final v = _workingVariants[i];
+      if (_editIsMarketplace) {
+        final newCourier = LivePriceCalculation.computeCourierChargeFromWeightGrams(v.productWeight);
+        const newCod = LivePriceCalculation.fixedCodAndBankCharge;
+        final newRate = v.swg > 0
+            ? LivePriceCalculation.computeSellingRate(
+                swg: v.swg,
+                commissionPercentage: comm,
+                courierCharges: newCourier,
+                codCharge: newCod,
+                isMarketplace: true,
+              ).roundToDouble()
+            : v.displayRate;
+        _workingVariants[i] = v.copyWith(
+          commissionPercentage: comm,
+          courierCharges: newCourier,
+          codCharge: newCod,
+          displayRate: newRate,
+        );
+      } else {
+        final newSwg = v.displayRate > 0
+            ? LivePriceCalculation.computeSwgFromSellingRate(
+                sellingRate: v.displayRate,
+                commissionPercentage: comm,
+              ).roundToDouble()
+            : v.swg;
+        _workingVariants[i] = v.copyWith(
+          commissionPercentage: comm,
+          courierCharges: 0.0,
+          codCharge: 0.0,
+          swg: newSwg,
+        );
+      }
     }
   }
 
@@ -760,20 +939,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     super.dispose();
   }
 
-  void _openAssignCollectionsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AssignCollectionsDialog(
-        product: _currentProduct,
-        onProductUpdated: (updatedProduct) {
-          setState(() {
-            _currentProduct = updatedProduct;
-          });
-        },
-      ),
-    );
-  }
-
   bool _isSettingDefaultVariant = false;
 
   void _setVariantAsDefaultOnServer(String variantId, String variantLabel) {
@@ -937,11 +1102,16 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final title = _titleController.text.trim();
     setState(() => _isSaving = true);
 
-    final displayRate = double.tryParse(_displayRateController.text) ?? _currentProduct.displayRate;
-    final printedMrp = double.tryParse(_printedMrpController.text) ?? _currentProduct.printedMrp;
+    final defaultVariant = _workingVariants.where((v) => v.isDefault).firstOrNull ??
+        (_workingVariants.isNotEmpty ? _workingVariants.first : null);
+    final displayRate = defaultVariant?.displayRate ??
+        (double.tryParse(_displayRateController.text) ?? _currentProduct.displayRate);
+    final printedMrp = defaultVariant?.printedMrp ??
+        (double.tryParse(_printedMrpController.text) ?? _currentProduct.printedMrp);
     final discountRs = (printedMrp > displayRate) ? (printedMrp - displayRate) : 0.0;
     final discountPct = printedMrp > 0 ? (discountRs / printedMrp * 100) : 0.0;
-    final stock = int.tryParse(_stockController.text) ?? _currentProduct.stock;
+    final stock = defaultVariant?.stock ??
+        (int.tryParse(_stockController.text) ?? _currentProduct.stock);
     final gst = double.tryParse(_gstController.text) ?? _currentProduct.gst;
     final rawRating = double.tryParse(_ratingsController.text.trim()) ?? 0.0;
     final ratings = rawRating.clamp(0.0, 5.0);
@@ -950,13 +1120,28 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final weight = (defaultVarForWeight?.productWeight ?? 0.0) > 0
         ? defaultVarForWeight!.productWeight
         : (double.tryParse(_weightController.text) ?? _currentProduct.productWeight);
+    final topLevelDims = defaultVariant != null &&
+            (defaultVariant.dimensions.length > 0 ||
+                defaultVariant.dimensions.width > 0 ||
+                defaultVariant.dimensions.height > 0)
+        ? defaultVariant.dimensions
+        : _buildNormalizedDimensions();
 
     final assignedCols = <String>[
       ..._selectedCollectionIds,
-      if (_selectedSubCollectionId.isNotEmpty && !_selectedCollectionIds.contains(_selectedSubCollectionId))
-        _selectedSubCollectionId,
+      for (final subId in _selectedSubCollectionIds)
+        if (subId.isNotEmpty && !_selectedCollectionIds.contains(subId)) subId,
     ];
 
+    final resolvedCategoryId = _selectedSubCategoryIds.isNotEmpty
+        ? _selectedSubCategoryIds.first
+        : (_selectedMainCategoryId.isNotEmpty
+            ? _selectedMainCategoryId
+            : (_selectedCategoryId.isNotEmpty ? _selectedCategoryId : _currentProduct.categoryId));
+
+    final hasSellableVariant = _workingVariants.any(
+      (v) => v.stock > 0 && v.displayRate > 0,
+    );
     final updatedProduct = _currentProduct.copyWith(
       title: title,
       brandName: _brandNameController.text.trim(),
@@ -966,12 +1151,13 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       sellerId: _selectedSellerId.isNotEmpty ? _selectedSellerId : _currentProduct.sellerId,
       vendor: _selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text.trim(),
       sellerName: _selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text.trim(),
-      categoryId: _selectedCategoryId.isNotEmpty ? _selectedCategoryId : _currentProduct.categoryId,
+      categoryId: resolvedCategoryId,
+      subCategoryIds: _selectedSubCategoryIds,
       category: _selectedCategoryName.isNotEmpty ? _selectedCategoryName : _categoryController.text.trim(),
       collections: _selectedCollectionNames.isNotEmpty ? _selectedCollectionNames.join(', ') : _collectionsController.text.trim(),
       collectionIds: _selectedCollectionIds,
-      subCollections: _selectedSubCollectionName.isNotEmpty ? _selectedSubCollectionName : _subCollectionsController.text.trim(),
-      subCollectionIds: _selectedSubCollectionId.isNotEmpty ? [_selectedSubCollectionId] : [],
+      subCollections: _selectedSubCollectionNames.isNotEmpty ? _selectedSubCollectionNames.join(', ') : _subCollectionsController.text.trim(),
+      subCollectionIds: _selectedSubCollectionIds,
       assignedCollections: assignedCols,
       description: _descriptionController.text.trim(),
       technicalContent: _techContentController.text.trim(),
@@ -983,26 +1169,27 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
       targetDiseases: _targetDiseasesController.text.trim(),
       dosage: _dosageController.text.trim(),
       applicationMethod: _appMethodController.text.trim(),
-      variant: _variantController.text.trim(),
-      packSize: _packSizeController.text.trim(),
-      unit: _unitController.text.trim(),
+      variant: defaultVariant?.label ?? _variantController.text.trim(),
+      packSize: defaultVariant != null ? defaultVariant.packSize.toString() : _packSizeController.text.trim(),
+      unit: defaultVariant?.unit ?? _unitController.text.trim(),
       displayRate: displayRate,
       printedMrp: printedMrp,
       discountRs: discountRs,
       gst: gst,
       discountPercentage: discountPct,
-      shippedBy: _shippedByController.text.trim(),
-      swg: _swgController.text.trim(),
+      shippedBy: defaultVariant?.shippedBy ?? _shippedByController.text.trim(),
+      swg: defaultVariant != null ? defaultVariant.swg.toString() : _swgController.text.trim(),
       stock: stock,
       ratings: ratings,
       refundPolicy: _refundPolicyController.text.trim(),
       productWeight: weight,
       productWeightUnit: 'g',
-      dimensions: _buildNormalizedDimensions().formatted,
-      productDimensions: _buildNormalizedDimensions(),
+      dimensions: topLevelDims.formatted,
+      productDimensions: topLevelDims,
       images: _currentProduct.images,
-      isAvailable: _editIsAvailable,
+      isAvailable: hasSellableVariant ? _editIsAvailable : false,
       isFeatured: _currentProduct.isFeatured,
+      isMarketplace: _editIsMarketplace,
       variants: _workingVariants,
     );
 
@@ -1113,8 +1300,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
     final cardBgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
-    final size = MediaQuery.of(context).size;
-    final isWide = size.width >= 1040;
     final p = _currentProduct;
 
     return SingleChildScrollView(
@@ -1123,12 +1308,8 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         children: [
           // Top Action & Navigation Bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: _cardDecoration(surfaceColor, borderColor, isDark, radius: 14),
             child: Row(
               children: [
                 // Back to catalog button
@@ -1323,14 +1504,34 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           Column(
             children: [
               _buildIdentityHeaderCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-              SizedBox(height: isWide ? 14 : 12),
+              const SizedBox(height: 12),
               _buildDescriptionAndBenefitsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
-              SizedBox(height: isWide ? 14 : 12),
+              const SizedBox(height: 12),
               _buildVariantsCard(p, isDark, surfaceColor, borderColor, cardBgColor),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  BoxDecoration _cardDecoration(
+    Color surfaceColor,
+    Color borderColor,
+    bool isDark, {
+    double radius = 16,
+  }) {
+    return BoxDecoration(
+      color: surfaceColor,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: borderColor),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.035),
+          blurRadius: 12,
+          offset: const Offset(0, 3),
+        ),
+      ],
     );
   }
 
@@ -1344,140 +1545,154 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     Color borderColor,
     Color cardBgColor,
   ) {
-    if (_isEditing) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.badge_outlined, color: Color(0xFF059669), size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Edit Product Identity & Catalog Codes',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(surfaceColor, borderColor, isDark),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final identityFields = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildField(
-                      controller: _titleController,
-                      label: 'Product Title *',
-                      hint: 'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
-                      isDark: isDark,
-                      borderColor: borderColor,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildField(
-                      controller: _brandNameController,
-                      label: 'Brand Name',
-                      hint: 'e.g. Bayer, Syngenta, UPL, Biocrop',
-                      isDark: isDark,
-                      borderColor: borderColor,
-                    ),
-                    const SizedBox(height: 12),
-                    TechnicalNameSelector(
-                      controller: _techNameController,
-                      isDark: isDark,
-                      isRequired: false,
-                      isAdmin: context.read<AuthBloc>().state.session?.isAdmin ?? false,
-                      onSelected: (tech) {
-                        final comm = tech.commissionPercentage;
-                        final formatted = comm > 0 ? comm.round().toString() : '';
-                        setState(() {
-                          _defaultTechnicalCommission = comm;
-                          _commissionController.text = formatted;
-                          for (int i = 0; i < _workingVariants.length; i++) {
-                            final v = _workingVariants[i];
-                            final updatedRate = v.swg > 0
-                                ? LivePriceCalculation.computeSellingRate(
-                                    swg: v.swg,
+                child: const Icon(Icons.badge_outlined, color: Color(0xFF059669), size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Product Identity & Catalog Codes',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final identityFields = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildField(
+                    controller: _titleController,
+                    label: 'Product Title *',
+                    hint: 'e.g. Chlorpyrifos 50% + Cypermethrin 5% EC',
+                    isDark: isDark,
+                    borderColor: borderColor,
+                    readOnly: !_isEditing,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildField(
+                    controller: _brandNameController,
+                    label: 'Brand Name',
+                    hint: 'e.g. Bayer, Syngenta, UPL, Biocrop',
+                    isDark: isDark,
+                    borderColor: borderColor,
+                    readOnly: !_isEditing,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TechnicalNameSelector(
+                          controller: _techNameController,
+                          isDark: isDark,
+                          isRequired: false,
+                          readOnly: !_isEditing,
+                          isAdmin: context.read<AuthBloc>().state.session?.isAdmin ?? false,
+                          onSelected: (tech) {
+                            final comm = tech.commissionPercentage;
+                            final formatted = comm > 0 ? comm.round().toString() : '';
+
+                            setState(() {
+                              _defaultTechnicalCommission = comm;
+                              if (_editIsMarketplace) {
+                                _commissionController.text = formatted;
+                                for (int i = 0; i < _workingVariants.length; i++) {
+                                  final v = _workingVariants[i];
+                                  final updatedRate = v.swg > 0
+                                      ? LivePriceCalculation.computeSellingRate(
+                                          swg: v.swg,
+                                          commissionPercentage: comm,
+                                          courierCharges: v.courierCharges,
+                                          codCharge: LivePriceCalculation.fixedCodAndBankCharge,
+                                          isMarketplace: true,
+                                        )
+                                      : v.displayRate;
+                                  _workingVariants[i] = v.copyWith(
                                     commissionPercentage: comm,
-                                    courierCharges: v.courierCharges,
-                                  )
-                                : v.displayRate;
-                            _workingVariants[i] = v.copyWith(
-                              commissionPercentage: comm,
-                              displayRate: updatedRate,
-                            );
-                          }
-                          _recalculateSellingRate();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: _buildField(
-                            controller: _hsnCodeController,
-                            label: 'HSN Code *',
-                            hint: 'e.g. 38089190',
-                            isDark: isDark,
-                            borderColor: borderColor,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _isEditing
-                              ? Builder(builder: (context) {
-                                  final rawGst = _gstController.text.trim().replaceAll('%', '');
-                                  final parsedGst = double.tryParse(rawGst)?.round().toString() ?? '';
-                                  final dropdownValue = const ['5', '12', '18'].contains(parsedGst)
-                                      ? '$parsedGst%'
-                                      : '';
-                                  return _buildDropdownField(
-                                    label: 'GST (%)',
-                                    value: dropdownValue,
-                                    items: const ['5%', '12%', '18%'],
-                                    hint: '-- Select GST --',
-                                    allowNull: true,
-                                    prefixIcon: Icons.percent_rounded,
-                                    isDark: isDark,
-                                    borderColor: borderColor,
-                                    onChanged: (val) {
-                                      if (val != null) {
-                                        final numeric = val.replaceAll('%', '').trim();
-                                        final gstVal = double.tryParse(numeric) ?? 0.0;
-                                        setState(() {
-                                          _gstController.text = numeric;
-                                          for (int i = 0; i < _workingVariants.length; i++) {
-                                            _workingVariants[i] = _workingVariants[i].copyWith(
-                                              gstPercentage: gstVal,
-                                            );
-                                          }
-                                        });
-                                      }
-                                    },
+                                    displayRate: updatedRate,
                                   );
-                                })
-                              : _buildField(
-                                  controller: _gstController,
-                                  label: 'GST (%)',
-                                  hint: 'e.g. 18',
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  isDark: isDark,
-                                  borderColor: borderColor,
-                                ),
+                                }
+                                _recalculateSellingRate();
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildField(
+                          controller: _hsnCodeController,
+                          label: 'HSN Code *',
+                          hint: 'e.g. 38089190',
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          readOnly: !_isEditing,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Builder(builder: (context) {
+                            final rawGst = _gstController.text.trim().replaceAll('%', '');
+                            final parsedGst = double.tryParse(rawGst)?.round().toString() ?? '';
+                            final dropdownValue = const ['5', '12', '18'].contains(parsedGst)
+                                ? '$parsedGst%'
+                                : (parsedGst.isNotEmpty ? '$parsedGst%' : '');
+                            final gstItems = <String>[
+                              '5%',
+                              '12%',
+                              '18%',
+                              if (dropdownValue.isNotEmpty &&
+                                  !const ['5%', '12%', '18%'].contains(dropdownValue))
+                                dropdownValue,
+                            ];
+                            return _buildDropdownField(
+                              label: 'GST (%)',
+                              value: dropdownValue,
+                              items: gstItems,
+                              hint: '-- Select GST --',
+                              allowNull: true,
+                              readOnly: !_isEditing,
+                              prefixIcon: Icons.percent_rounded,
+                              isDark: isDark,
+                              borderColor: borderColor,
+                              onChanged: (val) {
+                                if (val != null) {
+                                  final numeric = val.replaceAll('%', '').trim();
+                                  final gstVal = double.tryParse(numeric) ?? 0.0;
+                                  setState(() {
+                                    _gstController.text = numeric;
+                                    for (int i = 0; i < _workingVariants.length; i++) {
+                                      _workingVariants[i] = _workingVariants[i].copyWith(
+                                        gstPercentage: gstVal,
+                                      );
+                                    }
+                                  });
+                                }
+                              },
+                            );
+                          }),
                         ),
                       ],
                     ),
@@ -1516,76 +1731,114 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _isEditing
-                      ? Builder(builder: (ctx) {
-                          SellerBloc? sellerBloc;
-                          try {
-                            sellerBloc = ctx.watch<SellerBloc>();
-                          } catch (_) {}
-                          final sellers = sellerBloc?.state.users ?? <AdminUser>[];
-                          final currentSelected = sellers.where((s) => s.id == _selectedSellerId).firstOrNull;
-                          final displayText = currentSelected != null
-                              ? '${currentSelected.displayName}${currentSelected.phoneNumber.isNotEmpty ? ' • ${currentSelected.phoneNumber}' : ''}'
-                              : (_selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text);
+                  child: Builder(builder: (ctx) {
+                    SellerBloc? sellerBloc;
+                    try {
+                      sellerBloc = ctx.watch<SellerBloc>();
+                    } catch (_) {}
+                    final sellers = (sellerBloc?.state.users ?? <AdminUser>[])
+                        .where((s) => !s.isDeleted && !s.isBlocked)
+                        .toList();
+                    final currentSelected = (sellerBloc?.state.users ?? <AdminUser>[])
+                        .where((s) => s.id == _selectedSellerId)
+                        .firstOrNull;
+                    if (_isEditing &&
+                        currentSelected != null &&
+                        currentSelected.pricingModel == 'DEALER_COMMISSION' &&
+                        _editIsMarketplace) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        setState(() => _applySellerPricingModel(currentSelected));
+                      });
+                    }
+                    final displayText = currentSelected != null
+                        ? '${currentSelected.displayName}${currentSelected.phoneNumber.isNotEmpty ? ' • ${currentSelected.phoneNumber}' : ''}'
+                        : (_selectedSellerName.isNotEmpty ? _selectedSellerName : _vendorController.text);
 
-                          return _buildSearchableSelectField<AdminUser>(
-                            label: 'Seller (Store Owner)',
-                            displayText: displayText,
-                            placeholder: '-- Select Seller (Optional) --',
-                            prefixIcon: Icons.storefront_rounded,
-                            hasValue: _selectedSellerId.isNotEmpty || _vendorController.text.isNotEmpty,
-                            isDark: isDark,
-                            borderColor: borderColor,
-                            onTap: () async {
-                              final picked = await _showSearchablePicker<AdminUser>(
-                                context: context,
-                                title: 'Select Seller (Store Owner)',
-                                titleIcon: Icons.storefront_rounded,
-                                searchHint: 'Search seller by name or phone...',
-                                items: sellers,
-                                selectedItem: currentSelected,
-                                labelBuilder: (s) => s.displayName,
-                                subtitleBuilder: (s) => '${s.phoneNumber.isNotEmpty ? '${s.phoneNumber} • ' : ''}ID: ${s.id}',
-                                isDark: isDark,
-                              );
-                              if (picked != null) {
-                                setState(() {
-                                  _selectedSellerId = picked.id;
-                                  _selectedSellerName = picked.displayName;
-                                  _vendorController.text = picked.displayName;
-                                });
-                              }
-                            },
-                          );
-                        })
-                      : _buildField(
-                          controller: _vendorController,
-                          label: 'Seller Name',
-                          hint: 'e.g. Krishi Kranti Organics',
+                    return _buildSearchableSelectField<AdminUser>(
+                      label: 'Seller (Store Owner)',
+                      displayText: displayText,
+                      placeholder: '-- Select Seller (Optional) --',
+                      prefixIcon: Icons.storefront_rounded,
+                      hasValue: _selectedSellerId.isNotEmpty || _vendorController.text.isNotEmpty || _selectedSellerName.isNotEmpty,
+                      isDark: isDark,
+                      borderColor: borderColor,
+                      onTap: () async {
+                        final picked = await _showSearchablePicker<AdminUser>(
+                          context: context,
+                          title: 'Select Seller (Store Owner)',
+                          titleIcon: Icons.storefront_rounded,
+                          searchHint: 'Search seller by name or phone...',
+                          items: sellers,
+                          selectedItem: currentSelected,
+                          labelBuilder: (s) => s.displayName,
+                          subtitleBuilder: (s) => '${s.phoneNumber.isNotEmpty ? '${s.phoneNumber} • ' : ''}ID: ${s.id}',
                           isDark: isDark,
-                          borderColor: borderColor,
-                        ),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _selectedSellerId = picked.id;
+                            _selectedSellerName = picked.displayName;
+                            _vendorController.text = picked.displayName;
+                            _applySellerPricingModel(picked);
+                          });
+                        }
+                      },
+                    );
+                  }),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _isEditing
-                      ? Builder(builder: (ctx) {
-                          CategoryBloc? catBloc;
-                          try {
-                            catBloc = ctx.watch<CategoryBloc>();
-                          } catch (_) {}
-                          final flatCategories = catBloc?.state.allCategories ?? <CategoryItem>[];
-                          final currentSelected = flatCategories.where((c) => c.id == _selectedCategoryId || c.name == _selectedCategoryName).firstOrNull;
-                          final displayText = currentSelected != null
-                              ? currentSelected.name
-                              : (_selectedCategoryName.isNotEmpty ? _selectedCategoryName : _categoryController.text);
+                  flex: 2,
+                  child: Builder(builder: (ctx) {
+                    CategoryBloc? catBloc;
+                    try {
+                      catBloc = ctx.watch<CategoryBloc>();
+                    } catch (_) {}
+                    final flatCategories = catBloc?.state.allCategories ?? <CategoryItem>[];
+                    if ((_selectedCategoryId.isNotEmpty || _selectedSubCategoryIds.isNotEmpty) &&
+                        _selectedMainCategoryId.isEmpty &&
+                        flatCategories.isNotEmpty) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _hydrateCategory(flatCategories);
+                      });
+                    }
 
-                          return _buildSearchableSelectField<CategoryItem>(
+                    final mainCategories = flatCategories
+                        .where((c) => c.isActive && (c.level == 0 || c.parentId == null || c.parentId!.isEmpty))
+                        .toList()
+                      ..sort((a, b) => a.name.compareTo(b.name));
+                    final currentMain = mainCategories
+                        .where((c) => c.id == _selectedMainCategoryId)
+                        .firstOrNull;
+                    final availableSubCategories = _selectedMainCategoryId.isEmpty
+                        ? <CategoryItem>[]
+                        : (flatCategories
+                            .where((c) => c.isActive && c.parentId == _selectedMainCategoryId)
+                            .toList()
+                          ..sort((a, b) => a.name.compareTo(b.name)));
+                    final selectedSubCats = availableSubCategories
+                        .where((s) =>
+                            _selectedSubCategoryIds.contains(s.id) ||
+                            _selectedSubCategoryNames.contains(s.name))
+                        .toList();
+                    final subDisplayText = selectedSubCats.isNotEmpty
+                        ? selectedSubCats.map((s) => s.name).join(', ')
+                        : _selectedSubCategoryNames.join(', ');
+                    final subChipNames = selectedSubCats.isNotEmpty
+                        ? selectedSubCats.map((s) => s.name).toList()
+                        : _selectedSubCategoryNames;
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _buildSearchableSelectField<CategoryItem>(
                             label: 'Category *',
-                            displayText: displayText,
-                            placeholder: '-- Select Category (Required) --',
+                            displayText: _selectedMainCategoryName,
+                            placeholder: '-- Select Category --',
                             prefixIcon: Icons.category_rounded,
-                            hasValue: _selectedCategoryId.isNotEmpty || _categoryController.text.isNotEmpty,
+                            hasValue: _selectedMainCategoryName.isNotEmpty,
                             isDark: isDark,
                             borderColor: borderColor,
                             onTap: () async {
@@ -1593,37 +1846,151 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                                 context: context,
                                 title: 'Select Category',
                                 titleIcon: Icons.category_rounded,
-                                searchHint: 'Search categories by name...',
-                                items: flatCategories,
-                                selectedItem: currentSelected,
+                                searchHint: 'Search categories...',
+                                items: mainCategories,
+                                selectedItem: currentMain,
                                 labelBuilder: (c) => c.name,
-                                subtitleBuilder: (c) =>
-                                    'Level ${c.level + 1} Category${c.children.isNotEmpty ? ' • ${c.children.length} sub-categories' : ''}',
-                                filters: [
-                                  (label: 'All', predicate: (_) => true),
-                                  (label: 'Level 1', predicate: (c) => c.level == 0),
-                                  (label: 'Level 2', predicate: (c) => c.level == 1),
-                                  (label: 'Level 3', predicate: (c) => c.level == 2),
-                                ],
                                 isDark: isDark,
                               );
                               if (picked != null) {
                                 setState(() {
+                                  if (_selectedMainCategoryId != picked.id) {
+                                    _selectedSubCategoryIds = [];
+                                    _selectedSubCategoryNames = [];
+                                  }
+                                  _selectedMainCategoryId = picked.id;
+                                  _selectedMainCategoryName = picked.name;
                                   _selectedCategoryId = picked.id;
                                   _selectedCategoryName = picked.name;
                                   _categoryController.text = picked.name;
                                 });
                               }
                             },
-                          );
-                        })
-                      : _buildField(
-                          controller: _categoryController,
-                          label: 'Category',
-                          hint: 'e.g. Agro Chemicals',
-                          isDark: isDark,
-                          borderColor: borderColor,
+                          ),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSearchableSelectField<CategoryItem>(
+                                label: 'Sub-Categories (Multiple)',
+                                displayText: subDisplayText,
+                                placeholder: _selectedMainCategoryId.isEmpty
+                                    ? '-- Select Category First --'
+                                    : '-- Select Sub-Categories --',
+                                prefixIcon: Icons.account_tree_outlined,
+                                hasValue: selectedSubCats.isNotEmpty || _selectedSubCategoryNames.isNotEmpty,
+                                isDark: isDark,
+                                borderColor: borderColor,
+                                onTap: () async {
+                                  if (_selectedMainCategoryId.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Please select a Category first')),
+                                    );
+                                    return;
+                                  }
+                                  if (availableSubCategories.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('No sub-categories found under this category')),
+                                    );
+                                    return;
+                                  }
+                                  final pickedList = await _showMultiSearchablePicker<CategoryItem>(
+                                    context: context,
+                                    title: 'Select Sub-Categories',
+                                    titleIcon: Icons.account_tree_outlined,
+                                    searchHint: 'Search sub-categories...',
+                                    items: availableSubCategories,
+                                    selectedItems: selectedSubCats,
+                                    labelBuilder: (c) => c.name,
+                                    isDark: isDark,
+                                  );
+                                  if (pickedList != null) {
+                                    setState(() {
+                                      _selectedSubCategoryIds = pickedList.map((c) => c.id).toList();
+                                      _selectedSubCategoryNames = pickedList.map((c) => c.name).toList();
+                                      if (_selectedSubCategoryIds.isNotEmpty) {
+                                        _selectedCategoryId = _selectedSubCategoryIds.first;
+                                        _selectedCategoryName =
+                                            '$_selectedMainCategoryName > ${_selectedSubCategoryNames.join(", ")}';
+                                      } else {
+                                        _selectedCategoryId = _selectedMainCategoryId;
+                                        _selectedCategoryName = _selectedMainCategoryName;
+                                      }
+                                      _categoryController.text = _selectedCategoryName;
+                                    });
+                                  }
+                                },
+                              ),
+                              if (subChipNames.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: subChipNames.map((subName) {
+                                    final subItem = availableSubCategories
+                                        .where((s) => s.name == subName)
+                                        .firstOrNull;
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF059669).withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: const Color(0xFF059669).withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            subName,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: const Color(0xFF059669),
+                                            ),
+                                          ),
+                                          if (_isEditing) ...[
+                                            const SizedBox(width: 4),
+                                            InkWell(
+                                              onTap: () {
+                                                setState(() {
+                                                  _selectedSubCategoryNames.remove(subName);
+                                                  if (subItem != null) {
+                                                    _selectedSubCategoryIds.remove(subItem.id);
+                                                  }
+                                                  if (_selectedSubCategoryIds.isNotEmpty) {
+                                                    _selectedCategoryId = _selectedSubCategoryIds.first;
+                                                    _selectedCategoryName =
+                                                        '$_selectedMainCategoryName > ${_selectedSubCategoryNames.join(", ")}';
+                                                  } else {
+                                                    _selectedCategoryId = _selectedMainCategoryId;
+                                                    _selectedCategoryName = _selectedMainCategoryName;
+                                                  }
+                                                  _categoryController.text = _selectedCategoryName;
+                                                });
+                                              },
+                                              child: const Icon(
+                                                Icons.close_rounded,
+                                                size: 12,
+                                                color: Color(0xFF059669),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
                 ),
               ],
             ),
@@ -1632,197 +1999,243 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _isEditing
-                      ? Builder(builder: (ctx) {
-                          CollectionBloc? colBloc;
-                          try {
-                            colBloc = ctx.watch<CollectionBloc>();
-                          } catch (_) {}
-                          final collections = colBloc?.state.collections ?? <CollectionItem>[];
-                          if (!_collectionsHydrated && collections.isNotEmpty) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              _hydrateCollections(collections);
-                            });
-                          }
-                          final currentSelectedList = collections.where((c) =>
-                              _selectedCollectionIds.contains(c.id) ||
-                              _selectedCollectionNames.contains(c.name)).toList();
-                          final displayText = currentSelectedList.isNotEmpty
-                              ? currentSelectedList.map((c) => c.name).join(', ')
-                              : (_selectedCollectionNames.isNotEmpty
-                                  ? _selectedCollectionNames.join(', ')
-                                  : _collectionsController.text);
-                          final chipNames = currentSelectedList.isNotEmpty
-                              ? currentSelectedList.map((c) => c.name).toList()
-                              : _selectedCollectionNames;
+                  child: Builder(builder: (ctx) {
+                    CollectionBloc? colBloc;
+                    try {
+                      colBloc = ctx.watch<CollectionBloc>();
+                    } catch (_) {}
+                    final collections = colBloc?.state.collections ?? <CollectionItem>[];
+                    if (!_collectionsHydrated && collections.isNotEmpty) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _hydrateCollections(collections);
+                      });
+                    }
+                    final currentSelectedList = collections.where((c) =>
+                        _selectedCollectionIds.contains(c.id) ||
+                        _selectedCollectionNames.contains(c.name)).toList();
+                    final displayText = currentSelectedList.isNotEmpty
+                        ? currentSelectedList.map((c) => c.name).join(', ')
+                        : (_selectedCollectionNames.isNotEmpty
+                            ? _selectedCollectionNames.join(', ')
+                            : _collectionsController.text);
+                    final chipNames = currentSelectedList.isNotEmpty
+                        ? currentSelectedList.map((c) => c.name).toList()
+                        : _selectedCollectionNames;
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildSearchableSelectField<CollectionItem>(
-                                label: 'Collections (Multiple)',
-                                displayText: displayText,
-                                placeholder: '-- Select Collections (Optional) --',
-                                prefixIcon: Icons.collections_bookmark_rounded,
-                                hasValue: currentSelectedList.isNotEmpty || _selectedCollectionNames.isNotEmpty || _collectionsController.text.isNotEmpty,
-                                isDark: isDark,
-                                borderColor: borderColor,
-                                onTap: () async {
-                                  final pickedList = await _showMultiSearchablePicker<CollectionItem>(
-                                    context: context,
-                                    title: 'Select Collections',
-                                    titleIcon: Icons.collections_bookmark_rounded,
-                                    searchHint: 'Search collections by name...',
-                                    items: collections,
-                                    selectedItems: currentSelectedList,
-                                    labelBuilder: (c) => c.name,
-                                    subtitleBuilder: (c) => '${c.subCollections.length} sub-collections',
-                                    isDark: isDark,
-                                  );
-                                  if (pickedList != null) {
-                                    setState(() {
-                                      _selectedCollectionIds = pickedList.map((c) => c.id).toList();
-                                      _selectedCollectionNames = pickedList.map((c) => c.name).toList();
-                                      _collectionsController.text = _selectedCollectionNames.join(', ');
-                                      // If previously selected subcollection no longer belongs to any selected collection, clear it
-                                      final allSubIds = pickedList.expand((c) => c.subCollections.map((s) => s.id)).toSet();
-                                      if (_selectedSubCollectionId.isNotEmpty && !allSubIds.contains(_selectedSubCollectionId)) {
-                                        _selectedSubCollectionId = '';
-                                        _selectedSubCollectionName = '';
-                                        _subCollectionsController.text = '';
-                                      }
-                                    });
-                                  }
-                                },
-                              ),
-                              if (chipNames.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: chipNames.map((colName) {
-                                    final colItem = collections.where((c) => c.name == colName).firstOrNull;
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF059669).withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            colName,
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: const Color(0xFF059669),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          InkWell(
-                                            onTap: () {
-                                              setState(() {
-                                                _selectedCollectionNames.remove(colName);
-                                                if (colItem != null) {
-                                                  _selectedCollectionIds.remove(colItem.id);
-                                                  if (_selectedSubCollectionId.isNotEmpty &&
-                                                      colItem.subCollections.any((s) => s.id == _selectedSubCollectionId)) {
-                                                    _selectedSubCollectionId = '';
-                                                    _selectedSubCollectionName = '';
-                                                    _subCollectionsController.text = '';
-                                                  }
-                                                }
-                                                _collectionsController.text = _selectedCollectionNames.join(', ');
-                                              });
-                                            },
-                                            child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFF059669)),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ],
-                            ],
-                          );
-                        })
-                      : _buildField(
-                          controller: _collectionsController,
-                          label: 'Collections',
-                          hint: 'e.g. Crop Protection, Seeds',
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSearchableSelectField<CollectionItem>(
+                          label: 'Collections (Multiple)',
+                          displayText: displayText,
+                          placeholder: '-- Select Collections (Optional) --',
+                          prefixIcon: Icons.collections_bookmark_rounded,
+                          hasValue: currentSelectedList.isNotEmpty || _selectedCollectionNames.isNotEmpty || _collectionsController.text.isNotEmpty,
                           isDark: isDark,
                           borderColor: borderColor,
+                          onTap: () async {
+                            final pickedList = await _showMultiSearchablePicker<CollectionItem>(
+                              context: context,
+                              title: 'Select Collections',
+                              titleIcon: Icons.collections_bookmark_rounded,
+                              searchHint: 'Search collections by name...',
+                              items: collections,
+                              selectedItems: currentSelectedList,
+                              labelBuilder: (c) => c.name,
+                              subtitleBuilder: (c) => '${c.subCollections.length} sub-collections',
+                              isDark: isDark,
+                            );
+                            if (pickedList != null) {
+                              setState(() {
+                                _selectedCollectionIds = pickedList.map((c) => c.id).toList();
+                                _selectedCollectionNames = pickedList.map((c) => c.name).toList();
+                                _collectionsController.text = _selectedCollectionNames.join(', ');
+                                // Prune any sub-collections whose parent collection was deselected
+                                final allSubIds = pickedList.expand((c) => c.subCollections.map((s) => s.id)).toSet();
+                                final allSubNames = pickedList.expand((c) => c.subCollections.map((s) => s.name)).toSet();
+                                _selectedSubCollectionIds.removeWhere((id) => !allSubIds.contains(id));
+                                _selectedSubCollectionNames.removeWhere((name) => !allSubNames.contains(name));
+                                _subCollectionsController.text = _selectedSubCollectionNames.join(', ');
+                              });
+                            }
+                          },
                         ),
+                        if (chipNames.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: chipNames.map((colName) {
+                              final colItem = collections.where((c) => c.name == colName).firstOrNull;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      colName,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF059669),
+                                      ),
+                                    ),
+                                    if (_isEditing) ...[
+                                      const SizedBox(width: 4),
+                                      InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedCollectionNames.remove(colName);
+                                            if (colItem != null) {
+                                              _selectedCollectionIds.remove(colItem.id);
+                                              final removedSubIds = colItem.subCollections.map((s) => s.id).toSet();
+                                              final removedSubNames = colItem.subCollections.map((s) => s.name).toSet();
+                                              _selectedSubCollectionIds.removeWhere((id) => removedSubIds.contains(id));
+                                              _selectedSubCollectionNames.removeWhere((name) => removedSubNames.contains(name));
+                                              _subCollectionsController.text = _selectedSubCollectionNames.join(', ');
+                                            }
+                                            _collectionsController.text = _selectedCollectionNames.join(', ');
+                                          });
+                                        },
+                                        child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFF059669)),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ],
+                    );
+                  }),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _isEditing
-                      ? Builder(builder: (ctx) {
-                          CollectionBloc? colBloc;
-                          try {
-                            colBloc = ctx.watch<CollectionBloc>();
-                          } catch (_) {}
-                          final collections = colBloc?.state.collections ?? <CollectionItem>[];
-                          final selectedCols = collections.where((c) =>
-                              _selectedCollectionIds.contains(c.id) ||
-                              _selectedCollectionNames.contains(c.name)).toList();
-                          final subItems = <SubCollectionItem>[];
-                          for (final col in selectedCols) {
-                            subItems.addAll(col.subCollections);
-                          }
-                          final currentSelected = subItems.where((s) => s.id == _selectedSubCollectionId || s.name == _selectedSubCollectionName).firstOrNull;
-                          final displayText = currentSelected != null
-                              ? currentSelected.name
-                              : (_selectedSubCollectionName.isNotEmpty ? _selectedSubCollectionName : _subCollectionsController.text);
+                  child: Builder(builder: (ctx) {
+                    CollectionBloc? colBloc;
+                    try {
+                      colBloc = ctx.watch<CollectionBloc>();
+                    } catch (_) {}
+                    final collections = colBloc?.state.collections ?? <CollectionItem>[];
+                    final selectedCols = collections.where((c) =>
+                        _selectedCollectionIds.contains(c.id) ||
+                        _selectedCollectionNames.contains(c.name)).toList();
+                    final subItems = <SubCollectionItem>[];
+                    for (final col in selectedCols) {
+                      subItems.addAll(col.subCollections);
+                    }
+                    final currentSelectedList = subItems.where((s) =>
+                        _selectedSubCollectionIds.contains(s.id) ||
+                        _selectedSubCollectionNames.contains(s.name)).toList();
+                    final displayText = currentSelectedList.isNotEmpty
+                        ? currentSelectedList.map((s) => s.name).join(', ')
+                        : (_selectedSubCollectionNames.isNotEmpty
+                            ? _selectedSubCollectionNames.join(', ')
+                            : _subCollectionsController.text);
+                    final subChipNames = currentSelectedList.isNotEmpty
+                        ? currentSelectedList.map((s) => s.name).toList()
+                        : _selectedSubCollectionNames;
 
-                          return _buildSearchableSelectField<SubCollectionItem>(
-                            label: 'Sub Collection',
-                            displayText: displayText,
-                            placeholder: selectedCols.isEmpty ? '-- Select Collection First --' : '-- Select Sub Collection (Optional) --',
-                            prefixIcon: Icons.subdirectory_arrow_right_rounded,
-                            hasValue: _selectedSubCollectionId.isNotEmpty || _subCollectionsController.text.isNotEmpty,
-                            isDark: isDark,
-                            borderColor: borderColor,
-                            onTap: () async {
-                              if (subItems.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please select at least one collection with sub-collections first')),
-                                );
-                                return;
-                              }
-                              final picked = await _showSearchablePicker<SubCollectionItem>(
-                                context: context,
-                                title: 'Select Sub Collection',
-                                titleIcon: Icons.subdirectory_arrow_right_rounded,
-                                searchHint: 'Search sub-collections...',
-                                items: subItems,
-                                selectedItem: currentSelected,
-                                labelBuilder: (s) => s.name,
-                                subtitleBuilder: (s) {
-                                  final parent = selectedCols.where((c) => c.subCollections.any((sub) => sub.id == s.id)).firstOrNull;
-                                  return parent != null ? 'Collection: ${parent.name}' : '';
-                                },
-                                isDark: isDark,
-                              );
-                              if (picked != null) {
-                                setState(() {
-                                  _selectedSubCollectionId = picked.id;
-                                  _selectedSubCollectionName = picked.name;
-                                  _subCollectionsController.text = picked.name;
-                                });
-                              }
-                            },
-                          );
-                        })
-                      : _buildField(
-                          controller: _subCollectionsController,
-                          label: 'Sub Collection',
-                          hint: 'e.g. Insecticides',
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSearchableSelectField<SubCollectionItem>(
+                          label: 'Sub Collections (Multiple)',
+                          displayText: displayText,
+                          placeholder: selectedCols.isEmpty
+                              ? '-- Select Collection First --'
+                              : '-- Select Sub Collections (Optional) --',
+                          prefixIcon: Icons.subdirectory_arrow_right_rounded,
+                          hasValue: currentSelectedList.isNotEmpty ||
+                              _subCollectionsController.text.isNotEmpty ||
+                              _selectedSubCollectionNames.isNotEmpty,
                           isDark: isDark,
                           borderColor: borderColor,
+                          onTap: () async {
+                            if (subItems.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please select at least one collection with sub-collections first')),
+                              );
+                              return;
+                            }
+                            final pickedList = await _showMultiSearchablePicker<SubCollectionItem>(
+                              context: context,
+                              title: 'Select Sub Collections',
+                              titleIcon: Icons.subdirectory_arrow_right_rounded,
+                              searchHint: 'Search sub-collections...',
+                              items: subItems,
+                              selectedItems: currentSelectedList,
+                              labelBuilder: (s) => s.name,
+                              subtitleBuilder: (s) {
+                                final parent = selectedCols.where((c) => c.subCollections.any((sub) => sub.id == s.id)).firstOrNull;
+                                return parent != null ? 'Collection: ${parent.name}' : '';
+                              },
+                              isDark: isDark,
+                            );
+                            if (pickedList != null) {
+                              setState(() {
+                                _selectedSubCollectionIds = pickedList.map((s) => s.id).toList();
+                                _selectedSubCollectionNames = pickedList.map((s) => s.name).toList();
+                                _subCollectionsController.text = _selectedSubCollectionNames.join(', ');
+                              });
+                            }
+                          },
                         ),
+                        if (subChipNames.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: subChipNames.map((subName) {
+                              final subItem = subItems.where((s) => s.name == subName).firstOrNull;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      subName,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF059669),
+                                      ),
+                                    ),
+                                    if (_isEditing) ...[
+                                      const SizedBox(width: 4),
+                                      InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedSubCollectionNames.remove(subName);
+                                            if (subItem != null) {
+                                              _selectedSubCollectionIds.remove(subItem.id);
+                                            }
+                                            _subCollectionsController.text = _selectedSubCollectionNames.join(', ');
+                                          });
+                                        },
+                                        child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFF059669)),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ],
+                    );
+                  }),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1831,6 +2244,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     label: 'Rating (0.0 - 5.0)',
                     hint: '4.8',
                     height: 40,
+                    readOnly: !_isEditing,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
                       TextInputFormatter.withFunction((oldValue, newValue) {
@@ -1859,24 +2273,15 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ),
             const SizedBox(height: 14),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: SwitchListTile(
-                      title: Text(
-                        'Live / Available for Orders',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
-                      value: _editIsAvailable,
-                      activeThumbColor: const Color(0xFF059669),
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) => setState(() => _editIsAvailable = val),
-                    ),
+                  child: ProductListingStatusToggle(
+                    value: _editIsAvailable,
+                    onChanged: _isEditing
+                        ? (val) => setState(() => _editIsAvailable = val)
+                        : null,
+                    isDark: isDark,
                   ),
                 ),
                 /*
@@ -1906,346 +2311,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ],
         ),
       );
-    }
-
-    // Read-only view
-    final categoryBlocState = context.read<CategoryBloc>().state;
-    final catFromBloc = p.categoryId.isNotEmpty
-        ? categoryBlocState.allCategories.where((c) => c.id == p.categoryId).firstOrNull?.name
-        : null;
-    final displayCategory = p.category.trim().isNotEmpty
-        ? p.category.trim()
-        : (catFromBloc != null && catFromBloc.trim().isNotEmpty
-            ? catFromBloc.trim()
-            : p.resolvedCategory.trim());
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final identityDetails = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (displayCategory.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF059669).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            displayCategory.toUpperCase(),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              color: const Color(0xFF059669),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      if (p.collections.isNotEmpty)
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              p.collections,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                              ),
-                            ),
-                          ),
-                        ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          const Icon(Icons.star_rounded, size: 18, color: Color(0xFFF59E0B)),
-                          const SizedBox(width: 4),
-                          Text(
-                            p.ratings.toStringAsFixed(1),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          Text(
-                            ' (Ratings)',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    p.title,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                  ),
-                  if (p.brandName.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF2563EB)),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Brand: ${p.brandName}',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF2563EB),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.science_rounded, size: 16, color: Color(0xFF059669)),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Technical Name: ${p.technicalName}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF059669),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildBadgePill('Seller', p.sellerName.isNotEmpty ? p.sellerName : (p.vendor.isNotEmpty ? p.vendor : 'Essential BioCrop'), isDark, borderColor),
-                      if (p.sku.isNotEmpty)
-                        _buildBadgePill('SKU', p.sku, isDark, borderColor),
-                      _buildBadgePill('HSN Code', p.hsnCode, isDark, borderColor),
-                      if (p.subCollections.isNotEmpty)
-                        _buildBadgePill('Sub Collection', p.subCollections, isDark, borderColor),
-                    ],
-                  ),
-                ],
-              );
-              final mediaCard = _buildImageAndMediaCard(
-                p,
-                isDark,
-                surfaceColor,
-                borderColor,
-                cardBgColor,
-                embedded: true,
-              );
-              if (constraints.maxWidth >= 720) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: identityDetails),
-                    const SizedBox(width: 22),
-                    SizedBox(width: 280, child: mediaCard),
-                  ],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  mediaCard,
-                  const SizedBox(height: 16),
-                  identityDetails,
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          Divider(height: 1, color: borderColor),
-          const SizedBox(height: 14),
-
-          // Storefront Collections Assignment Card (in Read-Only View)
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: borderColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.collections_bookmark_rounded, size: 18, color: Color(0xFF059669)),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Storefront Collections Assignment',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _openAssignCollectionsDialog(context),
-                      icon: const Icon(Icons.tune_rounded, size: 15),
-                      label: Text(
-                        'Assign / Manage Collections',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF059669),
-                        side: const BorderSide(color: Color(0xFF059669)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Builder(
-                  builder: (ctx) {
-                    final displayItems = p.assignedCollections.isNotEmpty
-                        ? p.assignedCollections
-                        : [
-                            if (p.collections.isNotEmpty)
-                              ...p.collections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
-                            if (p.subCollections.isNotEmpty)
-                              ...p.subCollections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
-                          ];
-
-                    if (displayItems.isEmpty) {
-                      return Text(
-                        'No storefront collections assigned yet. Click "Assign / Manage Collections" to link this product to crop, pest, or offer collections.',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        ),
-                      );
-                    }
-
-                    List<CollectionItem> collections = [];
-                    try {
-                      collections = ctx.watch<CollectionBloc>().state.collections;
-                    } catch (_) {}
-
-                    String resolveName(String id) {
-                      for (final c in collections) {
-                        if (c.id == id || c.slug == id || c.name.toLowerCase() == id.toLowerCase()) {
-                          return c.name;
-                        }
-                        for (final s in c.subCollections) {
-                          if (s.id == id || s.slug == id || s.name.toLowerCase() == id.toLowerCase()) {
-                            return '${c.name} > ${s.name}';
-                          }
-                        }
-                      }
-                      final colIdx = p.collectionIds.indexOf(id);
-                      if (colIdx != -1 && p.collections.isNotEmpty) {
-                        final names = p.collections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-                        if (colIdx < names.length) return names[colIdx];
-                      }
-                      final subColIdx = p.subCollectionIds.indexOf(id);
-                      if (subColIdx != -1 && p.subCollections.isNotEmpty) {
-                        final names = p.subCollections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-                        if (subColIdx < names.length) return names[subColIdx];
-                      }
-                      final assignedIdx = p.assignedCollections.indexOf(id);
-                      final allNames = [
-                        if (p.collections.isNotEmpty) ...p.collections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
-                        if (p.subCollections.isNotEmpty) ...p.subCollections.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
-                      ];
-                      if (assignedIdx != -1 && assignedIdx < allNames.length) {
-                        return allNames[assignedIdx];
-                      }
-                      return id;
-                    }
-
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: displayItems.map((colId) {
-                        final displayName = resolveName(colId);
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF059669).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.bookmark_added_rounded,
-                                size: 13,
-                                color: Color(0xFF059669),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                displayName,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF059669),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   // ==========================================
@@ -2269,11 +2334,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     return Container(
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
+      decoration: _cardDecoration(surfaceColor, borderColor, isDark),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2412,15 +2473,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
             ),
           ),
 
-          // Active Variant Section: Interactive Form in edit mode, Unified Overview in read-only mode
-          if (_isEditing) ...[
-            _buildActiveVariantEditor(activeVariant, safeIdx, isDark, borderColor, cardBgColor),
-            const SizedBox(height: 12),
-          ] else ...[
-            const SizedBox(height: 10),
-            _buildActiveVariantReadOnlySummary(activeVariant, p, isDark, borderColor, cardBgColor),
-            const SizedBox(height: 12),
-          ],
+          // Active Variant Section: Unified Form (read-only in Detail mode, editable in Edit/Create mode)
+          _buildActiveVariantEditor(activeVariant, safeIdx, isDark, borderColor, cardBgColor),
+          const SizedBox(height: 12),
 
           // Variants Table Header
           Row(
@@ -2845,299 +2900,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     );
   }
 
-  Widget _buildActiveVariantReadOnlySummary(
-    ProductVariant v,
-    Product p,
-    bool isDark,
-    Color borderColor,
-    Color cardBgColor,
-  ) {
-    final discRs = v.printedMrp > v.displayRate ? (v.printedMrp - v.displayRate) : 0.0;
-    final discPct = v.printedMrp > 0 ? (discRs / v.printedMrp * 100) : 0.0;
-    final unitDisplay = _normalizeUnit(v.unit);
-    final weightUnitDisplay = p.productWeightUnit.trim().isNotEmpty ? p.productWeightUnit.trim() : 'kg';
-    final dimsDisplay = v.dimensions.toString().trim().isNotEmpty ? v.dimensions.toString().trim() : p.dimensions;
-
-    Widget buildPanel({
-      required IconData icon,
-      required String title,
-      required List<Widget> rows,
-    }) {
-      return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.6) : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 15, color: const Color(0xFF059669)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Divider(height: 1, color: borderColor),
-            const SizedBox(height: 10),
-            ...rows,
-          ],
-        ),
-      );
-    }
-
-    final pricingPanel = buildPanel(
-      icon: Icons.currency_rupee_rounded,
-      title: 'Pricing & Commercial Matrix',
-      rows: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF059669).withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'SELLING RATE',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        color: const Color(0xFF059669),
-                      ),
-                    ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '₹${v.displayRate.round()}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'MRP',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        '₹${v.printedMrp.round()}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          decoration: TextDecoration.lineThrough,
-                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        _buildGridValueRow(
-          'Discount',
-          '₹${discRs.round()} (${discPct.round()}% off)',
-          isDark,
-          valueColor: const Color(0xFF059669),
-        ),
-        _buildGridValueRow('Commission (%)', '${v.commissionPercentage.round()}%', isDark),
-        if (v.swg > 0)
-          _buildGridValueRow('Seller Will Get (SWG)', '₹${v.swg.round()}', isDark),
-        if (v.courierCharges > 0)
-          _buildGridValueRow('Courier Charge', '₹${v.courierCharges.round()}', isDark),
-        _buildGridValueRow(
-          'COD & Bank Charge',
-          '₹${LivePriceCalculation.fixedCodAndBankCharge.round()}',
-          isDark,
-        ),
-        if (v.paymentMethod.isNotEmpty)
-          _buildGridValueRow('Payment Method', v.paymentMethod, isDark),
-        if (v.shippingThrough.isNotEmpty)
-          _buildGridValueRow('Shipping Through', v.shippingThrough, isDark),
-      ],
-    );
-
-    final packagingPanel = buildPanel(
-      icon: Icons.inventory_2_outlined,
-      title: 'Packaging & Inventory',
-      rows: [
-        _buildGridValueRow(
-          'Stock on Hand',
-          '${v.stock} Units',
-          isDark,
-          valueColor: v.stock > 50 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
-        ),
-        _buildGridValueRow('Pack Size & Unit', '${v.packSize} $unitDisplay'.trim(), isDark),
-        _buildGridValueRow('Pack Quantity', '${v.packQuantity}', isDark),
-        _buildGridValueRow(
-          'Base Rate',
-          v.pricePerBaseUnit > 0 ? '₹${v.pricePerBaseUnit.toStringAsFixed(3)} / $unitDisplay' : '-',
-          isDark,
-        ),
-        _buildGridValueRow(
-          'Fulfilled / Shipped By',
-          v.shippedBy.isNotEmpty ? v.shippedBy : 'essentialbiocropscience',
-          isDark,
-        ),
-      ],
-    );
-
-    final shippingPanel = buildPanel(
-      icon: Icons.local_shipping_outlined,
-      title: 'Shipping & Return Policy',
-      rows: [
-        _buildGridValueRow(
-          'Product Weight',
-          p.productWeight > 0 ? '${p.productWeight} $weightUnitDisplay' : '-',
-          isDark,
-        ),
-        _buildGridValueRow('Dimensions (LxWxH)', dimsDisplay.trim().isNotEmpty ? dimsDisplay : '-', isDark),
-        _buildGridValueRow(
-          'Refund / Return Policy',
-          p.refundPolicy.trim().isNotEmpty ? p.refundPolicy : '-',
-          isDark,
-        ),
-      ],
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cardBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF059669).withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'Selected Variant',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF059669),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  v.label,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (v.isDefault) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star_rounded, size: 12, color: Color(0xFFF59E0B)),
-                      const SizedBox(width: 3),
-                      Text(
-                        'Primary Default SKU',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFD97706),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth >= 820) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: pricingPanel),
-                    const SizedBox(width: 12),
-                    Expanded(child: packagingPanel),
-                    const SizedBox(width: 12),
-                    Expanded(child: shippingPanel),
-                  ],
-                );
-              }
-              return Column(
-                children: [
-                  pricingPanel,
-                  const SizedBox(height: 10),
-                  packagingPanel,
-                  const SizedBox(height: 10),
-                  shippingPanel,
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildActiveVariantEditor(
     ProductVariant v,
     int index,
@@ -3181,7 +2943,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
                   ),
                   child: Text(
-                    'Editing SKU #${index + 1}',
+                    _isEditing ? 'Editing SKU #${index + 1}' : 'SKU #${index + 1}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -3233,29 +2995,31 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                if (!v.isDefault)
+                if (_isEditing) ...[
+                  const SizedBox(width: 8),
+                  if (!v.isDefault)
+                    IconButton(
+                      tooltip: 'Set as Default SKU',
+                      icon: const Icon(Icons.star_outline_rounded, size: 18, color: Color(0xFFD97706)),
+                      onPressed: () => _setVariantAsDefault(index),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  const SizedBox(width: 6),
                   IconButton(
-                    tooltip: 'Set as Default SKU',
-                    icon: const Icon(Icons.star_outline_rounded, size: 18, color: Color(0xFFD97706)),
-                    onPressed: () => _setVariantAsDefault(index),
+                    tooltip: 'Duplicate Variant',
+                    icon: const Icon(Icons.copy_rounded, size: 16),
+                    onPressed: () => _duplicateVariant(index),
                     visualDensity: VisualDensity.compact,
                   ),
-                const SizedBox(width: 6),
-                IconButton(
-                  tooltip: 'Duplicate Variant',
-                  icon: const Icon(Icons.copy_rounded, size: 16),
-                  onPressed: () => _duplicateVariant(index),
-                  visualDensity: VisualDensity.compact,
-                ),
-                if (_workingVariants.length > 1) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    tooltip: 'Delete Variant',
-                    icon: const Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFEF4444)),
-                    onPressed: () => _deleteVariant(index),
-                    visualDensity: VisualDensity.compact,
-                  ),
+                  if (_workingVariants.length > 1) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Delete Variant',
+                      icon: const Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFEF4444)),
+                      onPressed: () => _deleteVariant(index),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
                 ],
               ],
             ),
@@ -3284,6 +3048,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         controller: _variantController,
                         isDark: isDark,
                         isRequired: true,
+                        readOnly: !_isEditing,
                         onChanged: _onVariantFieldChanged,
                         onSelected: (item) {
                           if (item.packSize > 0) {
@@ -3313,6 +3078,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         prefixIcon: Icons.local_shipping_outlined,
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (val) {
                           if (val != null) {
                             setState(() => _shippedByController.text = val);
@@ -3333,6 +3099,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         prefixIcon: Icons.directions_car_outlined,
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (val) {
                           if (val != null) {
                             setState(() => _shippingThroughController.text = val);
@@ -3410,11 +3177,19 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       child: _buildField(
                         controller: _displayRateController,
                         label: 'Selling Rate (₹) *',
-                        hint: 'Auto: SWG + Comm + Courier + ₹60',
+                        hint: _editIsMarketplace
+                            ? 'Auto: SWG + Comm + Courier + ₹60'
+                            : 'e.g. 500',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                        readOnly: true,
+                        readOnly: !_isEditing || _editIsMarketplace,
+                        onChanged: _editIsMarketplace
+                            ? null
+                            : (_) {
+                                _recalculateSwgFromSellingRate();
+                                _onVariantFieldChanged();
+                              },
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -3426,6 +3201,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (_) => _onVariantFieldChanged(),
                       ),
                     ),
@@ -3439,7 +3215,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       child: _buildField(
                         controller: _commissionController,
                         label: 'Commission (%)',
-                        hint: 'Auto from Technical Name',
+                        hint: _editIsMarketplace
+                            ? 'Auto from Technical Name'
+                            : 'Auto from Seller (Dealer Commission)',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
@@ -3451,28 +3229,35 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                       child: _buildField(
                         controller: _swgController,
                         label: 'Seller Will Get (SWG ₹)',
-                        hint: 'e.g. 400',
+                        hint: _editIsMarketplace
+                            ? 'e.g. 400'
+                            : 'Auto: Selling Rate − Comm%',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                        onChanged: (_) {
-                          _recalculateSellingRate();
-                          _onVariantFieldChanged();
-                        },
+                        readOnly: !_isEditing || !_editIsMarketplace,
+                        onChanged: _editIsMarketplace
+                            ? (_) {
+                                _recalculateSellingRate();
+                                _onVariantFieldChanged();
+                              }
+                            : null,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildField(
-                        controller: _courierChargesController,
-                        label: 'Courier Charge (₹)',
-                        hint: 'Auto from Weight (g)',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        isDark: isDark,
-                        borderColor: borderColor,
-                        readOnly: true,
+                    if (_editIsMarketplace) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildField(
+                          controller: _courierChargesController,
+                          label: 'Courier Charge (₹)',
+                          hint: 'Auto from Weight (g)',
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          readOnly: true,
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildField(
@@ -3482,6 +3267,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         keyboardType: TextInputType.number,
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (_) => _onVariantFieldChanged(),
                       ),
                     ),
@@ -3491,18 +3277,20 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: _buildField(
-                        controller: _codChargeController,
-                        label: 'COD & Bank Charge (₹)',
-                        hint: '60',
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        isDark: isDark,
-                        borderColor: borderColor,
-                        readOnly: true,
+                    if (_editIsMarketplace) ...[
+                      Expanded(
+                        child: _buildField(
+                          controller: _codChargeController,
+                          label: 'COD & Bank Charge (₹)',
+                          hint: '60',
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          isDark: isDark,
+                          borderColor: borderColor,
+                          readOnly: true,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
+                      const SizedBox(width: 12),
+                    ],
                     Expanded(
                       child: _buildDropdownField(
                         label: 'Payment Method *',
@@ -3513,6 +3301,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         prefixIcon: Icons.payments_outlined,
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (val) {
                           if (val != null) {
                             setState(() => _paymentMethodController.text = val);
@@ -3556,11 +3345,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                             mrp: mrpVal,
                             swg: swgVal,
                             packQuantity: packQtyVal,
-                            courierCharges: courierVal,
+                            courierCharges: _editIsMarketplace ? courierVal : 0.0,
                             commissionPercentage: commVal,
                             discountRs: discRs,
                             discountPct: discPct,
                             isDark: isDark,
+                            isMarketplace: _editIsMarketplace,
                           ),
                         ],
                       ],
@@ -3584,11 +3374,12 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                     Expanded(
                       child: _buildField(
                         controller: _weightController,
-                        label: 'Product Weight in Gram',
+                        label: 'Weight (g)',
                         hint: '500',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (_) {
                           _recalculateCourierFromWeight();
                           _recalculateSellingRate();
@@ -3596,12 +3387,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         },
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                    const SizedBox(width: 10),
                     Expanded(
                       child: _buildField(
                         controller: _dimLengthController,
@@ -3610,6 +3396,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (_) => _onVariantFieldChanged(),
                       ),
                     ),
@@ -3622,6 +3409,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (_) => _onVariantFieldChanged(),
                       ),
                     ),
@@ -3634,6 +3422,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (_) => _onVariantFieldChanged(),
                       ),
                     ),
@@ -3645,6 +3434,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         items: const ['cm', 'inch', 'mm'],
                         isDark: isDark,
                         borderColor: borderColor,
+                        readOnly: !_isEditing,
                         onChanged: (val) {
                           if (val != null) {
                             setState(() => _selectedDimensionUnit = val);
@@ -3662,6 +3452,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                   hint: '7-day replacement for sealed bottle',
                   isDark: isDark,
                   borderColor: borderColor,
+                  readOnly: !_isEditing,
                 ),
               ],
             ),
@@ -4065,83 +3856,44 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     Color borderColor,
     Color cardBgColor,
   ) {
-    if (_isEditing) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: surfaceColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.description_outlined, color: Color(0xFF059669), size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Product Description',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            AppHtmlEditor(
-              controller: _descriptionController,
-              label: 'Full Commercial Description',
-              hintText: 'Comprehensive product description with agronomy tables, per-acre dosage, application guide, and guidelines...',
-              isRequired: true,
-              minHeight: 190,
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Read-only view
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
+      decoration: _cardDecoration(surfaceColor, borderColor, isDark),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.description_outlined, color: Color(0xFF059669), size: 20),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.description_outlined, color: Color(0xFF059669), size: 17),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Product Description',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w800,
                     color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-
-          // Description (Parsed HTML with rich typography, list support & collapsible view)
-          AppHtmlView(
-            htmlData: p.description,
-            fontSize: 13.5,
-            lineHeight: 1.55,
-            collapsible: true,
-            maxLines: 4,
+          AppHtmlEditor(
+            controller: _descriptionController,
+            label: 'Full Commercial Description',
+            hintText: 'Comprehensive product description with agronomy tables, per-acre dosage, application guide, and guidelines...',
+            isRequired: true,
+            minHeight: 190,
+            readOnly: !_isEditing,
           ),
         ],
       ),
@@ -4378,77 +4130,6 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
         SizedBox(height: height != null ? 6 : 5),
         height != null ? SizedBox(height: height, child: inputWidget) : inputWidget,
       ],
-    );
-  }
-
-  Widget _buildBadgePill(String label, String value, bool isDark, Color borderColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$label: ',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
-          ),
-          Flexible(
-            child: Text(
-              value.isEmpty ? '—' : value,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGridValueRow(String label, String value, bool isDark, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Flexible(
-            flex: 5,
-            child: Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            flex: 5,
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: valueColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 

@@ -2,7 +2,6 @@ class TechnicalNameModel {
   final String id;
   final String name;
   final String letter;
-  final String category;
   final double commissionPercentage;
   final bool isActive;
   final DateTime? createdAt;
@@ -12,7 +11,6 @@ class TechnicalNameModel {
     required this.id,
     required this.name,
     required this.letter,
-    required this.category,
     this.commissionPercentage = 0.0,
     this.isActive = true,
     this.createdAt,
@@ -29,7 +27,6 @@ class TechnicalNameModel {
       id: (json['id'] ?? json['_id'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
       letter: (json['letter'] ?? '').toString(),
-      category: (json['category'] ?? '').toString(),
       commissionPercentage: commission,
       isActive: json['isActive'] as bool? ?? true,
       createdAt: json['createdAt'] != null
@@ -45,7 +42,6 @@ class TechnicalNameModel {
         'id': id,
         'name': name,
         'letter': letter,
-        'category': category,
         'commissionPercentage': commissionPercentage,
         'isActive': isActive,
       };
@@ -54,7 +50,6 @@ class TechnicalNameModel {
     String? id,
     String? name,
     String? letter,
-    String? category,
     double? commissionPercentage,
     bool? isActive,
   }) {
@@ -62,7 +57,6 @@ class TechnicalNameModel {
       id: id ?? this.id,
       name: name ?? this.name,
       letter: letter ?? this.letter,
-      category: category ?? this.category,
       commissionPercentage: commissionPercentage ?? this.commissionPercentage,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt,

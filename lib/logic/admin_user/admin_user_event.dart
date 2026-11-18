@@ -114,22 +114,26 @@ class UpdateLocalAdminUser extends AdminUserEvent {
   List<Object?> get props => [user];
 }
 
-class UploadAdminUserKycDocuments extends AdminUserEvent {
+class UploadSellerDocuments extends AdminUserEvent {
   final String userId;
   final List<PlatformFile>? licenceFiles;
   final PlatformFile? gstCertificate;
   final PlatformFile? panCard;
   final PlatformFile? aadhaarCard;
+  final PlatformFile? cancelledCheque;
+  final PlatformFile? agreement;
   final bool replaceLicenceFiles;
   final void Function(AdminUser user)? onSuccess;
   final void Function(String error)? onError;
 
-  const UploadAdminUserKycDocuments({
+  const UploadSellerDocuments({
     required this.userId,
     this.licenceFiles,
     this.gstCertificate,
     this.panCard,
     this.aadhaarCard,
+    this.cancelledCheque,
+    this.agreement,
     this.replaceLicenceFiles = false,
     this.onSuccess,
     this.onError,
@@ -142,23 +146,8 @@ class UploadAdminUserKycDocuments extends AdminUserEvent {
         gstCertificate,
         panCard,
         aadhaarCard,
+        cancelledCheque,
+        agreement,
         replaceLicenceFiles,
       ];
-}
-
-class ReviewAdminUserKyc extends AdminUserEvent {
-  final String userId;
-  final bool approved;
-  final void Function(AdminUser user)? onSuccess;
-  final void Function(String error)? onError;
-
-  const ReviewAdminUserKyc({
-    required this.userId,
-    required this.approved,
-    this.onSuccess,
-    this.onError,
-  });
-
-  @override
-  List<Object?> get props => [userId, approved];
 }

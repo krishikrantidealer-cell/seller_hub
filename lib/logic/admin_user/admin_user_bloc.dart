@@ -29,22 +29,18 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     on<PermanentlyDeleteAdminUser>(_onPermanentlyDelete);
     on<CreateAdminUser>(_onCreateUser);
     on<UpdateLocalAdminUser>(_onUpdateLocalUser);
-    on<UploadAdminUserKycDocuments>(_onUploadKycDocuments);
-    on<ReviewAdminUserKyc>(_onReviewKyc);
+    on<UploadSellerDocuments>(_onUploadSellerDocuments);
 
     // Live bidirectional WebSocket synchronization
     _wsSubscription = _webSocketService.userUpdates.listen((event) {
       final data = event['data'] ?? event;
       if (data is Map<String, dynamic>) {
         final targetUserId = data['userId']?.toString() ?? data['id']?.toString();
-        final kycStatus = data['kycStatus']?.toString();
         if (targetUserId != null && targetUserId.isNotEmpty) {
           final idx = state.users.indexWhere((u) => u.id == targetUserId);
           if (idx >= 0) {
             final current = state.users[idx];
             final updated = current.copyWith(
-              kycStatus: kycStatus ?? current.kycStatus,
-              isKycComplete: kycStatus == 'APPROVED' ? true : current.isKycComplete,
               isBlocked: data['isBlocked'] is bool ? data['isBlocked'] as bool : current.isBlocked,
               isDeleted: data['isDeleted'] is bool ? data['isDeleted'] as bool : current.isDeleted,
             );
@@ -323,18 +319,20 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
     emit(state.copyWith(users: updatedList));
   }
 
-  Future<void> _onUploadKycDocuments(
-    UploadAdminUserKycDocuments event,
+  Future<void> _onUploadSellerDocuments(
+    UploadSellerDocuments event,
     Emitter<AdminUserState> emit,
   ) async {
     emit(state.copyWith(isActionInProgress: true, clearError: true, clearActionMessage: true));
     try {
-      final updated = await repository.uploadKycDocuments(
+      final updated = await repository.uploadSellerDocuments(
         userId: event.userId,
         licenceFiles: event.licenceFiles,
         gstCertificate: event.gstCertificate,
         panCard: event.panCard,
         aadhaarCard: event.aadhaarCard,
+        cancelledCheque: event.cancelledCheque,
+        agreement: event.agreement,
         replaceLicenceFiles: event.replaceLicenceFiles,
       );
 
@@ -345,60 +343,12 @@ class AdminUserBloc extends Bloc<AdminUserEvent, AdminUserState> {
       emit(state.copyWith(
         isActionInProgress: false,
         users: updatedList,
-        actionSuccessMessage: 'KYC documents uploaded successfully for "${updated.displayName}"',
+        actionSuccessMessage: 'Documents uploaded successfully for "${updated.displayName}"',
       ));
-
-      _webSocketService.broadcastUserUpdate({
-        'userId': updated.id,
-        'kycStatus': updated.kycStatus,
-        'gstCertificate': updated.gstCertificate,
-        'panCard': updated.panCard,
-        'aadhaarCard': updated.aadhaarCard,
-      });
 
       event.onSuccess?.call(updated);
     } catch (e) {
-      final errorMsg = e is ApiException ? e.message : 'Failed to upload KYC documents: $e';
-      emit(state.copyWith(
-        isActionInProgress: false,
-        errorMessage: errorMsg,
-      ));
-      event.onError?.call(errorMsg);
-    }
-  }
-
-  Future<void> _onReviewKyc(
-    ReviewAdminUserKyc event,
-    Emitter<AdminUserState> emit,
-  ) async {
-    emit(state.copyWith(isActionInProgress: true, clearError: true, clearActionMessage: true));
-    try {
-      final updated = await repository.reviewSellerKyc(
-        userId: event.userId,
-        approved: event.approved,
-      );
-
-      final updatedList = state.users.map((u) {
-        return u.id == updated.id ? updated : u;
-      }).toList();
-
-      emit(state.copyWith(
-        isActionInProgress: false,
-        users: updatedList,
-        actionSuccessMessage: event.approved
-            ? 'Seller KYC approved successfully for "${updated.displayName}"!'
-            : 'Seller KYC returned for review',
-      ));
-
-      _webSocketService.broadcastUserUpdate({
-        'userId': updated.id,
-        'kycStatus': updated.kycStatus,
-        'isKycComplete': updated.isKycComplete,
-      });
-
-      event.onSuccess?.call(updated);
-    } catch (e) {
-      final errorMsg = e is ApiException ? e.message : 'Failed to update KYC status: $e';
+      final errorMsg = e is ApiException ? e.message : 'Failed to upload documents: $e';
       emit(state.copyWith(
         isActionInProgress: false,
         errorMessage: errorMsg,

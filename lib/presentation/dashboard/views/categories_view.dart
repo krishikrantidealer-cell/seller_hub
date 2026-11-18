@@ -469,18 +469,21 @@ class _CategoriesViewState extends State<CategoriesView> {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = constraints.maxWidth > 800
-            ? (constraints.maxWidth - 40) / 4
-            : (constraints.maxWidth - 10) / 2;
+        final totalActive = state.rootCount + state.subCount;
+        final cardWidth = constraints.maxWidth > 720
+            ? (constraints.maxWidth - 24) / 3
+            : (constraints.maxWidth > 420
+                ? (constraints.maxWidth - 10) / 2
+                : constraints.maxWidth);
 
         return Wrap(
           spacing: 10,
           runSpacing: 10,
           children: [
             _buildMetricCard(
-              title: 'Total Taxonomy Nodes',
-              value: '${state.totalCount}',
-              subtitle: 'Levels 0, 1 & 2 in DB',
+              title: 'Total Categories & Sub-Categories',
+              value: '$totalActive',
+              subtitle: '${state.rootCount} Main + ${state.subCount} Sub-Categories',
               icon: Icons.account_tree_rounded,
               color: const Color(0xFF059669),
               width: cardWidth,
@@ -489,9 +492,9 @@ class _CategoriesViewState extends State<CategoriesView> {
               borderColor: borderColor,
             ),
             _buildMetricCard(
-              title: 'Major Roots (Level 0)',
+              title: 'Main Categories',
               value: '${state.rootCount}',
-              subtitle: 'Top-tier agri departments',
+              subtitle: 'Primary categories (Level 0)',
               icon: Icons.folder_special_rounded,
               color: const Color(0xFF2563EB),
               width: cardWidth,
@@ -500,22 +503,11 @@ class _CategoriesViewState extends State<CategoriesView> {
               borderColor: borderColor,
             ),
             _buildMetricCard(
-              title: 'Sub-Categories (Level 1)',
+              title: 'Sub-Categories',
               value: '${state.subCount}',
-              subtitle: 'Direct child categories',
+              subtitle: 'Sub-categories (Level 1)',
               icon: Icons.subdirectory_arrow_right_rounded,
               color: const Color(0xFF7C3AED),
-              width: cardWidth,
-              isDark: isDark,
-              surfaceColor: surfaceColor,
-              borderColor: borderColor,
-            ),
-            _buildMetricCard(
-              title: 'Leaf Nodes (Level 2)',
-              value: '${state.leafCount}',
-              subtitle: 'Finest product classifications',
-              icon: Icons.eco_rounded,
-              color: const Color(0xFFD97706),
               width: cardWidth,
               isDark: isDark,
               surfaceColor: surfaceColor,

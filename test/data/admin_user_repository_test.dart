@@ -100,12 +100,31 @@ class MockAdminUserRemoteDataSource implements AdminUserRemoteDataSource {
   }
 
   @override
-  Future<AdminUser> uploadKycDocuments({
+  Future<AdminUser> updateUser({
+    required String userId,
+    required Map<String, dynamic> data,
+  }) async {
+    if (throwError) throw Exception('Network error');
+    return AdminUser(
+      id: userId,
+      phoneNumber: data['phoneNumber']?.toString() ?? '9876543210',
+      firstName: data['firstName']?.toString() ?? 'Seller',
+      shopName: data['shopName']?.toString() ?? 'Shop',
+      role: 'ROLE_SELLER',
+      panNumber: data['panNumber']?.toString(),
+      licenceNo: data['licenceNo']?.toString(),
+    );
+  }
+
+  @override
+  Future<AdminUser> uploadSellerDocuments({
     required String userId,
     List<PlatformFile>? licenceFiles,
     PlatformFile? gstCertificate,
     PlatformFile? panCard,
     PlatformFile? aadhaarCard,
+    PlatformFile? cancelledCheque,
+    PlatformFile? agreement,
     bool replaceLicenceFiles = false,
   }) async {
     if (throwError) throw Exception('Network error');
@@ -122,23 +141,7 @@ class MockAdminUserRemoteDataSource implements AdminUserRemoteDataSource {
   }
 
   @override
-  Future<AdminUser> reviewSellerKyc({
-    required String userId,
-    required bool approved,
-  }) async {
-    if (throwError) throw Exception('Network error');
-    return AdminUser(
-      id: userId,
-      phoneNumber: '9876543210',
-      firstName: 'Seller',
-      role: 'ROLE_SELLER',
-      kycStatus: approved ? 'APPROVED' : null,
-      isKycComplete: approved,
-    );
-  }
-
-  @override
-  Future<Uint8List> downloadKycDocument({
+  Future<Uint8List> downloadSellerDocument({
     required String userId,
     required String documentType,
     int index = 0,

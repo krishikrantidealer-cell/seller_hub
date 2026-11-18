@@ -42,27 +42,29 @@ abstract class AdminUserRepository {
   /// POST /api/v1/admin/users/sellers
   Future<AdminUser> createSeller(Map<String, dynamic> data);
 
-  /// Uploads seller KYC documents to private storage
+  /// Updates an existing customer/seller profile
+  /// PATCH /api/v1/admin/users/{userId}
+  Future<AdminUser> updateUser({
+    required String userId,
+    required Map<String, dynamic> data,
+  });
+
+  /// Uploads seller compliance documents to private storage
   /// POST /api/v1/admin/users/{userId}/kyc-documents
-  Future<AdminUser> uploadKycDocuments({
+  Future<AdminUser> uploadSellerDocuments({
     required String userId,
     List<PlatformFile>? licenceFiles,
     PlatformFile? gstCertificate,
     PlatformFile? panCard,
     PlatformFile? aadhaarCard,
+    PlatformFile? cancelledCheque,
+    PlatformFile? agreement,
     bool replaceLicenceFiles = false,
   });
 
-  /// Approves or returns seller KYC for review
-  /// PATCH /api/v1/admin/users/{userId}/kyc
-  Future<AdminUser> reviewSellerKyc({
-    required String userId,
-    required bool approved,
-  });
-
-  /// Downloads a seller KYC document binary bytes from private storage
+  /// Downloads a seller document binary bytes from private storage
   /// GET /api/v1/admin/users/{userId}/kyc-documents/{documentType}/{index}
-  Future<Uint8List> downloadKycDocument({
+  Future<Uint8List> downloadSellerDocument({
     required String userId,
     required String documentType,
     int index = 0,

@@ -140,12 +140,32 @@ class FakeAdminUserRepository implements AdminUserRepository {
   }
 
   @override
-  Future<AdminUser> uploadKycDocuments({
+  Future<AdminUser> updateUser({
+    required String userId,
+    required Map<String, dynamic> data,
+  }) async {
+    final idx = sellersList.indexWhere((u) => u.id == userId);
+    final current = idx >= 0
+        ? sellersList[idx]
+        : AdminUser(id: userId, phoneNumber: '9876543210', role: 'ROLE_SELLER');
+    final updated = current.copyWith(
+      shopName: data['shopName']?.toString() ?? current.shopName,
+      panNumber: data['panNumber']?.toString() ?? current.panNumber,
+      licenceNo: data['licenceNo']?.toString() ?? current.licenceNo,
+    );
+    if (idx >= 0) sellersList[idx] = updated;
+    return updated;
+  }
+
+  @override
+  Future<AdminUser> uploadSellerDocuments({
     required String userId,
     List<PlatformFile>? licenceFiles,
     PlatformFile? gstCertificate,
     PlatformFile? panCard,
     PlatformFile? aadhaarCard,
+    PlatformFile? cancelledCheque,
+    PlatformFile? agreement,
     bool replaceLicenceFiles = false,
   }) async {
     final idx = sellersList.indexWhere((u) => u.id == userId);
@@ -163,24 +183,7 @@ class FakeAdminUserRepository implements AdminUserRepository {
   }
 
   @override
-  Future<AdminUser> reviewSellerKyc({
-    required String userId,
-    required bool approved,
-  }) async {
-    final idx = sellersList.indexWhere((u) => u.id == userId);
-    final current = idx >= 0
-        ? sellersList[idx]
-        : AdminUser(id: userId, phoneNumber: '9876543210', role: 'ROLE_SELLER');
-    final updated = current.copyWith(
-      kycStatus: approved ? 'APPROVED' : null,
-      isKycComplete: approved,
-    );
-    if (idx >= 0) sellersList[idx] = updated;
-    return updated;
-  }
-
-  @override
-  Future<Uint8List> downloadKycDocument({
+  Future<Uint8List> downloadSellerDocument({
     required String userId,
     required String documentType,
     int index = 0,

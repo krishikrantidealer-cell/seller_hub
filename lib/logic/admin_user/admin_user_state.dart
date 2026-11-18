@@ -13,7 +13,7 @@ class AdminUserState extends Equatable {
   final bool hasMore;
   final bool isLoadingMore;
   final String searchQuery;
-  final String statusFilter; // 'ALL', 'VERIFIED', 'KYC_PENDING', 'BLOCKED'
+  final String statusFilter; // 'ALL', 'VERIFIED', 'BLOCKED'
   final bool isActionInProgress;
   final String? errorMessage;
   final String? actionSuccessMessage;
@@ -36,7 +36,6 @@ class AdminUserState extends Equatable {
 
   int get totalCount => totalElements > 0 ? totalElements : users.length;
   int get verifiedCount => users.where((u) => u.isVerified).length;
-  int get kycPendingCount => users.where((u) => !u.isKycComplete).length;
   int get blockedCount => users.where((u) => u.isBlocked).length;
 
   /// Returns users matching the active search query and status filter
@@ -58,7 +57,6 @@ class AdminUserState extends Equatable {
       }
 
       if (statusFilter == 'VERIFIED' && !u.isVerified) return false;
-      if (statusFilter == 'KYC_PENDING' && u.isKycComplete) return false;
       if (statusFilter == 'BLOCKED' && !u.isBlocked) return false;
 
       return true;

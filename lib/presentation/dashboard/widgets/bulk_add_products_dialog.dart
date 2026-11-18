@@ -277,22 +277,69 @@ Humic Acid 98% Potassium Humate 1kg,Plant Growth Regulators,420,550,80,Kg,380893
             ? widget.seller.id.substring(widget.seller.id.length - 6).toUpperCase()
             : widget.seller.id.toUpperCase());
 
+    final isDealerCommission = widget.seller.pricingModel == 'DEALER_COMMISSION';
+
     for (int i = 0; i < selected.length; i++) {
       final base = selected[i];
-      // Generate unique SKU and product code conforming to backend contract
-      final uniqueSku = 'EBS-ADM-SKU-${now.millisecondsSinceEpoch + i}';
-      final newProductCode = 'PRD-$sellerCode-${(1000 + i)}-${now.millisecondsSinceEpoch.toString().substring(10)}';
+      final isUnassigned = base.sellerId.trim().isEmpty;
 
-      updatedProducts.add(base.copyWith(
-        id: 'assigned_${now.millisecondsSinceEpoch}_$i',
-        sku: uniqueSku,
-        productCode: newProductCode,
-        sellerId: widget.seller.id,
-        vendor: widget.seller.tradeName,
-        sellerName: widget.seller.tradeName,
-        status: 'INACTIVE',
-        isAvailable: false,
-      ));
+      final cleanedVariants = isDealerCommission
+          ? base.variants
+              .map((v) => v.copyWith(
+                    swg: 0.0,
+                    displayRate: 0.0,
+                    printedMrp: 0.0,
+                    courierCharges: 0.0,
+                    codCharge: 0.0,
+                    discountRs: 0.0,
+                    discountPercentage: 0.0,
+                    pricePerBaseUnit: 0.0,
+                    stock: 0,
+                    commissionPercentage: widget.seller.commissionPercentage,
+                  ))
+              .toList()
+          : base.variants;
+
+      if (isUnassigned) {
+        // Assign the existing unassigned product in-place rather than replicating it.
+        updatedProducts.add(base.copyWith(
+          sellerId: widget.seller.id,
+          vendor: widget.seller.tradeName,
+          sellerName: widget.seller.tradeName,
+          isAvailable: isDealerCommission ? false : base.isAvailable,
+          isMarketplace: !isDealerCommission,
+          variants: cleanedVariants,
+          displayRate: isDealerCommission ? 0.0 : base.displayRate,
+          printedMrp: isDealerCommission ? 0.0 : base.printedMrp,
+          discountRs: isDealerCommission ? 0.0 : base.discountRs,
+          discountPercentage: isDealerCommission ? 0.0 : base.discountPercentage,
+          swg: isDealerCommission ? '' : base.swg,
+          stock: isDealerCommission ? 0 : base.stock,
+        ));
+      } else {
+        // Generate unique SKU and product code when cloning another seller's catalog item.
+        final uniqueSku = 'EBS-ADM-SKU-${now.millisecondsSinceEpoch + i}';
+        final newProductCode = 'PRD-$sellerCode-${(1000 + i)}-${now.millisecondsSinceEpoch.toString().substring(10)}';
+
+        updatedProducts.add(base.copyWith(
+          id: 'assigned_${now.millisecondsSinceEpoch}_$i',
+          sku: uniqueSku,
+          productCode: newProductCode,
+          sellerId: widget.seller.id,
+          vendor: widget.seller.tradeName,
+          sellerName: widget.seller.tradeName,
+          status: 'INACTIVE',
+          isAvailable: false,
+          isMarketplace: !isDealerCommission,
+          variants: cleanedVariants,
+          displayRate: isDealerCommission ? 0.0 : base.displayRate,
+          printedMrp: isDealerCommission ? 0.0 : base.printedMrp,
+          discountRs: isDealerCommission ? 0.0 : base.discountRs,
+          discountPercentage: isDealerCommission ? 0.0 : base.discountPercentage,
+          swg: isDealerCommission ? '' : base.swg,
+          stock: isDealerCommission ? 0 : base.stock,
+        ));
+      }
     }
 
     widget.onProductsAdded(updatedProducts);

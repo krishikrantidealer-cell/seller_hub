@@ -60,16 +60,18 @@ class AdminUser extends Equatable {
   final UserAddress? address;
   final bool isVerified;
   final bool isProfileComplete;
-  final String? kycStatus;
-  final bool isKycComplete;
   final String? gstNumber;
+  final String? panNumber;
+  final String? licenceNo;
   final String? licenceImage;
   final List<String> licenceImages;
   final String? gstCertificate;
   final String? panCard;
   final String? aadhaarCard;
+  final String? agreement;
   final String? shopImage;
   final List<UserAddress> shippingAddresses;
+  final List<UserAddress> warehouseAddresses;
   final bool isBlocked;
   final bool isDeleted;
   final DateTime? createdAt;
@@ -81,6 +83,9 @@ class AdminUser extends Equatable {
   final String? preferredLanguage;
   final int? productCodeSequence;
   final int? orderNumberSequence;
+  final String pricingModel;
+  final double commissionPercentage;
+  final Map<String, dynamic>? bankDetails;
 
   const AdminUser({
     required this.id,
@@ -94,16 +99,18 @@ class AdminUser extends Equatable {
     this.address,
     this.isVerified = false,
     this.isProfileComplete = false,
-    this.kycStatus,
-    this.isKycComplete = false,
     this.gstNumber,
+    this.panNumber,
+    this.licenceNo,
     this.licenceImage,
     this.licenceImages = const [],
     this.gstCertificate,
     this.panCard,
     this.aadhaarCard,
+    this.agreement,
     this.shopImage,
     this.shippingAddresses = const [],
+    this.warehouseAddresses = const [],
     this.isBlocked = false,
     this.isDeleted = false,
     this.createdAt,
@@ -115,6 +122,9 @@ class AdminUser extends Equatable {
     this.preferredLanguage,
     this.productCodeSequence,
     this.orderNumberSequence,
+    this.pricingModel = 'MARKETPLACE',
+    this.commissionPercentage = 0.0,
+    this.bankDetails,
   });
 
   factory AdminUser.emptyCustomer() {
@@ -136,6 +146,15 @@ class AdminUser extends Equatable {
     final rawShipping = json['shippingAddresses'] ?? json['shipping_addresses'];
     if (rawShipping is List) {
       shipping = rawShipping
+          .whereType<Map>()
+          .map((a) => UserAddress.fromJson(a))
+          .toList();
+    }
+
+    List<UserAddress> warehouses = [];
+    final rawWarehouses = json['warehouseAddresses'] ?? json['warehouse_addresses'];
+    if (rawWarehouses is List) {
+      warehouses = rawWarehouses
           .whereType<Map>()
           .map((a) => UserAddress.fromJson(a))
           .toList();
@@ -180,16 +199,18 @@ class AdminUser extends Equatable {
       address: parsedAddress,
       isVerified: json['isVerified'] == true,
       isProfileComplete: json['isProfileComplete'] == true,
-      kycStatus: json['kycStatus']?.toString(),
-      isKycComplete: json['isKycComplete'] == true,
       gstNumber: json['gstNumber']?.toString(),
+      panNumber: json['panNumber']?.toString(),
+      licenceNo: json['licenceNo']?.toString() ?? json['licenseNumber']?.toString(),
       licenceImage: singleLicence,
       licenceImages: parsedLicences,
       gstCertificate: json['gstCertificate']?.toString(),
       panCard: json['panCard']?.toString(),
       aadhaarCard: json['aadhaarCard']?.toString(),
+      agreement: json['agreement']?.toString(),
       shopImage: json['shopImage']?.toString(),
       shippingAddresses: shipping,
+      warehouseAddresses: warehouses,
       isBlocked: json['isBlocked'] == true,
       isDeleted: json['isDeleted'] == true,
       createdAt: json['createdAt'] != null
@@ -205,6 +226,15 @@ class AdminUser extends Equatable {
       preferredLanguage: json['preferredLanguage']?.toString(),
       productCodeSequence: (json['productCodeSequence'] as num?)?.toInt(),
       orderNumberSequence: (json['orderNumberSequence'] as num?)?.toInt(),
+      pricingModel: json['pricingModel']?.toString() ?? 'MARKETPLACE',
+      commissionPercentage: (json['commissionPercentage'] as num?)?.toDouble() ??
+          (json['settlementTerms'] is Map
+              ? (json['settlementTerms']['commissionPercentage'] as num?)?.toDouble()
+              : null) ??
+          0.0,
+      bankDetails: json['bankDetails'] is Map
+          ? Map<String, dynamic>.from(json['bankDetails'] as Map)
+          : null,
     );
   }
 
@@ -220,27 +250,34 @@ class AdminUser extends Equatable {
         'address': address?.toJson(),
         'isVerified': isVerified,
         'isProfileComplete': isProfileComplete,
-        'kycStatus': kycStatus,
-        'isKycComplete': isKycComplete,
         'gstNumber': gstNumber,
+        'panNumber': panNumber,
+        'licenceNo': licenceNo,
         'licenceImage': licenceImages.isNotEmpty ? licenceImages : licenceImage,
         'licenceImages': licenceImages,
         'gstCertificate': gstCertificate,
         'panCard': panCard,
         'aadhaarCard': aadhaarCard,
+        'agreement': agreement,
         'shopImage': shopImage,
-        'shippingAddresses': shippingAddresses.map((a) => a.toJson()).toList(),
+        if (role != 'ROLE_SELLER')
+          'shippingAddresses': shippingAddresses.map((a) => a.toJson()).toList(),
+        if (role == 'ROLE_SELLER')
+          'warehouseAddresses': warehouseAddresses.map((a) => a.toJson()).toList(),
         'isBlocked': isBlocked,
         'isDeleted': isDeleted,
         'createdAt': createdAt?.toIso8601String(),
         'updatedAt': updatedAt?.toIso8601String(),
         'status': status,
         if (notes != null) 'notes': notes,
-        'notesHistory': notesHistory,
+        if (role != 'ROLE_SELLER') 'notesHistory': notesHistory,
         if (monthlyTarget != null) 'monthlyTarget': monthlyTarget,
         if (preferredLanguage != null) 'preferredLanguage': preferredLanguage,
         if (productCodeSequence != null) 'productCodeSequence': productCodeSequence,
         if (orderNumberSequence != null) 'orderNumberSequence': orderNumberSequence,
+        'pricingModel': pricingModel,
+        'commissionPercentage': commissionPercentage,
+        if (bankDetails != null) 'bankDetails': bankDetails,
       };
 
   String get fullName {
@@ -275,7 +312,7 @@ class AdminUser extends Equatable {
     if (isDeleted) return 'DELETED';
     if (isBlocked) return 'BLOCKED';
     if (status.isNotEmpty && status != 'ACTIVE') return status;
-    if (isVerified || isKycComplete) return 'VERIFIED';
+    if (isVerified) return 'VERIFIED';
     return status.isNotEmpty ? status : 'ACTIVE';
   }
 
@@ -291,16 +328,18 @@ class AdminUser extends Equatable {
     UserAddress? address,
     bool? isVerified,
     bool? isProfileComplete,
-    String? kycStatus,
-    bool? isKycComplete,
     String? gstNumber,
+    String? panNumber,
+    String? licenceNo,
     String? licenceImage,
     List<String>? licenceImages,
     String? gstCertificate,
     String? panCard,
     String? aadhaarCard,
+    String? agreement,
     String? shopImage,
     List<UserAddress>? shippingAddresses,
+    List<UserAddress>? warehouseAddresses,
     bool? isBlocked,
     bool? isDeleted,
     DateTime? createdAt,
@@ -312,6 +351,7 @@ class AdminUser extends Equatable {
     String? preferredLanguage,
     int? productCodeSequence,
     int? orderNumberSequence,
+    Map<String, dynamic>? bankDetails,
   }) {
     return AdminUser(
       id: id ?? this.id,
@@ -325,16 +365,18 @@ class AdminUser extends Equatable {
       address: address ?? this.address,
       isVerified: isVerified ?? this.isVerified,
       isProfileComplete: isProfileComplete ?? this.isProfileComplete,
-      kycStatus: kycStatus ?? this.kycStatus,
-      isKycComplete: isKycComplete ?? this.isKycComplete,
       gstNumber: gstNumber ?? this.gstNumber,
+      panNumber: panNumber ?? this.panNumber,
+      licenceNo: licenceNo ?? this.licenceNo,
       licenceImage: licenceImage ?? this.licenceImage,
       licenceImages: licenceImages ?? this.licenceImages,
       gstCertificate: gstCertificate ?? this.gstCertificate,
       panCard: panCard ?? this.panCard,
       aadhaarCard: aadhaarCard ?? this.aadhaarCard,
+      agreement: agreement ?? this.agreement,
       shopImage: shopImage ?? this.shopImage,
       shippingAddresses: shippingAddresses ?? this.shippingAddresses,
+      warehouseAddresses: warehouseAddresses ?? this.warehouseAddresses,
       isBlocked: isBlocked ?? this.isBlocked,
       isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,
@@ -346,6 +388,7 @@ class AdminUser extends Equatable {
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       productCodeSequence: productCodeSequence ?? this.productCodeSequence,
       orderNumberSequence: orderNumberSequence ?? this.orderNumberSequence,
+      bankDetails: bankDetails ?? this.bankDetails,
     );
   }
 
@@ -362,14 +405,10 @@ class AdminUser extends Equatable {
         address,
         isVerified,
         isProfileComplete,
-        kycStatus,
-        isKycComplete,
         gstNumber,
-        licenceImage,
-        licenceImages,
-        gstCertificate,
-        panCard,
-        aadhaarCard,
+        panNumber,
+        licenceNo,
+        warehouseAddresses,
         isBlocked,
         isDeleted,
         createdAt,

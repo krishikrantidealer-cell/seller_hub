@@ -35,21 +35,23 @@ abstract class AdminUserRemoteDataSource {
 
   Future<AdminUser> createSeller(Map<String, dynamic> data);
 
-  Future<AdminUser> uploadKycDocuments({
+  Future<AdminUser> updateUser({
+    required String userId,
+    required Map<String, dynamic> data,
+  });
+
+  Future<AdminUser> uploadSellerDocuments({
     required String userId,
     List<PlatformFile>? licenceFiles,
     PlatformFile? gstCertificate,
     PlatformFile? panCard,
     PlatformFile? aadhaarCard,
+    PlatformFile? cancelledCheque,
+    PlatformFile? agreement,
     bool replaceLicenceFiles = false,
   });
 
-  Future<AdminUser> reviewSellerKyc({
-    required String userId,
-    required bool approved,
-  });
-
-  Future<Uint8List> downloadKycDocument({
+  Future<Uint8List> downloadSellerDocument({
     required String userId,
     required String documentType,
     int index = 0,
@@ -205,19 +207,43 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
   }
 
   @override
-  Future<AdminUser> uploadKycDocuments({
+  Future<AdminUser> updateUser({
+    required String userId,
+    required Map<String, dynamic> data,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiEndpoints.adminUserById(userId),
+      body: data,
+      requiresAuth: true,
+    );
+
+    final success = response['success'] == true;
+    final resData = response['data'];
+
+    if (!success || resData == null || resData is! Map<String, dynamic>) {
+      final msg = response['message']?.toString() ?? 'Failed to update user account';
+      throw ApiException(message: msg, details: response);
+    }
+
+    return AdminUser.fromJson(resData);
+  }
+
+  @override
+  Future<AdminUser> uploadSellerDocuments({
     required String userId,
     List<PlatformFile>? licenceFiles,
     PlatformFile? gstCertificate,
     PlatformFile? panCard,
     PlatformFile? aadhaarCard,
+    PlatformFile? cancelledCheque,
+    PlatformFile? agreement,
     bool replaceLicenceFiles = false,
   }) async {
     final multipartFiles = <http.MultipartFile>[];
 
     Future<void> addSingleFile(String fieldName, PlatformFile? file) async {
       if (file == null) return;
-      List<int> bytes = await file.readAsBytes();
+      final bytes = await file.readAsBytes();
       if (bytes.isEmpty) return;
 
       final ext = file.name.split('.').last.toLowerCase();
@@ -243,6 +269,8 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
     await addSingleFile('gstCertificate', gstCertificate);
     await addSingleFile('panCard', panCard);
     await addSingleFile('aadhaarCard', aadhaarCard);
+    await addSingleFile('cancelledCheque', cancelledCheque);
+    await addSingleFile('agreement', agreement);
 
     if (licenceFiles != null) {
       for (final lic in licenceFiles) {
@@ -254,14 +282,10 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
       throw const ApiException(message: 'Please select at least one document to upload');
     }
 
-    final fields = <String, String>{
-      'replaceLicenceFiles': replaceLicenceFiles ? 'true' : 'false',
-    };
-
     final response = await _apiClient.postCustomMultipart(
-      ApiEndpoints.adminSellerKycDocuments(userId),
+      ApiEndpoints.adminSellerDocuments(userId),
       files: multipartFiles,
-      fields: fields,
+      fields: {'replaceLicenceFiles': replaceLicenceFiles ? 'true' : 'false'},
       requiresAuth: true,
     );
 
@@ -269,7 +293,7 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
     final resData = response['data'];
 
     if (!success || resData == null || resData is! Map<String, dynamic>) {
-      final msg = response['message']?.toString() ?? 'Failed to upload KYC documents';
+      final msg = response['message']?.toString() ?? 'Failed to upload seller documents';
       throw ApiException(message: msg, details: response);
     }
 
@@ -277,40 +301,18 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
   }
 
   @override
-  Future<AdminUser> reviewSellerKyc({
-    required String userId,
-    required bool approved,
-  }) async {
-    final response = await _apiClient.patch(
-      ApiEndpoints.adminSellerKycReview(userId),
-      body: {'approved': approved},
-      requiresAuth: true,
-    );
-
-    final success = response['success'] == true;
-    final resData = response['data'];
-
-    if (!success || resData == null || resData is! Map<String, dynamic>) {
-      final msg = response['message']?.toString() ?? 'Failed to review seller KYC';
-      throw ApiException(message: msg, details: response);
-    }
-
-    return AdminUser.fromJson(resData);
-  }
-
-  @override
-  Future<Uint8List> downloadKycDocument({
+  Future<Uint8List> downloadSellerDocument({
     required String userId,
     required String documentType,
     int index = 0,
   }) async {
-    final path = ApiEndpoints.adminSellerKycDocumentDownload(userId, documentType, index);
+    final path = ApiEndpoints.adminSellerDocumentDownload(userId, documentType, index);
     final response = await _apiClient.getRaw(path, requiresAuth: true);
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return response.bodyBytes;
     }
     throw ApiException(
-      message: 'Failed to download KYC document: HTTP ${response.statusCode}',
+      message: 'Failed to download seller document: HTTP ${response.statusCode}',
       statusCode: response.statusCode,
     );
   }

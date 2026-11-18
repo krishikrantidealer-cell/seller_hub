@@ -97,44 +97,44 @@ class AdminUserRepositoryImpl implements AdminUserRepository {
   }
 
   @override
-  Future<AdminUser> uploadKycDocuments({
+  Future<AdminUser> updateUser({
+    required String userId,
+    required Map<String, dynamic> data,
+  }) async {
+    final updated = await remoteDataSource.updateUser(userId: userId, data: data);
+    return updated;
+  }
+
+  @override
+  Future<AdminUser> uploadSellerDocuments({
     required String userId,
     List<PlatformFile>? licenceFiles,
     PlatformFile? gstCertificate,
     PlatformFile? panCard,
     PlatformFile? aadhaarCard,
+    PlatformFile? cancelledCheque,
+    PlatformFile? agreement,
     bool replaceLicenceFiles = false,
   }) async {
-    final updated = await remoteDataSource.uploadKycDocuments(
+    return await remoteDataSource.uploadSellerDocuments(
       userId: userId,
       licenceFiles: licenceFiles,
       gstCertificate: gstCertificate,
       panCard: panCard,
       aadhaarCard: aadhaarCard,
+      cancelledCheque: cancelledCheque,
+      agreement: agreement,
       replaceLicenceFiles: replaceLicenceFiles,
     );
-    return updated;
   }
 
   @override
-  Future<AdminUser> reviewSellerKyc({
-    required String userId,
-    required bool approved,
-  }) async {
-    final updated = await remoteDataSource.reviewSellerKyc(
-      userId: userId,
-      approved: approved,
-    );
-    return updated;
-  }
-
-  @override
-  Future<Uint8List> downloadKycDocument({
+  Future<Uint8List> downloadSellerDocument({
     required String userId,
     required String documentType,
     int index = 0,
   }) async {
-    return await remoteDataSource.downloadKycDocument(
+    return await remoteDataSource.downloadSellerDocument(
       userId: userId,
       documentType: documentType,
       index: index,

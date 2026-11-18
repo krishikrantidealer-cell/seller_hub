@@ -9,6 +9,7 @@ class SellerBankDetails extends Equatable {
   final String ifscCode;
   final String branch;
   final String upiId;
+  final String cancelledCheque;
 
   const SellerBankDetails({
     this.accountHolderName = '',
@@ -17,6 +18,7 @@ class SellerBankDetails extends Equatable {
     this.ifscCode = '',
     this.branch = '',
     this.upiId = '',
+    this.cancelledCheque = '',
   });
 
   factory SellerBankDetails.fromJson(dynamic json) {
@@ -30,6 +32,7 @@ class SellerBankDetails extends Equatable {
       ifscCode: json['ifscCode']?.toString() ?? '',
       branch: json['branch']?.toString() ?? '',
       upiId: json['upiId']?.toString() ?? '',
+      cancelledCheque: json['cancelledCheque']?.toString() ?? '',
     );
   }
 
@@ -40,6 +43,7 @@ class SellerBankDetails extends Equatable {
     'ifscCode': ifscCode,
     'branch': branch,
     'upiId': upiId,
+    'cancelledCheque': cancelledCheque,
   };
 
   SellerBankDetails copyWith({
@@ -49,6 +53,7 @@ class SellerBankDetails extends Equatable {
     String? ifscCode,
     String? branch,
     String? upiId,
+    String? cancelledCheque,
   }) {
     return SellerBankDetails(
       accountHolderName: accountHolderName ?? this.accountHolderName,
@@ -57,11 +62,12 @@ class SellerBankDetails extends Equatable {
       ifscCode: ifscCode ?? this.ifscCode,
       branch: branch ?? this.branch,
       upiId: upiId ?? this.upiId,
+      cancelledCheque: cancelledCheque ?? this.cancelledCheque,
     );
   }
 
   @override
-  List<Object?> get props => [accountHolderName, bankName, accountNumber, ifscCode, branch, upiId];
+  List<Object?> get props => [accountHolderName, bankName, accountNumber, ifscCode, branch, upiId, cancelledCheque];
 }
 
 /// Comprehensive Multi-Tenant Seller Profile Model
@@ -82,31 +88,30 @@ class SellerProfile extends Equatable {
   final String state;
   final String pincode;
   final String warehouseAddress;
+  final List<UserAddress> warehouseAddresses;
   final SellerBankDetails bankDetails;
+  final String pricingModel;
   final double commissionPercentage;
   final String settlementCycle;
   final double rating;
   final int totalProducts;
   final int totalOrders;
   final double grossSalesValue;
-  final String status; // ACTIVE, VERIFIED, KYC_PENDING, SUSPENDED, DEACTIVATED
+  final String status; // ACTIVE, VERIFIED, SUSPENDED, DEACTIVATED
   final bool isVerified;
   final bool isBlocked;
   final bool isDeleted;
   final DateTime? joinedAt;
   final DateTime? updatedAt;
-  final List<String> kycDocuments;
   final String? gstCertificate;
   final String? panCard;
   final String? aadhaarCard;
+  final String? agreement;
   final List<String> licenceImages;
-  final String? kycStatus;
   final int productCodeSequence;
   final int orderNumberSequence;
   final bool isProfileComplete;
-  final bool isKycComplete;
   final String? notes;
-  final List<String> notesHistory;
   final int? monthlyTarget;
   final String? preferredLanguage;
 
@@ -127,8 +132,10 @@ class SellerProfile extends Equatable {
     this.state = '',
     this.pincode = '',
     this.warehouseAddress = '',
+    this.warehouseAddresses = const [],
     this.bankDetails = const SellerBankDetails(),
-    this.commissionPercentage = 8.5,
+    this.pricingModel = 'MARKETPLACE',
+    this.commissionPercentage = 0.0,
     this.settlementCycle = 'Weekly (T+3)',
     this.rating = 4.8,
     this.totalProducts = 0,
@@ -140,18 +147,15 @@ class SellerProfile extends Equatable {
     this.isDeleted = false,
     this.joinedAt,
     this.updatedAt,
-    this.kycDocuments = const [],
     this.gstCertificate,
     this.panCard,
     this.aadhaarCard,
+    this.agreement,
     this.licenceImages = const [],
-    this.kycStatus,
     this.productCodeSequence = 0,
     this.orderNumberSequence = 0,
     this.isProfileComplete = false,
-    this.isKycComplete = false,
     this.notes,
-    this.notesHistory = const [],
     this.monthlyTarget,
     this.preferredLanguage,
   });
@@ -178,7 +182,7 @@ class SellerProfile extends Equatable {
       licenseNumber: '',
       registeredAddress: '',
       city: '',
-      state: 'Madhya Pradesh',
+      state: '',
       pincode: '',
       warehouseAddress: '',
       status: 'ACTIVE',
@@ -189,33 +193,10 @@ class SellerProfile extends Equatable {
   }
 
   factory SellerProfile.fromAdminUser(AdminUser u) {
-    String derivedPan = '';
-    if (u.gstNumber != null && u.gstNumber!.trim().length == 15) {
-      derivedPan = u.gstNumber!.trim().substring(2, 12).toUpperCase();
-    }
-
-    final docs = <String>[];
-    if (u.gstCertificate != null && u.gstCertificate!.isNotEmpty) {
-      docs.add('GST Registration Certificate (Verified)');
-    } else if (u.gstNumber != null && u.gstNumber!.isNotEmpty) {
-      docs.add('GST Certificate (${u.gstNumber})');
-    }
-    if (u.panCard != null && u.panCard!.isNotEmpty) {
-      docs.add('Company / Proprietor PAN Card (Verified)');
-    } else if (derivedPan.isNotEmpty) {
-      docs.add('PAN Card ($derivedPan)');
-    }
-    if (u.aadhaarCard != null && u.aadhaarCard!.isNotEmpty) {
-      docs.add('Authorized Signatory Aadhaar Card (Verified)');
-    }
-    if (u.licenceImages.isNotEmpty) {
-      docs.add('Agri & Pesticide Licenses (${u.licenceImages.length} uploaded)');
-    } else if (u.licenceImage != null && u.licenceImage!.isNotEmpty) {
-      docs.add('Fertilizer & Pesticide License');
-    }
-    if (u.shopImage != null && u.shopImage!.isNotEmpty) {
-      docs.add('Storefront / Shop Verification Photo');
-    }
+    final warehouseSummary = u.warehouseAddresses
+        .map((w) => w.formatted)
+        .where((s) => s.isNotEmpty && s != 'Address not provided')
+        .join(' | ');
 
     return SellerProfile(
       id: u.id,
@@ -228,39 +209,40 @@ class SellerProfile extends Equatable {
       email: u.email ?? '',
       phone: u.phoneNumber,
       gstin: u.gstNumber ?? '',
-      panNumber: derivedPan,
-      registeredAddress: u.fullAddress,
+      panNumber: u.panNumber ?? '',
+      licenseNumber: u.licenceNo ?? '',
+      registeredAddress: u.address?.villageArea ?? '',
       city: u.address?.cityTehsil ?? '',
       state: u.address?.state ?? '',
       pincode: u.address?.pincode ?? '',
-      warehouseAddress: u.fullAddress,
+      warehouseAddress: warehouseSummary,
+      warehouseAddresses: u.warehouseAddresses,
+      bankDetails: SellerBankDetails.fromJson(u.bankDetails),
       status: u.isDeleted
           ? 'DEACTIVATED'
           : (u.isBlocked
               ? 'SUSPENDED'
               : (u.status.isNotEmpty && u.status != 'ACTIVE'
                   ? u.status
-                  : (u.isVerified || u.isKycComplete ? 'VERIFIED' : 'ACTIVE'))),
+                  : (u.isVerified ? 'VERIFIED' : 'ACTIVE'))),
       isVerified: u.isVerified,
       isBlocked: u.isBlocked,
       isDeleted: u.isDeleted,
       joinedAt: u.createdAt,
       updatedAt: u.updatedAt,
-      licenseNumber: u.licenceImage ?? '',
-      kycDocuments: docs,
       gstCertificate: u.gstCertificate,
       panCard: u.panCard,
       aadhaarCard: u.aadhaarCard,
+      agreement: u.agreement,
       licenceImages: u.licenceImages,
-      kycStatus: u.kycStatus,
       productCodeSequence: u.productCodeSequence ?? 0,
       orderNumberSequence: u.orderNumberSequence ?? 0,
       isProfileComplete: u.isProfileComplete,
-      isKycComplete: u.isKycComplete,
       notes: u.notes,
-      notesHistory: u.notesHistory,
       monthlyTarget: u.monthlyTarget,
       preferredLanguage: u.preferredLanguage,
+      pricingModel: u.pricingModel,
+      commissionPercentage: u.commissionPercentage,
     );
   }
 
@@ -301,7 +283,6 @@ class SellerProfile extends Equatable {
 
     final isBlocked = json['isBlocked'] == true;
     final isDeleted = json['isDeleted'] == true;
-    final isKyc = json['isKycComplete'] == true;
     final rawStatus = json['status']?.toString();
     final statusStr = isDeleted
         ? 'DEACTIVATED'
@@ -309,16 +290,22 @@ class SellerProfile extends Equatable {
             ? 'SUSPENDED'
             : (rawStatus != null && rawStatus.isNotEmpty
                 ? rawStatus
-                : (isKyc ? 'VERIFIED' : 'ACTIVE')));
+                : 'ACTIVE'));
 
     final productCodeSeq = (json['productCodeSequence'] as num?)?.toInt() ?? 0;
     final orderNumberSeq = (json['orderNumberSequence'] as num?)?.toInt() ?? 0;
     final isProfileComplete = json['isProfileComplete'] == true;
-    final isKycComplete = isKyc;
     final notes = json['notes']?.toString();
-    final notesHistory = (json['notesHistory'] as List?)?.map((e) => e.toString()).toList() ?? const [];
     final monthlyTarget = (json['monthlyTarget'] as num?)?.toInt();
     final preferredLanguage = json['preferredLanguage']?.toString();
+    final rawWarehouses = json['warehouseAddresses'] ?? json['warehouse_addresses'];
+    final warehouses = rawWarehouses is List
+        ? rawWarehouses.whereType<Map>().map((a) => UserAddress.fromJson(a)).toList()
+        : const <UserAddress>[];
+    final warehouseSummary = warehouses
+        .map((w) => w.formatted)
+        .where((s) => s.isNotEmpty && s != 'Address not provided')
+        .join(' | ');
 
     return SellerProfile(
       id: id,
@@ -330,22 +317,20 @@ class SellerProfile extends Equatable {
       email: json['email']?.toString() ?? '',
       phone: phone,
       gstin: json['gstNumber']?.toString() ?? json['gstin']?.toString() ?? '',
-      panNumber: (json['panNumber'] != null && json['panNumber'].toString().isNotEmpty)
-          ? json['panNumber'].toString()
-          : ((json['gstNumber'] != null && json['gstNumber'].toString().length == 15)
-              ? json['gstNumber'].toString().substring(2, 12).toUpperCase()
-              : (json['gstin'] != null && json['gstin'].toString().length == 15
-                  ? json['gstin'].toString().substring(2, 12).toUpperCase()
-                  : '')),
-      licenseNumber: json['licenceImage']?.toString() ?? json['licenseNumber']?.toString() ?? '',
+      panNumber: json['panNumber']?.toString() ?? '',
+      licenseNumber: json['licenceNo']?.toString() ?? json['licenseNumber']?.toString() ?? '',
       businessType: json['businessType']?.toString() ?? 'Private Limited',
       registeredAddress: regAddress,
       city: cityStr,
       state: stateStr,
       pincode: pinStr,
-      warehouseAddress: json['warehouseAddress']?.toString() ?? regAddress,
+      warehouseAddress: warehouseSummary.isNotEmpty
+          ? warehouseSummary
+          : (json['warehouseAddress']?.toString() ?? ''),
+      warehouseAddresses: warehouses,
       bankDetails: SellerBankDetails.fromJson(json['bankDetails']),
-      commissionPercentage: (json['commissionPercentage'] as num?)?.toDouble() ?? 8.5,
+      pricingModel: json['pricingModel']?.toString() ?? 'MARKETPLACE',
+      commissionPercentage: (json['commissionPercentage'] as num?)?.toDouble() ?? 0.0,
       settlementCycle: json['settlementCycle']?.toString() ?? 'Weekly (T+3)',
       rating: (json['rating'] as num?)?.toDouble() ?? 4.8,
       totalProducts: (json['totalProducts'] as num?)?.toInt() ?? 0,
@@ -359,13 +344,15 @@ class SellerProfile extends Equatable {
           ? DateTime.tryParse(json['createdAt'].toString())
           : (json['joinedAt'] != null ? DateTime.tryParse(json['joinedAt'].toString()) : null),
       updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'].toString()) : null,
-      kycDocuments: (json['kycDocuments'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      gstCertificate: json['gstCertificate']?.toString(),
+      panCard: json['panCard']?.toString(),
+      aadhaarCard: json['aadhaarCard']?.toString(),
+      agreement: json['agreement']?.toString(),
+      licenceImages: (json['licenceImage'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       productCodeSequence: productCodeSeq,
       orderNumberSequence: orderNumberSeq,
       isProfileComplete: isProfileComplete,
-      isKycComplete: isKycComplete,
       notes: notes,
-      notesHistory: notesHistory,
       monthlyTarget: monthlyTarget,
       preferredLanguage: preferredLanguage,
     );
@@ -388,7 +375,9 @@ class SellerProfile extends Equatable {
     'state': state,
     'pincode': pincode,
     'warehouseAddress': warehouseAddress,
+    'warehouseAddresses': warehouseAddresses.map((w) => w.toJson()).toList(),
     'bankDetails': bankDetails.toJson(),
+    'pricingModel': pricingModel,
     'commissionPercentage': commissionPercentage,
     'settlementCycle': settlementCycle,
     'rating': rating,
@@ -401,13 +390,10 @@ class SellerProfile extends Equatable {
     'isDeleted': isDeleted,
     if (joinedAt != null) 'joinedAt': joinedAt!.toIso8601String(),
     if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
-    'kycDocuments': kycDocuments,
     'productCodeSequence': productCodeSequence,
     'orderNumberSequence': orderNumberSequence,
     'isProfileComplete': isProfileComplete,
-    'isKycComplete': isKycComplete,
     if (notes != null) 'notes': notes,
-    'notesHistory': notesHistory,
     if (monthlyTarget != null) 'monthlyTarget': monthlyTarget,
     if (preferredLanguage != null) 'preferredLanguage': preferredLanguage,
   };
@@ -429,7 +415,9 @@ class SellerProfile extends Equatable {
     String? state,
     String? pincode,
     String? warehouseAddress,
+    List<UserAddress>? warehouseAddresses,
     SellerBankDetails? bankDetails,
+    String? pricingModel,
     double? commissionPercentage,
     String? settlementCycle,
     double? rating,
@@ -442,18 +430,15 @@ class SellerProfile extends Equatable {
     bool? isDeleted,
     DateTime? joinedAt,
     DateTime? updatedAt,
-    List<String>? kycDocuments,
     String? gstCertificate,
     String? panCard,
     String? aadhaarCard,
+    String? agreement,
     List<String>? licenceImages,
-    String? kycStatus,
     int? productCodeSequence,
     int? orderNumberSequence,
     bool? isProfileComplete,
-    bool? isKycComplete,
     String? notes,
-    List<String>? notesHistory,
     int? monthlyTarget,
     String? preferredLanguage,
   }) {
@@ -474,7 +459,9 @@ class SellerProfile extends Equatable {
       state: state ?? this.state,
       pincode: pincode ?? this.pincode,
       warehouseAddress: warehouseAddress ?? this.warehouseAddress,
+      warehouseAddresses: warehouseAddresses ?? this.warehouseAddresses,
       bankDetails: bankDetails ?? this.bankDetails,
+      pricingModel: pricingModel ?? this.pricingModel,
       commissionPercentage: commissionPercentage ?? this.commissionPercentage,
       settlementCycle: settlementCycle ?? this.settlementCycle,
       rating: rating ?? this.rating,
@@ -487,18 +474,15 @@ class SellerProfile extends Equatable {
       isDeleted: isDeleted ?? this.isDeleted,
       joinedAt: joinedAt ?? this.joinedAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      kycDocuments: kycDocuments ?? this.kycDocuments,
       gstCertificate: gstCertificate ?? this.gstCertificate,
       panCard: panCard ?? this.panCard,
       aadhaarCard: aadhaarCard ?? this.aadhaarCard,
+      agreement: agreement ?? this.agreement,
       licenceImages: licenceImages ?? this.licenceImages,
-      kycStatus: kycStatus ?? this.kycStatus,
       productCodeSequence: productCodeSequence ?? this.productCodeSequence,
       orderNumberSequence: orderNumberSequence ?? this.orderNumberSequence,
       isProfileComplete: isProfileComplete ?? this.isProfileComplete,
-      isKycComplete: isKycComplete ?? this.isKycComplete,
       notes: notes ?? this.notes,
-      notesHistory: notesHistory ?? this.notesHistory,
       monthlyTarget: monthlyTarget ?? this.monthlyTarget,
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
     );
@@ -522,7 +506,7 @@ class SellerProfile extends Equatable {
     productCodeSequence,
     orderNumberSequence,
     isProfileComplete,
-    isKycComplete,
+    warehouseAddresses,
   ];
 
   /// Standard authentic sample sellers representing the enterprise multi-tenant ecosystem
@@ -562,7 +546,6 @@ class SellerProfile extends Equatable {
       status: 'VERIFIED',
       isVerified: true,
       joinedAt: DateTime(2025, 4, 15),
-      kycDocuments: const ['GST Certificate (Active)', 'Agri Directorate Pesticide License', 'Company PAN Card', 'Cancelled Cheque Verification'],
     ),
 
     // 2. Bharat Agro Chemicals Ltd
@@ -600,7 +583,6 @@ class SellerProfile extends Equatable {
       status: 'VERIFIED',
       isVerified: true,
       joinedAt: DateTime(2025, 6, 1),
-      kycDocuments: const ['CIBRC Registration Copy', 'Manufacturing License', 'GST Verification', 'Bank Mandate Form'],
     ),
 
     // 3. Kisan Care Biotech
@@ -638,7 +620,6 @@ class SellerProfile extends Equatable {
       status: 'VERIFIED',
       isVerified: true,
       joinedAt: DateTime(2025, 8, 10),
-      kycDocuments: const ['Organic NPOP Certificate', 'GST Return Proof', 'LLP Deed', 'Bank Account Verification'],
     ),
 
     // 4. Syngenta Crop Protection
@@ -676,7 +657,6 @@ class SellerProfile extends Equatable {
       status: 'VERIFIED',
       isVerified: true,
       joinedAt: DateTime(2025, 2, 20),
-      kycDocuments: const ['CIB & RC Master Approval', 'National Distribution License', 'Corporate Tax Certificate'],
     ),
 
     // 5. GreenLeaf Bio-Solutions (KYC Pending)
@@ -714,7 +694,6 @@ class SellerProfile extends Equatable {
       status: 'KYC_PENDING',
       isVerified: false,
       joinedAt: DateTime(2026, 1, 14),
-      kycDocuments: const ['Aadhaar / PAN Card (Verified)', 'Pesticide License (Under Review)'],
     ),
   ];
 }

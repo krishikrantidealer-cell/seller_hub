@@ -32,16 +32,7 @@ class SellersView extends StatefulWidget {
 
 class _SellersViewState extends State<SellersView> {
   String _searchQuery = '';
-  String _selectedStatusFilter = 'All';
   bool _showTrash = false;
-
-  final List<String> _statusOptions = const [
-    'All',
-    'VERIFIED',
-    'ACTIVE',
-    'KYC_PENDING',
-    'SUSPENDED',
-  ];
 
   void _openCreateSellerDialog(BuildContext context) {
     showDialog(
@@ -66,23 +57,17 @@ class _SellersViewState extends State<SellersView> {
     final trashSellers = widget.sellers.where((s) => s.isDeleted).toList();
     final currentPool = _showTrash ? trashSellers : activeSellers;
 
-    // Filter sellers by query & status
+    // Filter sellers by search query
     final filtered = currentPool.where((s) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          s.tradeName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.companyName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.id.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.gstin.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.contactPerson.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          s.city.toLowerCase().contains(_searchQuery.toLowerCase());
-
-      final matchesStatus = _selectedStatusFilter == 'All' || s.status == _selectedStatusFilter;
-
-      return matchesSearch && (_showTrash ? true : matchesStatus);
+      if (_searchQuery.isEmpty) return true;
+      final q = _searchQuery.toLowerCase();
+      return s.tradeName.toLowerCase().contains(q) ||
+          s.companyName.toLowerCase().contains(q) ||
+          s.id.toLowerCase().contains(q) ||
+          s.gstin.toLowerCase().contains(q) ||
+          s.contactPerson.toLowerCase().contains(q) ||
+          s.city.toLowerCase().contains(q);
     }).toList();
-
-    final verifiedCount = activeSellers.where((s) => s.status == 'VERIFIED').length;
-    final pendingCount = activeSellers.where((s) => s.status == 'KYC_PENDING').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,7 +78,6 @@ class _SellersViewState extends State<SellersView> {
             InkWell(
               onTap: () => setState(() {
                 _showTrash = false;
-                _selectedStatusFilter = 'All';
               }),
               borderRadius: BorderRadius.circular(8),
               child: Container(
@@ -137,7 +121,6 @@ class _SellersViewState extends State<SellersView> {
             InkWell(
               onTap: () => setState(() {
                 _showTrash = true;
-                _selectedStatusFilter = 'All';
               }),
               borderRadius: BorderRadius.circular(8),
               child: Container(
@@ -267,62 +250,7 @@ class _SellersViewState extends State<SellersView> {
           ),
         ),
 
-        const SizedBox(height: 10),
-
-        // Status Filter Chips & Metrics Strip (only on Active Sellers)
-        if (!_showTrash)
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _statusOptions.map((status) {
-                      final isSelected = _selectedStatusFilter == status;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: FilterChip(
-                          showCheckmark: false,
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          label: Text(status.replaceAll('_', ' ')),
-                          selected: isSelected,
-                          selectedColor: isDark
-                              ? const Color(0xFF059669).withValues(alpha: 0.22)
-                              : const Color(0xFF059669).withValues(alpha: 0.12),
-                          backgroundColor: surfaceColor,
-                          side: BorderSide(
-                            color: isSelected ? const Color(0xFF059669) : borderColor,
-                            width: isSelected ? 1.5 : 1,
-                          ),
-                          labelStyle: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            color: isSelected
-                                ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                          ),
-                          onSelected: (_) => setState(() => _selectedStatusFilter = status),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-              if (isWide) ...[
-                const SizedBox(width: 8),
-                _buildMiniMetricBadge('Total Active', '${activeSellers.length}', const Color(0xFF059669), isDark),
-                const SizedBox(width: 6),
-                _buildMiniMetricBadge('Verified', '$verifiedCount', const Color(0xFF10B981), isDark),
-                const SizedBox(width: 6),
-                _buildMiniMetricBadge('KYC Pending', '$pendingCount', const Color(0xFFF59E0B), isDark),
-              ],
-            ],
-          ),
-
-        if (!_showTrash) const SizedBox(height: 12),
+        const SizedBox(height: 12),
 
         // High-Density Responsive Table Container
         Container(
@@ -346,8 +274,8 @@ class _SellersViewState extends State<SellersView> {
                       Expanded(flex: 4, child: _buildColHeader('SELLER & TRADE NAME', isDark)),
                       Expanded(flex: 3, child: _buildColHeader('CONTACT & LOCATION', isDark)),
                       Expanded(flex: 2, child: _buildColHeader('GSTIN & LICENSE', isDark)),
-                      Expanded(flex: 2, child: _buildColHeader('METRICS & ORDERS', isDark)),
-                      Expanded(flex: 2, child: _buildColHeader('STATUS', isDark)),
+                      Expanded(flex: 2, child: _buildColHeader('PRICING MODEL', isDark)),
+                      Expanded(flex: 2, child: _buildColHeader('PRODUCTS & ORDERS', isDark)),
                       Expanded(flex: 3, child: _buildColHeader('ACTIONS', isDark, alignRight: true)),
                     ],
                   ),
@@ -414,11 +342,12 @@ class _SellersViewState extends State<SellersView> {
     bool isDark,
     Color borderColor,
   ) {
-    final statusColor = s.status == 'VERIFIED'
-        ? const Color(0xFF10B981)
-        : (s.status == 'ACTIVE'
-            ? const Color(0xFF059669)
-            : (s.status == 'KYC_PENDING' ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)));
+    final isDealer = s.pricingModel == 'DEALER_COMMISSION';
+    final pricingColor = isDealer ? const Color(0xFF059669) : const Color(0xFF6366F1);
+    final commText = s.commissionPercentage == s.commissionPercentage.roundToDouble()
+        ? s.commissionPercentage.toInt().toString()
+        : s.commissionPercentage.toStringAsFixed(1);
+    final pricingLabel = isDealer ? 'Dealer ($commText%)' : 'Marketplace';
 
     return Material(
       color: Colors.transparent,
@@ -611,7 +540,7 @@ class _SellersViewState extends State<SellersView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      s.gstin,
+                      s.gstin.isNotEmpty ? s.gstin : '—',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
@@ -621,7 +550,7 @@ class _SellersViewState extends State<SellersView> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      s.licenseNumber.isNotEmpty ? s.licenseNumber : 'Agri License Verified',
+                      s.licenseNumber.isNotEmpty ? s.licenseNumber : '—',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 10,
                         color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -632,7 +561,32 @@ class _SellersViewState extends State<SellersView> {
                 ),
               ),
 
-              // Metrics & Orders (Flex 2)
+              // Pricing Model (Flex 2)
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: pricingColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: pricingColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      pricingLabel,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: pricingColor,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Products & Orders (Flex 2)
               Expanded(
                 flex: 2,
                 child: Column(
@@ -648,7 +602,7 @@ class _SellersViewState extends State<SellersView> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${s.totalOrders} Orders • ${s.rating} ★',
+                      '${s.totalOrders} Orders',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w500,
@@ -656,30 +610,6 @@ class _SellersViewState extends State<SellersView> {
                       ),
                     ),
                   ],
-                ),
-              ),
-
-              // Status (Flex 2)
-              Expanded(
-                flex: 2,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      s.status.replaceAll('_', ' '),
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        color: statusColor,
-                      ),
-                    ),
-                  ),
                 ),
               ),
 
@@ -831,16 +761,26 @@ class _SellersViewState extends State<SellersView> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF059669).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    s.status.replaceAll('_', ' '),
-                    style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800, color: const Color(0xFF059669)),
-                  ),
+                Builder(
+                  builder: (_) {
+                    final isDealer = s.pricingModel == 'DEALER_COMMISSION';
+                    final pricingColor = isDealer ? const Color(0xFF059669) : const Color(0xFF6366F1);
+                    final commText = s.commissionPercentage == s.commissionPercentage.roundToDouble()
+                        ? s.commissionPercentage.toInt().toString()
+                        : s.commissionPercentage.toStringAsFixed(1);
+                    final pricingLabel = isDealer ? 'Dealer ($commText%)' : 'Marketplace';
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: pricingColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        pricingLabel,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800, color: pricingColor),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -894,7 +834,7 @@ class _SellersViewState extends State<SellersView> {
             ),
             const SizedBox(height: 2),
             Text(
-              '${s.sellerNumber} • GST: ${s.gstin}',
+              '${s.sellerNumber}${s.gstin.isNotEmpty ? ' • GST: ${s.gstin}' : ''}',
               style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1154,30 +1094,6 @@ class _SellersViewState extends State<SellersView> {
               foregroundColor: Colors.white,
             ),
             child: const Text('Delete Permanently'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniMetricBadge(String label, String value, Color color, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$label: ',
-            style: GoogleFonts.plusJakartaSans(fontSize: 10.5, fontWeight: FontWeight.w600, color: color),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: color),
           ),
         ],
       ),

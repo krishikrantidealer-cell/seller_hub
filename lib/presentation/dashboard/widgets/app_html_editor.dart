@@ -685,7 +685,21 @@ class BoxEmbedData {
 
   static BoxEmbedData? fromDivElement(dom.Element div, String style) {
     final lowerStyle = style.toLowerCase();
-    if (!lowerStyle.contains('border') && !lowerStyle.contains('background-color')) {
+    final hasNonNeutralBg = lowerStyle.contains('background-color') &&
+        !RegExp(r'background-color:\s*(transparent|inherit|initial|unset|white|#fff(?:fff)?\b|rgb\(\s*255\s*,\s*255\s*,\s*255\s*\)|rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\))')
+            .hasMatch(lowerStyle);
+    if (!lowerStyle.contains('border') && !hasNonNeutralBg) {
+      return null;
+    }
+
+    // Never collapse an entire pasted webpage/section container (with tables, multiple headings,
+    // or many sections) into a single callout box.
+    final rawText = div.text;
+    if (rawText.contains('@@APPTABLE') ||
+        div.querySelector('table') != null ||
+        div.querySelectorAll('h1, h2, h3, h4').length > 1 ||
+        div.querySelectorAll('ul, ol').length > 1 ||
+        rawText.length > 1200) {
       return null;
     }
 
@@ -2610,9 +2624,18 @@ String sanitizePastedHtml(String rawHtml) {
               val.isNotEmpty &&
               lowerVal != 'inherit' &&
               lowerVal != 'initial' &&
-              lowerVal != 'unset') {
-            final normalizedProp = prop == 'background' ? 'background-color' : prop;
-            keptStyles.add('$normalizedProp: $val');
+              lowerVal != 'unset' &&
+              lowerVal != 'transparent') {
+            final isNeutralWhiteBg = (prop == 'background-color' || prop == 'background') &&
+                (lowerVal == 'white' ||
+                    lowerVal == '#fff' ||
+                    lowerVal == '#ffffff' ||
+                    RegExp(r'^rgb\(\s*255\s*,\s*255\s*,\s*255\s*\)$').hasMatch(lowerVal) ||
+                    RegExp(r'^rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)$').hasMatch(lowerVal));
+            if (!isNeutralWhiteBg) {
+              final normalizedProp = prop == 'background' ? 'background-color' : prop;
+              keptStyles.add('$normalizedProp: $val');
+            }
           }
         }
         child.attributes.clear();

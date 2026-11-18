@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/di/injection_container.dart';
 import '../../core/network/api_exception.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
@@ -6,11 +8,25 @@ import 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository authRepository;
+  StreamSubscription<void>? _sessionExpiredSub;
 
-  AuthBloc({required this.authRepository}) : super(const AuthState()) {
+  AuthBloc({
+    required this.authRepository,
+    Stream<void>? sessionExpiredStream,
+  }) : super(const AuthState()) {
     on<CheckAuthStatus>(_onCheckAuthStatus);
     on<LoginSubmitted>(_onLoginSubmitted);
     on<LogoutRequested>(_onLogoutRequested);
+
+    try {
+      final stream =
+          sessionExpiredStream ?? InjectionContainer.instance.apiClient.onSessionExpired;
+      _sessionExpiredSub = stream.listen((_) {
+        if (!isClosed && state.status == AuthStatus.authenticated) {
+          add(LogoutRequested());
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _onCheckAuthStatus(
@@ -105,5 +121,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await authRepository.logout();
     } catch (_) {}
     emit(const AuthState(status: AuthStatus.unauthenticated));
+  }
+
+  @override
+  Future<void> close() {
+    _sessionExpiredSub?.cancel();
+    return super.close();
   }
 }

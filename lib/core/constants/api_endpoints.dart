@@ -7,6 +7,7 @@ class ApiEndpoints {
 
   /// Authentication
   static const String loginPassword = '/api/v1/auth/password/login';
+  static const String refreshToken = '/api/v1/auth/token/refresh';
 
   /// Products
   static const String products = '/api/v1/products';

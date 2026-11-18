@@ -1,3 +1,4 @@
+import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
 import '../../domain/entities/auth_session.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -6,10 +7,12 @@ import '../datasources/auth_remote_datasource.dart';
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
   final TokenStorage tokenStorage;
+  final ApiClient? apiClient;
 
   AuthRepositoryImpl({
     required this.remoteDataSource,
     required this.tokenStorage,
+    this.apiClient,
   });
 
   @override
@@ -38,16 +41,32 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<AuthSession?> checkAuthStatus() async {
-    final hasToken = await tokenStorage.hasValidToken();
-    if (!hasToken) return null;
+    var accessToken = await tokenStorage.getAccessToken();
+    if (accessToken == null || accessToken.isEmpty) {
+      return null;
+    }
 
-    final accessToken = await tokenStorage.getAccessToken();
+    if (TokenStorage.isJwtExpired(accessToken)) {
+      if (apiClient == null) {
+        await tokenStorage.clearSession();
+        return null;
+      }
+      final refreshed = await apiClient!.refreshAccessToken();
+      if (!refreshed) {
+        return null;
+      }
+      accessToken = await tokenStorage.getAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        return null;
+      }
+    }
+
     final refreshToken = await tokenStorage.getRefreshToken();
     final userId = await tokenStorage.getUserId();
     final role = await tokenStorage.getRole();
     final phoneNumber = await tokenStorage.getPhoneNumber();
 
-    if (accessToken == null || userId == null) return null;
+    if (userId == null || userId.isEmpty) return null;
 
     return AuthSession(
       userId: userId,

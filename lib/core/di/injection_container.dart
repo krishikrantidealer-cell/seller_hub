@@ -93,6 +93,7 @@ class InjectionContainer {
     _authRepository ??= AuthRepositoryImpl(
       remoteDataSource: _authRemoteDataSource!,
       tokenStorage: _tokenStorage!,
+      apiClient: _apiClient,
     );
     _productLocalDataSource ??= ProductLocalDataSourceImpl(prefs);
     _productRemoteDataSource ??= ProductRemoteDataSourceImpl(_apiClient!);

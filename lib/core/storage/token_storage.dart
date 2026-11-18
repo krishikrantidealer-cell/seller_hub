@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_constants.dart';
 
@@ -58,9 +59,32 @@ class TokenStorage {
     return prefs.getString(_keyPhoneNumber);
   }
 
+  static bool isJwtExpired(
+    String token, {
+    Duration skew = const Duration(seconds: 30),
+  }) {
+    final parts = token.split('.');
+    if (parts.length != 3) return false;
+    try {
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+      if (payload is! Map<String, dynamic>) return false;
+      final exp = payload['exp'];
+      if (exp is! num) return false;
+      final expiry = DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000, isUtc: true);
+      return DateTime.now().toUtc().add(skew).isAfter(expiry);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> hasValidToken() async {
     final token = await getAccessToken();
-    return token != null && token.isNotEmpty;
+    if (token != null && token.isNotEmpty && !isJwtExpired(token)) {
+      return true;
+    }
+    final refresh = await getRefreshToken();
+    return refresh != null && refresh.isNotEmpty && !isJwtExpired(refresh);
   }
 
   Future<void> clearSession() async {

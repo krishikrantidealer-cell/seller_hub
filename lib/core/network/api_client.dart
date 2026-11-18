@@ -12,6 +12,11 @@ class ApiClient {
   final TokenStorage _tokenStorage;
   final String _baseUrl;
   final Duration _timeout;
+  final StreamController<void> _sessionExpiredController =
+      StreamController<void>.broadcast();
+  Completer<bool>? _refreshCompleter;
+
+  Stream<void> get onSessionExpired => _sessionExpiredController.stream;
 
   ApiClient({
     http.Client? client,
@@ -42,6 +47,98 @@ class ApiClient {
     );
   }
 
+  Future<bool> refreshAccessToken() async {
+    if (_refreshCompleter != null) {
+      return _refreshCompleter!.future;
+    }
+    final completer = Completer<bool>();
+    _refreshCompleter = completer;
+
+    try {
+      final refreshToken = await _tokenStorage.getRefreshToken();
+      if (refreshToken == null ||
+          refreshToken.isEmpty ||
+          TokenStorage.isJwtExpired(refreshToken)) {
+        await _expireSession();
+        completer.complete(false);
+        return false;
+      }
+
+      final uri = _buildUri(ApiEndpoints.refreshToken);
+      final response = await _client
+          .post(
+            uri,
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(_timeout);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        final payload = (decoded is Map<String, dynamic> && decoded['data'] is Map)
+            ? Map<String, dynamic>.from(decoded['data'] as Map)
+            : (decoded is Map<String, dynamic> ? decoded : <String, dynamic>{});
+        final newAccess = payload['accessToken'] as String? ?? '';
+        final newRefresh = payload['refreshToken'] as String? ?? refreshToken;
+        if (newAccess.isNotEmpty) {
+          final existingUserId = await _tokenStorage.getUserId() ?? '';
+          final existingRole = await _tokenStorage.getRole() ?? 'ROLE_ADMIN';
+          final existingPhone = await _tokenStorage.getPhoneNumber();
+          await _tokenStorage.saveSession(
+            accessToken: newAccess,
+            refreshToken: newRefresh,
+            userId: (payload['userId'] as String?)?.isNotEmpty == true
+                ? payload['userId'] as String
+                : existingUserId,
+            role: (payload['role'] as String?)?.isNotEmpty == true
+                ? payload['role'] as String
+                : existingRole,
+            phoneNumber: payload['phoneNumber'] as String? ?? existingPhone,
+          );
+          completer.complete(true);
+          return true;
+        }
+      }
+
+      await _expireSession();
+      completer.complete(false);
+      return false;
+    } catch (_) {
+      await _expireSession();
+      if (!completer.isCompleted) completer.complete(false);
+      return false;
+    } finally {
+      _refreshCompleter = null;
+    }
+  }
+
+  Future<void> _expireSession() async {
+    await _tokenStorage.clearSession();
+    if (!_sessionExpiredController.isClosed) {
+      _sessionExpiredController.add(null);
+    }
+  }
+
+  Future<http.Response> _sendWithAuthRetry(
+    Future<http.Response> Function() send, {
+    required bool requiresAuth,
+    String? path,
+  }) async {
+    var response = await send();
+    if (response.statusCode == 401 &&
+        requiresAuth &&
+        path != ApiEndpoints.refreshToken) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        response = await send();
+      }
+    }
+    return response;
+  }
+
   Future<Map<String, String>> _buildHeaders({bool requiresAuth = false}) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -49,12 +146,20 @@ class ApiClient {
     };
 
     if (requiresAuth) {
-      final token = await _tokenStorage.getAccessToken();
+      var token = await _tokenStorage.getAccessToken();
+      if (token != null && token.isNotEmpty && TokenStorage.isJwtExpired(token)) {
+        final refreshed = await refreshAccessToken();
+        if (refreshed) {
+          token = await _tokenStorage.getAccessToken();
+        } else {
+          token = null;
+        }
+      }
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       } else {
         throw const UnauthorizedException(
-          message: 'Full authentication is required to access this resource. Please sign in.',
+          message: 'Session expired. Please sign in again.',
         );
       }
     }
@@ -69,15 +174,20 @@ class ApiClient {
   }) async {
     try {
       final uri = _buildUri(path);
-      final headers = await _buildHeaders(requiresAuth: requiresAuth);
-
-      final response = await _client
-          .post(
-            uri,
-            headers: headers,
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(_timeout);
+      final response = await _sendWithAuthRetry(
+        () async {
+          final headers = await _buildHeaders(requiresAuth: requiresAuth);
+          return _client
+              .post(
+                uri,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(_timeout);
+        },
+        requiresAuth: requiresAuth,
+        path: path,
+      );
 
       return _processResponse(response);
     } on SocketException catch (e) {
@@ -305,15 +415,20 @@ class ApiClient {
   }) async {
     try {
       final uri = _buildUri(path);
-      final headers = await _buildHeaders(requiresAuth: requiresAuth);
-
-      final response = await _client
-          .delete(
-            uri,
-            headers: headers,
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(_timeout);
+      final response = await _sendWithAuthRetry(
+        () async {
+          final headers = await _buildHeaders(requiresAuth: requiresAuth);
+          return _client
+              .delete(
+                uri,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(_timeout);
+        },
+        requiresAuth: requiresAuth,
+        path: path,
+      );
 
       return _processResponse(response);
     } on SocketException catch (e) {
@@ -347,15 +462,20 @@ class ApiClient {
   }) async {
     try {
       final uri = _buildUri(path);
-      final headers = await _buildHeaders(requiresAuth: requiresAuth);
-
-      final response = await _client
-          .patch(
-            uri,
-            headers: headers,
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(_timeout);
+      final response = await _sendWithAuthRetry(
+        () async {
+          final headers = await _buildHeaders(requiresAuth: requiresAuth);
+          return _client
+              .patch(
+                uri,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(_timeout);
+        },
+        requiresAuth: requiresAuth,
+        path: path,
+      );
 
       return _processResponse(response);
     } on SocketException catch (e) {
@@ -389,15 +509,20 @@ class ApiClient {
   }) async {
     try {
       final uri = _buildUri(path);
-      final headers = await _buildHeaders(requiresAuth: requiresAuth);
-
-      final response = await _client
-          .put(
-            uri,
-            headers: headers,
-            body: body != null ? jsonEncode(body) : null,
-          )
-          .timeout(_timeout);
+      final response = await _sendWithAuthRetry(
+        () async {
+          final headers = await _buildHeaders(requiresAuth: requiresAuth);
+          return _client
+              .put(
+                uri,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(_timeout);
+        },
+        requiresAuth: requiresAuth,
+        path: path,
+      );
 
       return _processResponse(response);
     } on SocketException catch (e) {
@@ -430,8 +555,14 @@ class ApiClient {
     bool requiresAuth = true,
   }) async {
     final uri = _buildUri(path, queryParameters);
-    final headers = await _buildHeaders(requiresAuth: requiresAuth);
-    return await _client.get(uri, headers: headers).timeout(_timeout);
+    return _sendWithAuthRetry(
+      () async {
+        final headers = await _buildHeaders(requiresAuth: requiresAuth);
+        return _client.get(uri, headers: headers).timeout(_timeout);
+      },
+      requiresAuth: requiresAuth,
+      path: path,
+    );
   }
 
   Future<Map<String, dynamic>> get(
@@ -445,9 +576,14 @@ class ApiClient {
       attempts++;
       try {
         final uri = _buildUri(path, queryParameters);
-        final headers = await _buildHeaders(requiresAuth: requiresAuth);
-
-        final response = await _client.get(uri, headers: headers).timeout(_timeout);
+        final response = await _sendWithAuthRetry(
+          () async {
+            final headers = await _buildHeaders(requiresAuth: requiresAuth);
+            return _client.get(uri, headers: headers).timeout(_timeout);
+          },
+          requiresAuth: requiresAuth,
+          path: path,
+        );
         return _processResponse(response);
       } on SocketException catch (e) {
         if (attempts > retries) {

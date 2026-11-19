@@ -447,7 +447,10 @@ class _OrdersViewState extends State<OrdersView> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${o.shippingAddress.city}, ${o.shippingAddress.state}',
+                              [
+                                o.shippingAddress.city.trim(),
+                                o.shippingAddress.state.trim(),
+                              ].where((s) => s.isNotEmpty).join(', '),
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),

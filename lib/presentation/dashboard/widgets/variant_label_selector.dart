@@ -18,12 +18,33 @@ String formatVariantPackLabel({
   required int packQuantity,
 }) {
   if (packSize <= 0 || unit.trim().isEmpty || packQuantity <= 0) return '';
-  String fmtNum(double v) =>
-      v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+  String fmtNum(double v) {
+    if (v == v.roundToDouble()) return v.toInt().toString();
+    return v
+        .toStringAsFixed(3)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
   final sizeStr = fmtNum(packSize);
   final cleanUnit = unit.trim();
-  final totalStr = fmtNum(packSize * packQuantity);
-  return '$totalStr($sizeStr$cleanUnit x $packQuantity)';
+  final lowerUnit = cleanUnit.toLowerCase();
+  final rawTotal = packSize * packQuantity;
+
+  double displayTotal = rawTotal;
+  String displayUnit = cleanUnit;
+  if (rawTotal > 999) {
+    if (lowerUnit == 'g' || lowerUnit == 'gm' || lowerUnit == 'gram' || lowerUnit == 'grams') {
+      displayTotal = rawTotal / 1000.0;
+      displayUnit = 'kg';
+    } else if (lowerUnit == 'ml') {
+      displayTotal = rawTotal / 1000.0;
+      displayUnit = 'Ltr';
+    }
+  }
+
+  final totalStr = fmtNum(displayTotal);
+  return '$totalStr $displayUnit ($sizeStr$cleanUnit x $packQuantity Qty)';
 }
 
 class VariantLabelItem {
@@ -448,7 +469,7 @@ class _VariantLabelEditorDialogState extends State<_VariantLabelEditorDialog> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Example: Pack Size 100 + Unit ml + Pack Qty 2 = 200(100ml x 2)',
+                  'Example: Pack Size 100 + Unit g + Pack Qty 10 = 1 kg (100g x 10 Qty)',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     color: textMuted,

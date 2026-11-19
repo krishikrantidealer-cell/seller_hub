@@ -441,9 +441,44 @@ class MarketplaceOrder extends Equatable {
         ? sellerSnap['tradeName'].toString().trim()
         : (fallbackSellerName ?? 'Platform / EBS');
 
+    String stateFromPincode(String pin) {
+      final clean = pin.replaceAll(RegExp(r'[^0-9]'), '');
+      if (clean.length < 2) return '';
+      final p2 = int.tryParse(clean.substring(0, 2));
+      if (p2 == null) return '';
+      if (p2 == 11) return 'Delhi';
+      if (p2 >= 12 && p2 <= 13) return 'Haryana';
+      if (p2 >= 14 && p2 <= 16) return 'Punjab';
+      if (p2 == 17) return 'Himachal Pradesh';
+      if (p2 >= 18 && p2 <= 19) return 'Jammu and Kashmir';
+      if (p2 >= 20 && p2 <= 28) return 'Uttar Pradesh';
+      if (p2 >= 30 && p2 <= 34) return 'Rajasthan';
+      if (p2 >= 36 && p2 <= 39) return 'Gujarat';
+      if (p2 >= 40 && p2 <= 44) return 'Maharashtra';
+      if (p2 >= 45 && p2 <= 48) return 'Madhya Pradesh';
+      if (p2 == 49) return 'Chhattisgarh';
+      if (p2 >= 50 && p2 <= 53) return 'Andhra Pradesh';
+      if (p2 >= 56 && p2 <= 59) return 'Karnataka';
+      if (p2 >= 60 && p2 <= 64) return 'Tamil Nadu';
+      if (p2 >= 67 && p2 <= 69) return 'Kerala';
+      if (p2 >= 70 && p2 <= 74) return 'West Bengal';
+      if (p2 >= 75 && p2 <= 77) return 'Odisha';
+      if (p2 == 78) return 'Assam';
+      if (p2 == 79) return 'North East';
+      if (p2 >= 80 && p2 <= 85) return 'Bihar';
+      return '';
+    }
+
     OrderAddress parseAddress(Map<String, dynamic> m) {
-      final line1 = m['addressLine1']?.toString() ?? m['line1']?.toString() ?? m['street']?.toString() ?? '';
-      final line2 = m['addressLine2']?.toString() ?? m['line2']?.toString() ?? '';
+      final line1 = m['villageArea']?.toString() ??
+          m['addressLine1']?.toString() ??
+          m['line1']?.toString() ??
+          m['street']?.toString() ??
+          '';
+      final line2 = m['address2']?.toString() ??
+          m['addressLine2']?.toString() ??
+          m['line2']?.toString() ??
+          '';
       final combinedLine = [line1, line2].where((s) => s.trim().isNotEmpty).join(', ');
       final fullName = [
         customerSnap['firstName']?.toString() ?? '',
@@ -456,6 +491,14 @@ class MarketplaceOrder extends Equatable {
               : (customerSnap['name']?.toString().trim().isNotEmpty == true
                   ? customerSnap['name'].toString().trim()
                   : (fullName.isNotEmpty ? fullName : 'Customer')));
+      final pin = m['pincode']?.toString() ?? m['postalCode']?.toString() ?? m['zip']?.toString() ?? '';
+      final city = (m['cityTehsil']?.toString().trim().isNotEmpty ?? false)
+          ? m['cityTehsil'].toString().trim()
+          : ((m['city']?.toString().trim().isNotEmpty ?? false)
+              ? m['city'].toString().trim()
+              : (m['district']?.toString().trim() ?? ''));
+      final rawState = m['state']?.toString().trim() ?? '';
+      final state = rawState.isNotEmpty ? rawState : stateFromPincode(pin);
       return OrderAddress(
         recipientName: recipient,
         phone: (m['phoneNumber']?.toString().trim().isNotEmpty ?? false)
@@ -465,9 +508,9 @@ class MarketplaceOrder extends Equatable {
                 : (customerSnap['phoneNumber']?.toString() ?? '')),
         email: customerSnap['email']?.toString() ?? m['email']?.toString() ?? '',
         addressLine: combinedLine,
-        city: m['city']?.toString() ?? '',
-        state: m['state']?.toString() ?? '',
-        pincode: m['pincode']?.toString() ?? m['postalCode']?.toString() ?? m['zip']?.toString() ?? '',
+        city: city,
+        state: state,
+        pincode: pin,
         carrier: firstShipment['courierName']?.toString() ?? firstShipment['carrier']?.toString() ?? '',
         trackingNumber: firstShipment['awbNumber']?.toString() ?? firstShipment['trackingNumber']?.toString() ?? '',
         deliveryStatus: firstGroup['status']?.toString() ?? json['overallStatus']?.toString() ?? 'CONFIRMED',

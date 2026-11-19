@@ -9,6 +9,9 @@ class ApiEndpoints {
   static const String loginPassword = '/api/v1/auth/password/login';
   static const String refreshToken = '/api/v1/auth/token/refresh';
 
+  /// Orders
+  static const String adminOrders = '/api/v1/admin/orders';
+
   /// Products
   static const String products = '/api/v1/products';
   static const String adminProducts = '/api/v1/admin/products';

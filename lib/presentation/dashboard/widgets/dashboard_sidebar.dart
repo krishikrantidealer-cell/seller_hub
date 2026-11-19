@@ -223,7 +223,6 @@ class DashboardSidebar extends StatelessWidget {
                     isSelected: selectedIndex == 4 || selectedIndex == 6,
                   ),
 
-                  /*
                   // Sidebar Nav Item: Orders
                   _buildSidebarNavItem(
                     context: context,
@@ -233,7 +232,6 @@ class DashboardSidebar extends StatelessWidget {
                     isDark: isDark,
                     badgeText: ordersCount > 0 ? '$ordersCount' : null,
                   ),
-                  */
                 ],
               ),
             ),

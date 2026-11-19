@@ -335,6 +335,199 @@ class MarketplaceOrder extends Equatable {
     required this.grandTotal,
   });
 
+  factory MarketplaceOrder.fromBackendJson(Map<String, dynamic> json) {
+    double toDouble(dynamic v) {
+      if (v is num) return v.toDouble();
+      return double.tryParse(v?.toString() ?? '') ?? 0.0;
+    }
+
+    int toInt(dynamic v, [int fallback = 0]) {
+      if (v is num) return v.toInt();
+      return int.tryParse(v?.toString() ?? '') ?? fallback;
+    }
+
+    DateTime parseDate(dynamic v) {
+      if (v is String && v.isNotEmpty) {
+        return DateTime.tryParse(v)?.toLocal() ?? DateTime.now();
+      }
+      if (v is List && v.length >= 3) {
+        return DateTime(
+          toInt(v[0], DateTime.now().year),
+          toInt(v[1], 1),
+          toInt(v[2], 1),
+          v.length > 3 ? toInt(v[3]) : 0,
+          v.length > 4 ? toInt(v[4]) : 0,
+          v.length > 5 ? toInt(v[5]) : 0,
+        );
+      }
+      return DateTime.now();
+    }
+
+    final customerSnap = json['customerSnapshot'] is Map
+        ? Map<String, dynamic>.from(json['customerSnapshot'] as Map)
+        : <String, dynamic>{};
+    final shippingMap = json['shippingAddress'] is Map
+        ? Map<String, dynamic>.from(json['shippingAddress'] as Map)
+        : <String, dynamic>{};
+    final billingMap = json['billingAddress'] is Map
+        ? Map<String, dynamic>.from(json['billingAddress'] as Map)
+        : shippingMap;
+    final finMap = json['financialSummary'] is Map
+        ? Map<String, dynamic>.from(json['financialSummary'] as Map)
+        : <String, dynamic>{};
+    final paymentMap = json['payment'] is Map
+        ? Map<String, dynamic>.from(json['payment'] as Map)
+        : <String, dynamic>{};
+
+    final fulfillmentsRaw = json['sellerFulfillments'] is List
+        ? json['sellerFulfillments'] as List
+        : const [];
+    final firstGroup = fulfillmentsRaw.isNotEmpty && fulfillmentsRaw.first is Map
+        ? Map<String, dynamic>.from(fulfillmentsRaw.first as Map)
+        : <String, dynamic>{};
+    final sellerSnap = firstGroup['sellerSnapshot'] is Map
+        ? Map<String, dynamic>.from(firstGroup['sellerSnapshot'] as Map)
+        : <String, dynamic>{};
+    final shipmentsRaw = firstGroup['shipments'] is List
+        ? firstGroup['shipments'] as List
+        : const [];
+    final firstShipment = shipmentsRaw.isNotEmpty && shipmentsRaw.first is Map
+        ? Map<String, dynamic>.from(shipmentsRaw.first as Map)
+        : <String, dynamic>{};
+
+    final rawItems = json['items'] is List ? json['items'] as List : const [];
+    final parsedItems = <OrderItem>[];
+    String? fallbackSellerName;
+    for (final raw in rawItems) {
+      if (raw is! Map) continue;
+      final m = Map<String, dynamic>.from(raw);
+      final prodSnap = m['productSnapshot'] is Map
+          ? Map<String, dynamic>.from(m['productSnapshot'] as Map)
+          : <String, dynamic>{};
+      final varSnap = m['variantSnapshot'] is Map
+          ? Map<String, dynamic>.from(m['variantSnapshot'] as Map)
+          : <String, dynamic>{};
+      if (fallbackSellerName == null && (m['sellerName']?.toString().trim().isNotEmpty ?? false)) {
+        fallbackSellerName = m['sellerName'].toString().trim();
+      }
+      final qty = toInt(m['quantity'], 1);
+      final unitPrice = toDouble(m['unitPrice']);
+      final lineTotal = toDouble(m['lineTotal']);
+      parsedItems.add(
+        OrderItem(
+          id: m['itemOrderId']?.toString() ?? m['id']?.toString() ?? '',
+          productId: m['productId']?.toString() ?? '',
+          productCode: (m['variantSku']?.toString().isNotEmpty ?? false)
+              ? m['variantSku'].toString()
+              : (m['productCode']?.toString() ?? m['productSku']?.toString() ?? ''),
+          title: prodSnap['title']?.toString().isNotEmpty == true
+              ? prodSnap['title'].toString()
+              : (m['title']?.toString() ?? 'Product'),
+          technicalName: prodSnap['variantLabel']?.toString() ?? varSnap['label']?.toString() ?? '',
+          category: m['categoryId']?.toString() ?? '',
+          packSize: toInt(varSnap['packSize'], 1),
+          unit: varSnap['unit']?.toString() ?? varSnap['packSizeUnit']?.toString() ?? '',
+          packUnit: varSnap['label']?.toString() ?? 'pack',
+          quantity: qty,
+          unitPrice: unitPrice,
+          mrp: toDouble(m['listPrice']) > 0 ? toDouble(m['listPrice']) : unitPrice,
+          gstPercentage: 0.0,
+          totalPrice: lineTotal > 0 ? lineTotal : (unitPrice * qty),
+        ),
+      );
+    }
+
+    final sellerTradeName = (sellerSnap['tradeName']?.toString().trim().isNotEmpty ?? false)
+        ? sellerSnap['tradeName'].toString().trim()
+        : (fallbackSellerName ?? 'Platform / EBS');
+
+    OrderAddress parseAddress(Map<String, dynamic> m) {
+      final line1 = m['addressLine1']?.toString() ?? m['line1']?.toString() ?? m['street']?.toString() ?? '';
+      final line2 = m['addressLine2']?.toString() ?? m['line2']?.toString() ?? '';
+      final combinedLine = [line1, line2].where((s) => s.trim().isNotEmpty).join(', ');
+      final fullName = [
+        customerSnap['firstName']?.toString() ?? '',
+        customerSnap['lastName']?.toString() ?? '',
+      ].where((s) => s.trim().isNotEmpty).join(' ');
+      final recipient = (m['recipientName']?.toString().trim().isNotEmpty ?? false)
+          ? m['recipientName'].toString().trim()
+          : ((m['name']?.toString().trim().isNotEmpty ?? false)
+              ? m['name'].toString().trim()
+              : (customerSnap['name']?.toString().trim().isNotEmpty == true
+                  ? customerSnap['name'].toString().trim()
+                  : (fullName.isNotEmpty ? fullName : 'Customer')));
+      return OrderAddress(
+        recipientName: recipient,
+        phone: (m['phoneNumber']?.toString().trim().isNotEmpty ?? false)
+            ? m['phoneNumber'].toString().trim()
+            : (m['phone']?.toString().trim().isNotEmpty == true
+                ? m['phone'].toString().trim()
+                : (customerSnap['phoneNumber']?.toString() ?? '')),
+        email: customerSnap['email']?.toString() ?? m['email']?.toString() ?? '',
+        addressLine: combinedLine,
+        city: m['city']?.toString() ?? '',
+        state: m['state']?.toString() ?? '',
+        pincode: m['pincode']?.toString() ?? m['postalCode']?.toString() ?? m['zip']?.toString() ?? '',
+        carrier: firstShipment['courierName']?.toString() ?? firstShipment['carrier']?.toString() ?? '',
+        trackingNumber: firstShipment['awbNumber']?.toString() ?? firstShipment['trackingNumber']?.toString() ?? '',
+        deliveryStatus: firstGroup['status']?.toString() ?? json['overallStatus']?.toString() ?? 'CONFIRMED',
+      );
+    }
+
+    final rawPayType = paymentMap['paymentType']?.toString().toUpperCase() ?? 'PREPAID';
+    final rawPayStatus = paymentMap['status']?.toString().toUpperCase() ?? 'CREATED';
+    final normalizedPayStatus = rawPayStatus == 'CAPTURED' || rawPayStatus == 'PAID'
+        ? 'PAID'
+        : (rawPayStatus == 'REFUNDED'
+            ? 'REFUNDED'
+            : (rawPayStatus == 'FAILED' ? 'FAILED' : 'PENDING'));
+    final paymentLabel = paymentMap['provider']?.toString().isNotEmpty == true
+        ? '${paymentMap['provider']} ($rawPayType)'
+        : rawPayType;
+
+    final gmv = toDouble(finMap['grossMerchandiseValue']);
+    final discount = toDouble(finMap['discountTotal']);
+    final grandTotal = toDouble(finMap['currentOrderTotal']) > 0
+        ? toDouble(finMap['currentOrderTotal'])
+        : (toDouble(finMap['originalOrderTotal']) > 0
+            ? toDouble(finMap['originalOrderTotal'])
+            : parsedItems.fold<double>(0.0, (sum, it) => sum + it.totalPrice));
+    final placedAt = parseDate(json['placedAt'] ?? json['createdAt']);
+
+    return MarketplaceOrder(
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      orderNumber: json['orderNumber']?.toString() ?? '',
+      paymentMethod: paymentLabel,
+      paymentStatus: normalizedPayStatus,
+      company: json['checkoutGroupId']?.toString().isNotEmpty == true
+          ? json['checkoutGroupId'].toString()
+          : 'EBS Krishi Dukaan',
+      sellerName: sellerTradeName,
+      referenceBankDetail: OrderBankDetail(
+        bankName: paymentMap['provider']?.toString() ?? 'FASTRR',
+        utrNumber: paymentMap['providerOrderId']?.toString() ?? '',
+      ),
+      paidDate: placedAt,
+      orderDate: placedAt,
+      orderStatus: json['overallStatus']?.toString() ?? 'CONFIRMED',
+      items: parsedItems,
+      sellerDetails: OrderSellerDetail(
+        sellerId: firstGroup['sellerId']?.toString() ?? '',
+        tradeName: sellerTradeName,
+        gstin: sellerSnap['gstNumber']?.toString() ?? '',
+        contactPhone: sellerSnap['contactPhone']?.toString() ?? '',
+        pincode: sellerSnap['dispatchPincode']?.toString() ?? '',
+      ),
+      shippingAddress: parseAddress(shippingMap),
+      billingAddress: parseAddress(billingMap),
+      subtotal: gmv > 0 ? gmv : grandTotal,
+      gstAmount: 0.0,
+      shippingFee: 0.0,
+      discountAmount: discount,
+      grandTotal: grandTotal,
+    );
+  }
+
   MarketplaceOrder copyWith({
     String? id,
     String? orderNumber,

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:seller_hub/core/constants/api_endpoints.dart';
+import 'package:seller_hub/core/di/injection_container.dart';
 import 'package:seller_hub/core/models/order.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/core/models/seller.dart';
@@ -59,9 +61,11 @@ class _DashboardViewState extends State<DashboardView> {
   SellerProfile? _viewingSeller;
   String _productCatalogSellerFilter = 'All Sellers';
 
-  // Orders management state
-  final List<MarketplaceOrder> _orders = List.from(MockOrders.sampleOrders);
+  // Orders management state (live from GET /api/v1/admin/orders + WebSocket orders:*)
+  final List<MarketplaceOrder> _orders = [];
   MarketplaceOrder? _viewingOrder;
+  StreamSubscription<Map<String, dynamic>>? _orderWsSubscription;
+  bool _isLoadingOrders = false;
 
   // Customers management state
   AdminUser? _viewingCustomer;
@@ -75,9 +79,15 @@ class _DashboardViewState extends State<DashboardView> {
     super.initState();
     // Connect to WebSocket server to receive live changes
     WebSocketService().connect();
+    _orderWsSubscription = WebSocketService().orderUpdates.listen((_) {
+      if (mounted) {
+        _fetchAdminOrders();
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        _fetchAdminOrders();
         final pBloc = context.read<ProductBloc>();
         if (pBloc.state.allCatalogProducts.isEmpty) {
           pBloc.add(const FetchAllCatalogProducts());
@@ -94,8 +104,46 @@ class _DashboardViewState extends State<DashboardView> {
     });
   }
 
+  Future<void> _fetchAdminOrders() async {
+    if (_isLoadingOrders) return;
+    _isLoadingOrders = true;
+    try {
+      final res = await InjectionContainer.instance.apiClient.get(
+        ApiEndpoints.adminOrders,
+        queryParameters: {'page': 0, 'size': 100},
+        requiresAuth: true,
+      );
+      final data = res['data'];
+      final rawList = (data is Map && data['content'] is List)
+          ? data['content'] as List
+          : (data is List ? data : const []);
+      final fetched = <MarketplaceOrder>[];
+      for (final item in rawList) {
+        if (item is Map) {
+          fetched.add(MarketplaceOrder.fromBackendJson(Map<String, dynamic>.from(item)));
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _orders
+            ..clear()
+            ..addAll(fetched);
+          if (_viewingOrder != null) {
+            final updated = _orders.where((o) => o.id == _viewingOrder!.id).firstOrNull;
+            if (updated != null) _viewingOrder = updated;
+          }
+        });
+      }
+    } catch (_) {
+      // Keep existing orders on transient network error
+    } finally {
+      _isLoadingOrders = false;
+    }
+  }
+
   @override
   void dispose() {
+    _orderWsSubscription?.cancel();
     WebSocketService().disconnect();
     super.dispose();
   }
@@ -639,6 +687,9 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   void _onNavItemSelected(int index) {
+    if (index == 5) {
+      _fetchAdminOrders();
+    }
     setState(() {
       _selectedNavIndex = index;
       if (index >= 1 && index <= 3) {

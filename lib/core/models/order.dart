@@ -312,6 +312,11 @@ class MarketplaceOrder extends Equatable {
   final double shippingFee;
   final double discountAmount;
   final double grandTotal;
+  final String labelReference;
+  final String rtoReason;
+  final bool rtoRestocked;
+
+  bool get hasLabel => labelReference.trim().isNotEmpty;
 
   const MarketplaceOrder({
     required this.id,
@@ -333,6 +338,9 @@ class MarketplaceOrder extends Equatable {
     required this.shippingFee,
     required this.discountAmount,
     required this.grandTotal,
+    this.labelReference = '',
+    this.rtoReason = '',
+    this.rtoRestocked = false,
   });
 
   factory MarketplaceOrder.fromBackendJson(Map<String, dynamic> json) {
@@ -568,6 +576,9 @@ class MarketplaceOrder extends Equatable {
       shippingFee: 0.0,
       discountAmount: discount,
       grandTotal: grandTotal,
+      labelReference: firstShipment['labelReference']?.toString() ?? '',
+      rtoReason: firstShipment['rtoReason']?.toString() ?? '',
+      rtoRestocked: firstShipment['rtoRestocked'] == true,
     );
   }
 
@@ -591,6 +602,9 @@ class MarketplaceOrder extends Equatable {
     double? shippingFee,
     double? discountAmount,
     double? grandTotal,
+    String? labelReference,
+    String? rtoReason,
+    bool? rtoRestocked,
   }) {
     return MarketplaceOrder(
       id: id ?? this.id,
@@ -612,6 +626,9 @@ class MarketplaceOrder extends Equatable {
       shippingFee: shippingFee ?? this.shippingFee,
       discountAmount: discountAmount ?? this.discountAmount,
       grandTotal: grandTotal ?? this.grandTotal,
+      labelReference: labelReference ?? this.labelReference,
+      rtoReason: rtoReason ?? this.rtoReason,
+      rtoRestocked: rtoRestocked ?? this.rtoRestocked,
     );
   }
 

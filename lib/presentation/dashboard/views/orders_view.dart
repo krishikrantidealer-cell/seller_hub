@@ -53,12 +53,26 @@ class _OrdersViewState extends State<OrdersView> {
     switch (status.toUpperCase()) {
       case 'DELIVERED':
         return const Color(0xFF059669);
+      case 'OUT_FOR_DELIVERY':
+      case 'IN_TRANSIT':
       case 'IN TRANSIT':
+      case 'SHIPPED':
+      case 'DISPATCHED':
         return const Color(0xFF2563EB);
+      case 'PACKED':
       case 'READY TO DISPATCH':
         return const Color(0xFF0D9488);
+      case 'CONFIRMED':
+        return const Color(0xFF0284C7);
+      case 'PENDING':
+      case 'PENDING_PAYMENT':
       case 'PROCESSING':
         return const Color(0xFFD97706);
+      case 'RTO_INITIATED':
+      case 'RTO_IN_TRANSIT':
+      case 'RTO_DELIVERED':
+      case 'RETURNED':
+        return const Color(0xFFEA580C);
       case 'CANCELLED':
         return const Color(0xFFDC2626);
       default:

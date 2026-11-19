@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:seller_hub/core/constants/api_endpoints.dart';
+import 'package:seller_hub/core/di/injection_container.dart';
 import 'package:seller_hub/core/models/order.dart';
+import 'package:seller_hub/core/utils/file_download_helper.dart';
 
-class OrderDetailView extends StatelessWidget {
+class OrderDetailView extends StatefulWidget {
   final MarketplaceOrder order;
   final VoidCallback onBack;
   final ValueChanged<MarketplaceOrder>? onOrderUpdated;
@@ -13,6 +17,104 @@ class OrderDetailView extends StatelessWidget {
     required this.onBack,
     this.onOrderUpdated,
   });
+
+  @override
+  State<OrderDetailView> createState() => _OrderDetailViewState();
+}
+
+class _OrderDetailViewState extends State<OrderDetailView> {
+  bool _isBusy = false;
+
+  MarketplaceOrder get order => widget.order;
+  VoidCallback get onBack => widget.onBack;
+  ValueChanged<MarketplaceOrder>? get onOrderUpdated => widget.onOrderUpdated;
+
+  Future<void> _runOrderPostAction({
+    required String path,
+    required String successMessage,
+  }) async {
+    if (_isBusy) return;
+    setState(() => _isBusy = true);
+    try {
+      final res = await InjectionContainer.instance.apiClient.post(
+        path,
+        requiresAuth: true,
+      );
+      final data = res['data'];
+      if (data is Map) {
+        final updated = MarketplaceOrder.fromBackendJson(Map<String, dynamic>.from(data));
+        onOrderUpdated?.call(updated);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successMessage, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', ''), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  Future<void> _downloadLabelAndMarkPacked() async {
+    if (_isBusy || !order.hasLabel) return;
+    setState(() => _isBusy = true);
+    try {
+      final res = await InjectionContainer.instance.apiClient.get(
+        ApiEndpoints.adminOrderLabel(order.id),
+        requiresAuth: true,
+      );
+      final data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : <String, dynamic>{};
+      final pdfBase64 = data['pdfBase64']?.toString() ?? '';
+      final newStatus = data['overallStatus']?.toString() ?? order.orderStatus;
+      final transitioned = data['transitionedToPacked'] == true;
+
+      if (newStatus != order.orderStatus) {
+        onOrderUpdated?.call(order.copyWith(orderStatus: newStatus));
+      }
+
+      if (pdfBase64.isNotEmpty) {
+        final pdfBytes = base64Decode(pdfBase64);
+        downloadBytes(pdfBytes, 'Delhivery_Label_${order.orderNumber}.pdf');
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            transitioned
+                ? 'Delhivery label downloaded — order marked PACKED.'
+                : 'Delhivery label opened for printing.',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+          ),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString(), style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
 
   String _formatDate(DateTime dt) {
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -40,12 +142,26 @@ class OrderDetailView extends StatelessWidget {
     switch (status.toUpperCase()) {
       case 'DELIVERED':
         return const Color(0xFF059669);
+      case 'OUT_FOR_DELIVERY':
+      case 'IN_TRANSIT':
       case 'IN TRANSIT':
+      case 'SHIPPED':
+      case 'DISPATCHED':
         return const Color(0xFF2563EB);
+      case 'PACKED':
       case 'READY TO DISPATCH':
         return const Color(0xFF0D9488);
+      case 'CONFIRMED':
+        return const Color(0xFF0284C7);
+      case 'PENDING':
+      case 'PENDING_PAYMENT':
       case 'PROCESSING':
         return const Color(0xFFD97706);
+      case 'RTO_INITIATED':
+      case 'RTO_IN_TRANSIT':
+      case 'RTO_DELIVERED':
+      case 'RETURNED':
+        return const Color(0xFFEA580C);
       case 'CANCELLED':
         return const Color(0xFFDC2626);
       default:
@@ -87,34 +203,115 @@ class OrderDetailView extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            // Print / Export Invoice Button
-            ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'GST Tax Invoice for ${order.orderNumber} generated successfully.',
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            // Progressive Delhivery One Fulfillment Action Bar
+            // Print/Download Label button is strictly hidden until backend has stored the label (order.hasLabel == true).
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (order.orderStatus.toUpperCase() == 'PENDING' ||
+                    order.orderStatus.toUpperCase() == 'PENDING_PAYMENT')
+                  ElevatedButton.icon(
+                    onPressed: _isBusy
+                        ? null
+                        : () => _runOrderPostAction(
+                              path: ApiEndpoints.adminOrderConfirm(order.id),
+                              successMessage: 'Order ${order.orderNumber} marked CONFIRMED.',
+                            ),
+                    icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                    label: Text(
+                      'Confirm Order',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
-                    backgroundColor: const Color(0xFF059669),
-                    behavior: SnackBarBehavior.floating,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0284C7),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
                   ),
-                );
-              },
-              icon: const Icon(Icons.receipt_long_rounded, size: 16),
-              label: Text(
-                'Download GST Invoice',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
+                if (order.orderStatus.toUpperCase() == 'CONFIRMED' && !order.hasLabel)
+                  ElevatedButton.icon(
+                    onPressed: _isBusy
+                        ? null
+                        : () => _runOrderPostAction(
+                              path: ApiEndpoints.adminOrderDelhiveryShipment(order.id),
+                              successMessage: 'Delhivery One AWB & shipping label generated.',
+                            ),
+                    icon: const Icon(Icons.local_shipping_rounded, size: 16),
+                    label: Text(
+                      'Generate Delhivery Label',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                if (order.hasLabel)
+                  ElevatedButton.icon(
+                    onPressed: _isBusy ? null : _downloadLabelAndMarkPacked,
+                    icon: const Icon(Icons.print_rounded, size: 16),
+                    label: Text(
+                      order.orderStatus.toUpperCase() == 'CONFIRMED'
+                          ? 'Download Label & Mark Packed'
+                          : 'Print Shipping Label',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0D9488),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                if (order.shippingAddress.trackingNumber.trim().isNotEmpty &&
+                    order.orderStatus.toUpperCase() != 'DELIVERED' &&
+                    order.orderStatus.toUpperCase() != 'CANCELLED')
+                  OutlinedButton.icon(
+                    onPressed: _isBusy
+                        ? null
+                        : () => _runOrderPostAction(
+                              path: ApiEndpoints.adminOrderSyncTracking(order.id),
+                              successMessage: 'Delhivery One tracking synced.',
+                            ),
+                    icon: const Icon(Icons.sync_rounded, size: 16),
+                    label: Text(
+                      'Sync Delhivery Tracking',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF2563EB),
+                      side: const BorderSide(color: Color(0xFF2563EB)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                if ((order.orderStatus.toUpperCase() == 'RTO_DELIVERED' ||
+                        order.orderStatus.toUpperCase() == 'RETURNED') &&
+                    !order.rtoRestocked)
+                  ElevatedButton.icon(
+                    onPressed: _isBusy
+                        ? null
+                        : () => _runOrderPostAction(
+                              path: ApiEndpoints.adminOrderRtoRestock(order.id),
+                              successMessage: 'RTO return verified and inventory restocked.',
+                            ),
+                    icon: const Icon(Icons.inventory_rounded, size: 16),
+                    label: Text(
+                      'Verify RTO & Restock',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEA580C),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -735,14 +932,18 @@ class OrderDetailView extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+        Expanded(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            ),
           ),
         ),
+        const SizedBox(width: 8),
         Text(
           value,
           style: GoogleFonts.plusJakartaSans(

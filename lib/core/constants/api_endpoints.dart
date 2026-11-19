@@ -11,6 +11,15 @@ class ApiEndpoints {
 
   /// Orders
   static const String adminOrders = '/api/v1/admin/orders';
+  static String adminOrderConfirm(String orderId) => '/api/v1/admin/orders/$orderId/confirm';
+  static String adminOrderDelhiveryShipment(String orderId) =>
+      '/api/v1/admin/orders/$orderId/shipment/delhivery';
+  static String adminOrderLabel(String orderId) => '/api/v1/admin/orders/$orderId/label';
+  static String adminOrderSyncTracking(String orderId) =>
+      '/api/v1/admin/orders/$orderId/sync-tracking';
+  static String adminOrderRtoRestock(String orderId) =>
+      '/api/v1/admin/orders/$orderId/rto/restock';
+  static String adminOrderCancel(String orderId) => '/api/v1/admin/orders/$orderId/cancel';
 
   /// Products
   static const String products = '/api/v1/products';

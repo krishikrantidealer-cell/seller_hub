@@ -1,4 +1,6 @@
+import '../../core/di/injection_container.dart';
 import '../../core/network/api_client.dart';
+import '../../core/network/websocket_service.dart';
 import '../../core/storage/token_storage.dart';
 import '../../domain/entities/auth_session.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -83,5 +85,14 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> logout() async {
     await tokenStorage.clearSession();
+    WebSocketService().disconnect();
+    try {
+      await InjectionContainer.instance.productLocalDataSource?.clearCache();
+      await InjectionContainer.instance.categoryLocalDataSource?.clearCache();
+      await InjectionContainer.instance.collectionLocalDataSource?.clearCache();
+      await InjectionContainer.instance.adminUserLocalDataSource?.clearCache();
+    } catch (_) {
+      // Best-effort cache cleanup on logout
+    }
   }
 }

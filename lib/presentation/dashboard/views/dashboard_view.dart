@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:seller_hub/core/constants/api_endpoints.dart';
-import 'package:seller_hub/core/di/injection_container.dart';
 import 'package:seller_hub/core/models/order.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/core/models/seller.dart';
@@ -12,8 +10,12 @@ import 'package:seller_hub/core/network/websocket_service.dart';
 import 'package:seller_hub/core/router/route_names.dart';
 import 'package:seller_hub/logic/auth/auth_bloc.dart';
 import 'package:seller_hub/logic/auth/auth_event.dart';
+import 'package:seller_hub/logic/auth/auth_state.dart';
 import 'package:seller_hub/logic/category/category_bloc.dart';
 import 'package:seller_hub/logic/collection/collection_bloc.dart';
+import 'package:seller_hub/logic/order/order_bloc.dart';
+import 'package:seller_hub/logic/order/order_event.dart';
+import 'package:seller_hub/logic/order/order_state.dart';
 import 'package:seller_hub/logic/product/product_bloc.dart';
 import 'package:seller_hub/logic/product/product_event.dart';
 import 'package:seller_hub/logic/admin_user/customer_bloc.dart';
@@ -61,11 +63,8 @@ class _DashboardViewState extends State<DashboardView> {
   SellerProfile? _viewingSeller;
   String _productCatalogSellerFilter = 'All Sellers';
 
-  // Orders management state (live from GET /api/v1/admin/orders + WebSocket orders:*)
-  final List<MarketplaceOrder> _orders = [];
+  // Orders management state (backed by OrderBloc)
   MarketplaceOrder? _viewingOrder;
-  StreamSubscription<Map<String, dynamic>>? _orderWsSubscription;
-  bool _isLoadingOrders = false;
 
   // Customers management state
   AdminUser? _viewingCustomer;
@@ -79,15 +78,10 @@ class _DashboardViewState extends State<DashboardView> {
     super.initState();
     // Connect to WebSocket server to receive live changes
     WebSocketService().connect();
-    _orderWsSubscription = WebSocketService().orderUpdates.listen((_) {
-      if (mounted) {
-        _fetchAdminOrders();
-      }
-    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _fetchAdminOrders();
+        context.read<OrderBloc>().add(const LoadAdminOrders(page: 0, size: 50));
         final pBloc = context.read<ProductBloc>();
         if (pBloc.state.allCatalogProducts.isEmpty) {
           pBloc.add(const FetchAllCatalogProducts());
@@ -104,46 +98,8 @@ class _DashboardViewState extends State<DashboardView> {
     });
   }
 
-  Future<void> _fetchAdminOrders() async {
-    if (_isLoadingOrders) return;
-    _isLoadingOrders = true;
-    try {
-      final res = await InjectionContainer.instance.apiClient.get(
-        ApiEndpoints.adminOrders,
-        queryParameters: {'page': 0, 'size': 100},
-        requiresAuth: true,
-      );
-      final data = res['data'];
-      final rawList = (data is Map && data['content'] is List)
-          ? data['content'] as List
-          : (data is List ? data : const []);
-      final fetched = <MarketplaceOrder>[];
-      for (final item in rawList) {
-        if (item is Map) {
-          fetched.add(MarketplaceOrder.fromBackendJson(Map<String, dynamic>.from(item)));
-        }
-      }
-      if (mounted) {
-        setState(() {
-          _orders
-            ..clear()
-            ..addAll(fetched);
-          if (_viewingOrder != null) {
-            final updated = _orders.where((o) => o.id == _viewingOrder!.id).firstOrNull;
-            if (updated != null) _viewingOrder = updated;
-          }
-        });
-      }
-    } catch (_) {
-      // Keep existing orders on transient network error
-    } finally {
-      _isLoadingOrders = false;
-    }
-  }
-
   @override
   void dispose() {
-    _orderWsSubscription?.cancel();
     WebSocketService().disconnect();
     super.dispose();
   }
@@ -182,8 +138,18 @@ class _DashboardViewState extends State<DashboardView> {
       (b) => b.state.totalCount,
     );
 
-    return SelectionArea(
-      child: Scaffold(
+    final ordersCount = context.select<OrderBloc, int>(
+      (b) => b.state.totalElements > 0 ? b.state.totalElements : b.state.orders.length,
+    );
+
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, authState) {
+        if (authState.status == AuthStatus.unauthenticated) {
+          context.go(RouteNames.login);
+        }
+      },
+      child: SelectionArea(
+        child: Scaffold(
         key: _scaffoldKey,
         backgroundColor: backgroundColor,
       drawer: isWide
@@ -198,7 +164,7 @@ class _DashboardViewState extends State<DashboardView> {
                 categoriesCount: categoriesCount,
                 sellersCount: sellersCount,
                 customersCount: customersCount,
-                ordersCount: _orders.length,
+                ordersCount: ordersCount,
                 isDrawer: true,
                 onLogout: () => _handleLogout(context),
               ),
@@ -236,7 +202,7 @@ class _DashboardViewState extends State<DashboardView> {
                       categoriesCount: categoriesCount,
                       sellersCount: sellersCount,
                       customersCount: customersCount,
-                      ordersCount: _orders.length,
+                      ordersCount: ordersCount,
                       isDrawer: false,
                       isMinimized: _isSidebarMinimized && !_isSidebarHovered,
                       onToggleMinimize: () => setState(() {
@@ -289,6 +255,7 @@ class _DashboardViewState extends State<DashboardView> {
         ],
       ),
     ),
+  ),
   );
   }
 
@@ -548,7 +515,7 @@ class _DashboardViewState extends State<DashboardView> {
       return OperationsOverviewView(
         products: products,
         sellers: sellers,
-        orders: _orders,
+        orders: context.watch<OrderBloc>().state.orders,
         onSelectOrder: (order) => setState(() => _viewingOrder = order),
         onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
         onNavigateToProducts: () => setState(() {
@@ -594,7 +561,7 @@ class _DashboardViewState extends State<DashboardView> {
       } else if (_selectedNavIndex == 6 && _viewingCustomer != null) {
         userChild = CustomerProfileView(
           customer: _viewingCustomer!,
-          allOrders: _orders,
+          allOrders: context.read<OrderBloc>().state.orders,
           onBack: () => setState(() => _viewingCustomer = null),
           onCustomerUpdated: (updated) {
             setState(() => _viewingCustomer = updated);
@@ -653,22 +620,28 @@ class _DashboardViewState extends State<DashboardView> {
 
     // Nav Index 5: Orders Directory & Order Detail
     if (_selectedNavIndex == 5) {
+      final orderState = context.watch<OrderBloc>().state;
+      final orders = orderState.orders;
       if (_viewingOrder != null) {
+        final liveViewing = orders.where((o) => o.id == _viewingOrder!.id).firstOrNull ?? _viewingOrder!;
         return OrderDetailView(
-          order: _viewingOrder!,
+          order: liveViewing,
           onBack: () => setState(() => _viewingOrder = null),
           onOrderUpdated: (updated) {
-            setState(() {
-              final idx = _orders.indexWhere((o) => o.id == updated.id);
-              if (idx != -1) _orders[idx] = updated;
-              _viewingOrder = updated;
-            });
+            context.read<OrderBloc>().add(UpdateAdminOrderLocal(updated));
+            setState(() => _viewingOrder = updated);
           },
         );
       }
 
       return OrdersView(
-        orders: _orders,
+        orders: orders,
+        isLoading: orderState.status == AdminOrderStatus.loading,
+        errorMessage: orderState.errorMessage,
+        onRetry: () => context.read<OrderBloc>().add(const LoadAdminOrders(page: 0, size: 50, isRefresh: true)),
+        hasMore: orderState.hasMore,
+        isLoadingMore: orderState.isLoadingMore,
+        onLoadMore: () => context.read<OrderBloc>().add(const LoadMoreAdminOrders()),
         onSelectOrder: (order) => setState(() => _viewingOrder = order),
       );
     }
@@ -688,7 +661,7 @@ class _DashboardViewState extends State<DashboardView> {
 
   void _onNavItemSelected(int index) {
     if (index == 5) {
-      _fetchAdminOrders();
+      context.read<OrderBloc>().add(const LoadAdminOrders(page: 0, size: 50, isRefresh: true));
     }
     setState(() {
       _selectedNavIndex = index;

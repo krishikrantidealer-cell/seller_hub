@@ -6,11 +6,23 @@ import 'package:seller_hub/presentation/dashboard/widgets/pagination_footer.dart
 class OrdersView extends StatefulWidget {
   final List<MarketplaceOrder> orders;
   final ValueChanged<MarketplaceOrder> onSelectOrder;
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
+  final bool hasMore;
+  final bool isLoadingMore;
+  final VoidCallback? onLoadMore;
 
   const OrdersView({
     super.key,
     required this.orders,
     required this.onSelectOrder,
+    this.isLoading = false,
+    this.errorMessage,
+    this.onRetry,
+    this.hasMore = false,
+    this.isLoadingMore = false,
+    this.onLoadMore,
   });
 
   @override
@@ -165,8 +177,11 @@ class _OrdersViewState extends State<OrdersView> {
                   surfaceColor: surfaceColor,
                   borderColor: borderColor,
                   title: 'Active In-Transit',
-                  value: '${widget.orders.where((o) => o.orderStatus == 'IN TRANSIT').length}',
-                  trend: 'Multi-carrier freight logistics',
+                  value: '${widget.orders.where((o) {
+                    final s = o.orderStatus.toUpperCase();
+                    return s == 'SHIPPED' || s == 'IN_TRANSIT' || s == 'IN TRANSIT' || s == 'OUT_FOR_DELIVERY';
+                  }).length}',
+                  trend: 'Delhivery One active transit',
                   icon: Icons.local_shipping_outlined,
                   iconColor: const Color(0xFF8B5CF6),
                 ),
@@ -175,9 +190,12 @@ class _OrdersViewState extends State<OrdersView> {
                   isDark: isDark,
                   surfaceColor: surfaceColor,
                   borderColor: borderColor,
-                  title: 'Ready to Dispatch',
-                  value: '${widget.orders.where((o) => o.orderStatus == 'READY TO DISPATCH').length}',
-                  trend: 'Packed in warehouse',
+                  title: 'Pending / Ready to Pack',
+                  value: '${widget.orders.where((o) {
+                    final s = o.orderStatus.toUpperCase();
+                    return s == 'PENDING' || s == 'CONFIRMED' || s == 'PACKED';
+                  }).length}',
+                  trend: 'Awaiting confirm or label/pickup',
                   icon: Icons.inventory_2_outlined,
                   iconColor: const Color(0xFFD97706),
                 ),
@@ -282,10 +300,16 @@ class _OrdersViewState extends State<OrdersView> {
           child: Row(
             children: const [
               'All Statuses',
-              'PROCESSING',
-              'READY TO DISPATCH',
-              'IN TRANSIT',
+              'PENDING',
+              'CONFIRMED',
+              'PACKED',
+              'SHIPPED',
+              'IN_TRANSIT',
+              'OUT_FOR_DELIVERY',
               'DELIVERED',
+              'RTO_INITIATED',
+              'RTO_IN_TRANSIT',
+              'RTO_DELIVERED',
               'CANCELLED',
             ].map((status) {
               final isSelected = _selectedStatus == status;
@@ -655,45 +679,32 @@ class _OrdersViewState extends State<OrdersView> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            // Print / Download Invoice button
-                            Tooltip(
-                              message: 'Download Invoice',
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(6),
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Downloading invoice for ${o.orderNumber}…',
-                                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                            if (o.hasLabel) ...[
+                              const SizedBox(width: 6),
+                              Tooltip(
+                                message: 'Print Shipping Label',
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(6),
+                                  onTap: () => widget.onSelectOrder(o),
+                                  child: Container(
+                                    width: 32,
+                                    height: 30,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF2563EB).withValues(alpha: 0.10),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: const Color(0xFF2563EB).withValues(alpha: 0.28),
                                       ),
-                                      backgroundColor: const Color(0xFF2563EB),
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      margin: const EdgeInsets.all(20),
-                                      duration: const Duration(seconds: 2),
                                     ),
-                                  );
-                                },
-                                child: Container(
-                                  width: 32,
-                                  height: 30,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF2563EB).withValues(alpha: 0.10),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+                                    child: const Icon(
+                                      Icons.print_rounded,
+                                      size: 15,
+                                      color: Color(0xFF2563EB),
                                     ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.print_rounded,
-                                    size: 15,
-                                    color: Color(0xFF2563EB),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ),
@@ -703,6 +714,32 @@ class _OrdersViewState extends State<OrdersView> {
               }),
 
               // Pagination Footer
+              if (widget.isLoading && widget.orders.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (widget.errorMessage != null && widget.orders.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        widget.errorMessage!,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          color: const Color(0xFFDC2626),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (widget.onRetry != null) ...[
+                        const SizedBox(width: 12),
+                        TextButton(onPressed: widget.onRetry, child: const Text('Retry')),
+                      ],
+                    ],
+                  ),
+                ),
               PaginationFooter(
                 totalItems: totalItems,
                 currentPage: safePage,
@@ -721,6 +758,23 @@ class _OrdersViewState extends State<OrdersView> {
                   _currentPage = 1;
                 }),
               ),
+              if (widget.hasMore && widget.onLoadMore != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Center(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.isLoadingMore ? null : widget.onLoadMore,
+                      icon: widget.isLoadingMore
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.expand_more_rounded, size: 16),
+                      label: Text(widget.isLoadingMore ? 'Loading more orders...' : 'Load More Orders'),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

@@ -610,10 +610,9 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       errorMessage: null,
     ));
 
-    event.onSuccess?.call();
-
     try {
       await productRepository.deleteProductPermanently(event.productId);
+      event.onSuccess?.call();
     } catch (e) {
       // Revert if API fails
       final message = e is ApiException ? e.message : 'Failed to delete product: $e';
@@ -628,6 +627,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
     DeleteMultipleProductsPermanently event,
     Emitter<ProductState> emit,
   ) async {
+    final previousState = state;
     final targetSet = event.productIds.toSet();
 
     bool matches(Product p) =>
@@ -663,14 +663,13 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
       errorMessage: null,
     ));
 
-    event.onSuccess?.call(targetSet.length);
-
     // 2. Perform atomic deletion in background via unified endpoint
     try {
       await productRepository.deleteMultipleProductsPermanently(event.productIds);
+      event.onSuccess?.call(targetSet.length);
     } catch (e) {
       final message = e is ApiException ? e.message : 'Failed to delete products: $e';
-      emit(state.copyWith(
+      emit(previousState.copyWith(
         errorMessage: message,
       ));
       event.onError?.call(message);

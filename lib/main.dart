@@ -18,6 +18,8 @@ import 'logic/category/category_bloc.dart';
 import 'logic/category/category_event.dart';
 import 'logic/collection/collection_bloc.dart';
 import 'logic/collection/collection_event.dart';
+import 'logic/order/order_bloc.dart';
+import 'logic/order/order_event.dart';
 import 'logic/product/product_bloc.dart';
 import 'logic/product/product_event.dart';
 import 'logic/theme/theme_bloc.dart';
@@ -93,6 +95,11 @@ class SellerHubApp extends StatelessWidget {
             create: (ctx) => CustomerBloc(
               repository: ctx.read<AdminUserRepository>(),
             )..add(const InitializeAdminUsers()),
+          ),
+          BlocProvider<OrderBloc>(
+            create: (_) => OrderBloc(
+              apiClient: InjectionContainer.instance.apiClient,
+            )..add(const LoadAdminOrders(page: 0, size: 50)),
           ),
         ],
         child: BlocBuilder<ThemeBloc, ThemeState>(

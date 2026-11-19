@@ -214,6 +214,24 @@ class ApiClient {
     }
   }
 
+  Future<http.Response> _sendMultipartWithAuthRetry(
+    Future<http.MultipartRequest> Function() buildRequest,
+    bool requiresAuth,
+  ) async {
+    final req = await buildRequest();
+    final streamed = await _client.send(req).timeout(_timeout);
+    final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 401 && requiresAuth) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        final retryReq = await buildRequest();
+        final retryStreamed = await _client.send(retryReq).timeout(_timeout);
+        return await http.Response.fromStream(retryStreamed);
+      }
+    }
+    return res;
+  }
+
   Future<Map<String, dynamic>> postMultipart(
     String path, {
     required String fileFieldName,
@@ -225,24 +243,6 @@ class ApiClient {
   }) async {
     try {
       final uri = _buildUri(path);
-      final request = http.MultipartRequest('POST', uri);
-
-      if (requiresAuth) {
-        final token = await _tokenStorage.getAccessToken();
-        if (token != null && token.isNotEmpty) {
-          request.headers['Authorization'] = 'Bearer $token';
-        } else {
-          throw const UnauthorizedException(
-            message: 'Full authentication is required to access this resource. Please sign in.',
-          );
-        }
-      }
-      request.headers['Accept'] = 'application/json';
-
-      if (fields != null) {
-        request.fields.addAll(fields);
-      }
-
       MediaType? mediaType;
       if (contentType != null) {
         final parts = contentType.split('/');
@@ -251,15 +251,23 @@ class ApiClient {
         }
       }
 
-      request.files.add(http.MultipartFile.fromBytes(
-        fileFieldName,
-        fileBytes,
-        filename: fileName,
-        contentType: mediaType,
-      ));
+      final response = await _sendMultipartWithAuthRetry(() async {
+        final request = http.MultipartRequest('POST', uri);
+        final headers = await _buildHeaders(requiresAuth: requiresAuth);
+        headers.remove('Content-Type');
+        request.headers.addAll(headers);
+        if (fields != null) {
+          request.fields.addAll(fields);
+        }
+        request.files.add(http.MultipartFile.fromBytes(
+          fileFieldName,
+          fileBytes,
+          filename: fileName,
+          contentType: mediaType,
+        ));
+        return request;
+      }, requiresAuth);
 
-      final streamedResponse = await _client.send(request).timeout(_timeout);
-      final response = await http.Response.fromStream(streamedResponse);
       return _processResponse(response);
     } on SocketException catch (e) {
       throw NetworkException(
@@ -295,39 +303,29 @@ class ApiClient {
   }) async {
     try {
       final uri = _buildUri(path);
-      final request = http.MultipartRequest('POST', uri);
-
-      if (requiresAuth) {
-        final token = await _tokenStorage.getAccessToken();
-        if (token != null && token.isNotEmpty) {
-          request.headers['Authorization'] = 'Bearer $token';
-        } else {
-          throw const UnauthorizedException(
-            message: 'Full authentication is required to access this resource. Please sign in.',
-          );
+      final response = await _sendMultipartWithAuthRetry(() async {
+        final request = http.MultipartRequest('POST', uri);
+        final headers = await _buildHeaders(requiresAuth: requiresAuth);
+        headers.remove('Content-Type');
+        request.headers.addAll(headers);
+        if (fields != null) {
+          request.fields.addAll(fields);
         }
-      }
-      request.headers['Accept'] = 'application/json';
+        for (int i = 0; i < filesBytes.length; i++) {
+          final name = i < fileNames.length ? fileNames[i] : 'image_$i.jpg';
+          final ext = name.split('.').last.toLowerCase();
+          final mimeType = (ext == 'png') ? 'image/png' : (ext == 'webp' ? 'image/webp' : 'image/jpeg');
+          final parts = mimeType.split('/');
+          request.files.add(http.MultipartFile.fromBytes(
+            fileFieldName,
+            filesBytes[i],
+            filename: name,
+            contentType: MediaType(parts[0], parts[1]),
+          ));
+        }
+        return request;
+      }, requiresAuth);
 
-      if (fields != null) {
-        request.fields.addAll(fields);
-      }
-
-      for (int i = 0; i < filesBytes.length; i++) {
-        final name = i < fileNames.length ? fileNames[i] : 'image_$i.jpg';
-        final ext = name.split('.').last.toLowerCase();
-        final mimeType = (ext == 'png') ? 'image/png' : (ext == 'webp' ? 'image/webp' : 'image/jpeg');
-        final parts = mimeType.split('/');
-        request.files.add(http.MultipartFile.fromBytes(
-          fileFieldName,
-          filesBytes[i],
-          filename: name,
-          contentType: MediaType(parts[0], parts[1]),
-        ));
-      }
-
-      final streamedResponse = await _client.send(request).timeout(_timeout);
-      final response = await http.Response.fromStream(streamedResponse);
       return _processResponse(response);
     } on SocketException catch (e) {
       throw NetworkException(

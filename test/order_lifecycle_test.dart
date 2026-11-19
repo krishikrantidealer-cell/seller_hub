@@ -126,12 +126,12 @@ void main() {
       await tester.pumpWidget(_wrapInDesktopViewport(OrderDetailView(order: order, onBack: () {})));
 
       expect(find.text('Confirm Order'), findsOneWidget);
-      expect(find.text('Generate Delhivery Label'), findsNothing);
+      expect(find.text('Check Delhivery Label'), findsNothing);
       expect(find.text('Download Label & Mark Packed'), findsNothing);
       expect(find.text('Print Shipping Label'), findsNothing);
     });
 
-    testWidgets('CONFIRMED order WITHOUT backend label shows Generate Delhivery Label and hides Print/Download', (tester) async {
+    testWidgets('CONFIRMED order WITHOUT backend label shows Check Delhivery Label and hides Print/Download', (tester) async {
       tester.view.physicalSize = const Size(1600, 1200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -141,7 +141,7 @@ void main() {
 
       await tester.pumpWidget(_wrapInDesktopViewport(OrderDetailView(order: order, onBack: () {})));
 
-      expect(find.text('Generate Delhivery Label'), findsOneWidget);
+      expect(find.text('Check Delhivery Label'), findsOneWidget);
       expect(find.text('Download Label & Mark Packed'), findsNothing);
       expect(find.text('Print Shipping Label'), findsNothing);
     });
@@ -161,7 +161,7 @@ void main() {
       await tester.pumpWidget(_wrapInDesktopViewport(OrderDetailView(order: order, onBack: () {})));
 
       expect(find.text('Download Label & Mark Packed'), findsOneWidget);
-      expect(find.text('Generate Delhivery Label'), findsNothing);
+      expect(find.text('Check Delhivery Label'), findsNothing);
     });
 
     testWidgets('PACKED order WITH label shows Print Shipping Label and Sync Delhivery Tracking', (tester) async {

@@ -240,7 +240,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                             ),
                     icon: const Icon(Icons.local_shipping_rounded, size: 16),
                     label: Text(
-                      'Generate Delhivery Label',
+                      'Check Delhivery Label',
                       style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -476,10 +476,10 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.account_balance_rounded, size: 16, color: Color(0xFF3B82F6)),
+                        const Icon(Icons.local_shipping_rounded, size: 16, color: Color(0xFF059669)),
                         const SizedBox(width: 8),
                         Text(
-                          'Reference Bank Details & Settlement Ledger',
+                          'Delhivery One Fulfillment & Gateway Settlement',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w800,
@@ -493,12 +493,43 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                       spacing: 24,
                       runSpacing: 12,
                       children: [
-                        _buildMetaItem('BANK NAME', order.referenceBankDetail.bankName, isDark),
-                        _buildMetaItem('ACCOUNT NUMBER', order.referenceBankDetail.accountNumber, isDark),
-                        _buildMetaItem('IFSC CODE', order.referenceBankDetail.ifscCode, isDark),
-                        _buildMetaItem('UTR / TRANSACTION REF', order.referenceBankDetail.utrNumber, isDark, highlightColor: const Color(0xFF059669)),
-                        _buildMetaItem('ACCOUNT HOLDER', order.referenceBankDetail.accountHolderName, isDark),
-                        _buildMetaItem('BRANCH', order.referenceBankDetail.branch, isDark),
+                        _buildMetaItem(
+                          'COURIER PARTNER',
+                          order.shippingAddress.carrier.isNotEmpty
+                              ? order.shippingAddress.carrier
+                              : 'DELHIVERY ONE',
+                          isDark,
+                        ),
+                        _buildMetaItem(
+                          'AWB / WAYBILL',
+                          order.shippingAddress.trackingNumber.isNotEmpty
+                              ? order.shippingAddress.trackingNumber
+                              : 'Awaiting Dispatch Booking',
+                          isDark,
+                          highlightColor: order.shippingAddress.trackingNumber.isNotEmpty
+                              ? const Color(0xFF2563EB)
+                              : const Color(0xFFD97706),
+                        ),
+                        _buildMetaItem(
+                          'LABEL STATUS',
+                          order.hasLabel ? 'Label Stored & Ready' : 'Not Available Yet',
+                          isDark,
+                          highlightColor: order.hasLabel ? const Color(0xFF059669) : const Color(0xFFD97706),
+                        ),
+                        _buildMetaItem('GATEWAY', order.referenceBankDetail.bankName, isDark),
+                        _buildMetaItem(
+                          'GATEWAY TXN REF',
+                          order.referenceBankDetail.utrNumber,
+                          isDark,
+                          highlightColor: const Color(0xFF059669),
+                        ),
+                        if (order.rtoReason.isNotEmpty)
+                          _buildMetaItem(
+                            'RTO REASON',
+                            order.rtoReason,
+                            isDark,
+                            highlightColor: const Color(0xFFEA580C),
+                          ),
                       ],
                     ),
                   ],
@@ -546,7 +577,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                 child: Row(
                   children: [
                     Expanded(flex: 5, child: _buildTableHeaderText('PRODUCT & COMPOSITION', isDark)),
-                    Expanded(flex: 2, child: _buildTableHeaderText('CATEGORY & PACK', isDark)),
+                    Expanded(flex: 2, child: _buildTableHeaderText('SKU & PACK', isDark)),
                     Expanded(flex: 2, child: _buildTableHeaderText('UNIT PRICE / MRP', isDark)),
                     Expanded(flex: 2, child: _buildTableHeaderText('GST TAX', isDark)),
                     Expanded(flex: 2, child: _buildTableHeaderText('QUANTITY', isDark)),
@@ -607,14 +638,14 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                         ),
                       ),
 
-                      // Category & Pack
+                      // SKU & Pack
                       Expanded(
                         flex: 2,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item.category,
+                              item.productCode.isNotEmpty ? item.productCode : 'Standard SKU',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
@@ -882,6 +913,11 @@ class _OrderDetailViewState extends State<OrderDetailView> {
           ],
         ),
 
+        const SizedBox(height: 18),
+
+        // Section 4: Live Delhivery Tracking & Order Status History Timeline
+        _buildTimelineSection(order, isDark, surfaceColor, borderColor),
+
         const SizedBox(height: 32),
       ],
     );
@@ -983,6 +1019,210 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                 fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
                 color: highlightColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineSection(
+    MarketplaceOrder order,
+    bool isDark,
+    Color surfaceColor,
+    Color borderColor,
+  ) {
+    final trackingEvents = order.trackingEvents.reversed.toList();
+    final statusHistory = order.statusHistory.reversed.toList();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Card 1: Live Delhivery Tracking Scans
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.radar_rounded, size: 18, color: Color(0xFF059669)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Live Delhivery Tracking Scans (${trackingEvents.length})',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: borderColor),
+                const SizedBox(height: 12),
+                if (trackingEvents.isEmpty)
+                  Text(
+                    'No Delhivery scan events yet. Scans populate automatically once dispatch books the shipment in Delhivery One.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  )
+                else
+                  ...List.generate(trackingEvents.length, (i) {
+                    final ev = trackingEvents[i];
+                    final subtitleParts = <String>[
+                      if (ev.location.isNotEmpty) ev.location,
+                      if (ev.instructions.isNotEmpty) ev.instructions,
+                    ];
+                    return _buildTimelineRow(
+                      title: ev.statusType.isNotEmpty ? '${ev.status} (${ev.statusType})' : ev.status,
+                      subtitle: subtitleParts.join(' • '),
+                      timestamp: ev.scannedAt != null ? _formatDate(ev.scannedAt!) : '—',
+                      accentColor: const Color(0xFF059669),
+                      isLast: i == trackingEvents.length - 1,
+                      isDark: isDark,
+                    );
+                  }),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        // Card 2: Order Lifecycle Status History
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: surfaceColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.history_rounded, size: 18, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Order Lifecycle Status History (${statusHistory.length})',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: borderColor),
+                const SizedBox(height: 12),
+                if (statusHistory.isEmpty)
+                  _buildTimelineRow(
+                    title: order.orderStatus,
+                    subtitle: 'Order placed via ${order.paymentMethod}',
+                    timestamp: _formatDate(order.orderDate),
+                    accentColor: const Color(0xFF2563EB),
+                    isLast: true,
+                    isDark: isDark,
+                  )
+                else
+                  ...List.generate(statusHistory.length, (i) {
+                    final ev = statusHistory[i];
+                    final subtitleParts = <String>[
+                      if (ev.actor.isNotEmpty) 'By ${ev.actor}',
+                      if (ev.note.isNotEmpty) ev.note,
+                    ];
+                    return _buildTimelineRow(
+                      title: ev.status,
+                      subtitle: subtitleParts.join(' • '),
+                      timestamp: ev.occurredAt != null ? _formatDate(ev.occurredAt!) : '—',
+                      accentColor: const Color(0xFF2563EB),
+                      isLast: i == statusHistory.length - 1,
+                      isDark: isDark,
+                    );
+                  }),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimelineRow({
+    required String title,
+    required String subtitle,
+    required String timestamp,
+    required Color accentColor,
+    required bool isLast,
+    required bool isDark,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: accentColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title.isNotEmpty ? title : 'UPDATE',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      timestamp,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

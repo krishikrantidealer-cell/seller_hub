@@ -291,6 +291,44 @@ class OrderAddress extends Equatable {
   ];
 }
 
+/// Delhivery / Courier tracking scan event on a shipment
+class OrderTrackingEvent extends Equatable {
+  final String status;
+  final String statusType;
+  final String location;
+  final String instructions;
+  final DateTime? scannedAt;
+
+  const OrderTrackingEvent({
+    required this.status,
+    this.statusType = '',
+    this.location = '',
+    this.instructions = '',
+    this.scannedAt,
+  });
+
+  @override
+  List<Object?> get props => [status, statusType, location, instructions, scannedAt];
+}
+
+/// Order lifecycle status transition history entry
+class OrderStatusEvent extends Equatable {
+  final String status;
+  final DateTime? occurredAt;
+  final String actor;
+  final String note;
+
+  const OrderStatusEvent({
+    required this.status,
+    this.occurredAt,
+    this.actor = '',
+    this.note = '',
+  });
+
+  @override
+  List<Object?> get props => [status, occurredAt, actor, note];
+}
+
 /// Main Agricultural Marketplace Order
 class MarketplaceOrder extends Equatable {
   final String id;
@@ -315,6 +353,8 @@ class MarketplaceOrder extends Equatable {
   final String labelReference;
   final String rtoReason;
   final bool rtoRestocked;
+  final List<OrderTrackingEvent> trackingEvents;
+  final List<OrderStatusEvent> statusHistory;
 
   bool get hasLabel => labelReference.trim().isNotEmpty;
 
@@ -341,6 +381,8 @@ class MarketplaceOrder extends Equatable {
     this.labelReference = '',
     this.rtoReason = '',
     this.rtoRestocked = false,
+    this.trackingEvents = const [],
+    this.statusHistory = const [],
   });
 
   factory MarketplaceOrder.fromBackendJson(Map<String, dynamic> json) {
@@ -545,6 +587,31 @@ class MarketplaceOrder extends Equatable {
             : parsedItems.fold<double>(0.0, (sum, it) => sum + it.totalPrice));
     final placedAt = parseDate(json['placedAt'] ?? json['createdAt']);
 
+    final rawTracking = (firstShipment['trackingEvents'] as List<dynamic>?) ?? const [];
+    final parsedTrackingEvents = rawTracking.map((e) {
+      final map = e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
+      final rawTs = map['scannedAt'];
+      return OrderTrackingEvent(
+        status: map['status']?.toString() ?? '',
+        statusType: map['statusType']?.toString() ?? '',
+        location: map['location']?.toString() ?? '',
+        instructions: map['instructions']?.toString() ?? '',
+        scannedAt: rawTs != null ? DateTime.tryParse(rawTs.toString()) : null,
+      );
+    }).toList();
+
+    final rawHistory = (json['statusHistory'] as List<dynamic>?) ?? const [];
+    final parsedStatusHistory = rawHistory.map((e) {
+      final map = e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{};
+      final rawTs = map['occurredAt'];
+      return OrderStatusEvent(
+        status: map['status']?.toString() ?? '',
+        occurredAt: rawTs != null ? DateTime.tryParse(rawTs.toString()) : null,
+        actor: map['actor']?.toString() ?? '',
+        note: map['note']?.toString() ?? '',
+      );
+    }).toList();
+
     return MarketplaceOrder(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
       orderNumber: json['orderNumber']?.toString() ?? '',
@@ -579,6 +646,8 @@ class MarketplaceOrder extends Equatable {
       labelReference: firstShipment['labelReference']?.toString() ?? '',
       rtoReason: firstShipment['rtoReason']?.toString() ?? '',
       rtoRestocked: firstShipment['rtoRestocked'] == true,
+      trackingEvents: parsedTrackingEvents,
+      statusHistory: parsedStatusHistory,
     );
   }
 
@@ -605,6 +674,8 @@ class MarketplaceOrder extends Equatable {
     String? labelReference,
     String? rtoReason,
     bool? rtoRestocked,
+    List<OrderTrackingEvent>? trackingEvents,
+    List<OrderStatusEvent>? statusHistory,
   }) {
     return MarketplaceOrder(
       id: id ?? this.id,
@@ -629,6 +700,8 @@ class MarketplaceOrder extends Equatable {
       labelReference: labelReference ?? this.labelReference,
       rtoReason: rtoReason ?? this.rtoReason,
       rtoRestocked: rtoRestocked ?? this.rtoRestocked,
+      trackingEvents: trackingEvents ?? this.trackingEvents,
+      statusHistory: statusHistory ?? this.statusHistory,
     );
   }
 
@@ -653,6 +726,11 @@ class MarketplaceOrder extends Equatable {
     shippingFee,
     discountAmount,
     grandTotal,
+    labelReference,
+    rtoReason,
+    rtoRestocked,
+    trackingEvents,
+    statusHistory,
   ];
 }
 

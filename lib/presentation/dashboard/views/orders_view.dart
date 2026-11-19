@@ -43,7 +43,10 @@ class _OrdersViewState extends State<OrdersView> {
 
   String _formatDate(DateTime dt) {
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    final hour12 = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
+    final amPm = dt.hour >= 12 ? 'PM' : 'AM';
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year} • $hour12:$min $amPm';
   }
 
   Color _getPaymentStatusColor(String status) {
@@ -400,15 +403,14 @@ class _OrdersViewState extends State<OrdersView> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    Expanded(flex: 3, child: _buildColHeader('ORDER & DATE', isDark)),
+                    Expanded(flex: 3, child: _buildColHeader('ORDER & PLACED', isDark)),
                     Expanded(flex: 3, child: _buildColHeader('CUSTOMER & LOCATION', isDark)),
-                    Expanded(flex: 3, child: _buildColHeader('SELLER & COMPANY', isDark)),
-                    Expanded(flex: 2, child: _buildColHeader('PAYMENT METHOD', isDark)),
-                    Expanded(flex: 2, child: _buildColHeader('BANK UTR REF', isDark)),
-                    Expanded(flex: 2, child: _buildColHeader('AMOUNT & ITEMS', isDark)),
-                    SizedBox(width: 90, child: _buildColHeader('STATUS', isDark)),
-                    const SizedBox(width: 16),
-                    SizedBox(width: 88, child: _buildColHeader('ACTIONS', isDark, alignRight: true)),
+                    Expanded(flex: 3, child: _buildColHeader('ITEMS & SELLER', isDark)),
+                    Expanded(flex: 2, child: _buildColHeader('PAYMENT & TOTAL', isDark)),
+                    Expanded(flex: 2, child: _buildColHeader('DELHIVERY & AWB', isDark)),
+                    SizedBox(width: 112, child: _buildColHeader('STATUS', isDark)),
+                    const SizedBox(width: 12),
+                    SizedBox(width: 80, child: _buildColHeader('ACTIONS', isDark, alignRight: true)),
                   ],
                 ),
               ),
@@ -474,7 +476,9 @@ class _OrdersViewState extends State<OrdersView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              o.shippingAddress.recipientName,
+                              o.shippingAddress.recipientName.isNotEmpty
+                                  ? o.shippingAddress.recipientName
+                                  : 'Customer',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -486,9 +490,13 @@ class _OrdersViewState extends State<OrdersView> {
                             const SizedBox(height: 2),
                             Text(
                               [
-                                o.shippingAddress.city.trim(),
-                                o.shippingAddress.state.trim(),
-                              ].where((s) => s.isNotEmpty).join(', '),
+                                [
+                                  o.shippingAddress.city.trim(),
+                                  o.shippingAddress.state.trim(),
+                                ].where((s) => s.isNotEmpty).join(', '),
+                                if (o.shippingAddress.pincode.trim().isNotEmpty)
+                                  o.shippingAddress.pincode.trim(),
+                              ].where((s) => s.isNotEmpty).join(' • '),
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
@@ -496,32 +504,45 @@ class _OrdersViewState extends State<OrdersView> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            if (o.shippingAddress.phone.trim().isNotEmpty)
+                              Text(
+                                o.shippingAddress.phone.trim(),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9.5,
+                                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                ),
+                              ),
                           ],
                         ),
                       ),
 
-                      // 3. Seller & Company
+                      // 3. Items & Seller
                       Expanded(
                         flex: 3,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              o.sellerName,
+                              o.items.isNotEmpty
+                                  ? (o.items.length > 1
+                                      ? '${o.items.first.title} (+${o.items.length - 1} more)'
+                                      : o.items.first.title)
+                                  : '—',
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF2563EB),
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              o.company,
+                              '${o.items.fold<int>(0, (s, i) => s + i.quantity)} Qty • ${o.sellerName}',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF2563EB),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -530,26 +551,39 @@ class _OrdersViewState extends State<OrdersView> {
                         ),
                       ),
 
-                      // 4. Payment Method & Status
+                      // 4. Payment & Total
                       Expanded(
                         flex: 2,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: payCol.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                o.paymentStatus,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: payCol,
+                            Row(
+                              children: [
+                                Text(
+                                  '₹${o.grandTotal.toStringAsFixed(0)}',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF059669),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: payCol.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    o.paymentStatus,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: payCol,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 3),
                             Text(
@@ -565,69 +599,68 @@ class _OrdersViewState extends State<OrdersView> {
                         ),
                       ),
 
-                      // 5. Reference Bank UTR
+                      // 5. Delhivery & AWB
                       Expanded(
                         flex: 2,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              o.referenceBankDetail.bankName,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                            if (o.shippingAddress.trackingNumber.trim().isNotEmpty) ...[
+                              Text(
+                                o.shippingAddress.trackingNumber.trim(),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              o.referenceBankDetail.utrNumber,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 9,
-                                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                              const SizedBox(height: 2),
+                              Text(
+                                o.hasLabel ? 'Delhivery • Label Ready' : 'Delhivery AWB',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: o.hasLabel ? const Color(0xFF059669) : const Color(0xFF2563EB),
+                                ),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                            ] else if (o.orderStatus.toUpperCase() == 'CONFIRMED') ...[
+                              Text(
+                                'Awaiting Booking',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFD97706),
+                                ),
+                              ),
+                              Text(
+                                'Book in Delhivery One',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9,
+                                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ] else ...[
+                              Text(
+                                '—',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
 
-                      // 6. Amount & Items
-                      Expanded(
-                        flex: 2,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '₹${o.grandTotal.toStringAsFixed(0)}',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF059669),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${o.items.length} Product${o.items.length > 1 ? 's' : ''}',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // 7. Order Status
+                      // 6. Order Status
                       SizedBox(
-                        width: 90,
+                        width: 112,
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                             decoration: BoxDecoration(
                               color: statCol.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(4),
@@ -647,11 +680,11 @@ class _OrdersViewState extends State<OrdersView> {
                         ),
                       ),
 
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
 
-                      // 8. Actions
+                      // 7. Actions
                       SizedBox(
-                        width: 88,
+                        width: 80,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [

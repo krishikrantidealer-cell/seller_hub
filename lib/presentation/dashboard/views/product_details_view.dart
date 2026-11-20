@@ -633,6 +633,57 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     }
   }
 
+  void _applyCommissionToAllVariants(double comm) {
+    final normalized = comm.clamp(0.0, 100.0);
+    if (_editIsMarketplace) {
+      _defaultTechnicalCommission = normalized;
+      _recalculateSellingRate();
+    } else {
+      _dealerCommission = normalized;
+      _recalculateSwgFromSellingRate();
+    }
+    _syncCurrentVariantFromControllers();
+
+    for (int i = 0; i < _workingVariants.length; i++) {
+      final v = _workingVariants[i];
+      if (i == _selectedVariantIndex) {
+        _workingVariants[i] = v.copyWith(commissionPercentage: normalized);
+        continue;
+      }
+      if (_editIsMarketplace) {
+        final newCourier = v.courierCharges > 0
+            ? v.courierCharges
+            : LivePriceCalculation.computeCourierChargeFromWeightGrams(v.productWeight);
+        final newCod = v.codCharge > 0 ? v.codCharge : LivePriceCalculation.fixedCodAndBankCharge;
+        final newRate = v.swg > 0
+            ? LivePriceCalculation.computeSellingRate(
+                swg: v.swg,
+                commissionPercentage: normalized,
+                courierCharges: newCourier,
+                codCharge: newCod,
+                isMarketplace: true,
+              ).roundToDouble()
+            : v.displayRate;
+        _workingVariants[i] = v.copyWith(
+          commissionPercentage: normalized,
+          displayRate: newRate,
+        );
+      } else {
+        final newSwg = v.displayRate > 0
+            ? LivePriceCalculation.computeSwgFromSellingRate(
+                sellingRate: v.displayRate,
+                commissionPercentage: normalized,
+              ).roundToDouble()
+            : v.swg;
+        _workingVariants[i] = v.copyWith(
+          commissionPercentage: normalized,
+          swg: newSwg,
+        );
+      }
+    }
+    _onVariantFieldChanged();
+  }
+
   void _applySellerPricingModel(AdminUser? seller) {
     final isDealer = seller != null && seller.pricingModel == 'DEALER_COMMISSION';
     final isAssigningToDealer =
@@ -3223,12 +3274,16 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         controller: _commissionController,
                         label: 'Commission (%)',
                         hint: _editIsMarketplace
-                            ? 'Auto from Technical Name'
-                            : 'Auto from Seller (Dealer Commission)',
+                            ? 'Auto from Technical Name (editable)'
+                            : 'Auto from Seller (editable)',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                        readOnly: true,
+                        readOnly: !_isEditing,
+                        onChanged: (val) {
+                          final comm = double.tryParse(val.trim()) ?? 0.0;
+                          _applyCommissionToAllVariants(comm);
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),

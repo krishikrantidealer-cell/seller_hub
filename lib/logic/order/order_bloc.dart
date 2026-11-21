@@ -12,8 +12,22 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
   final ApiClient apiClient;
   final WebSocketService webSocketService;
   StreamSubscription<Map<String, dynamic>>? _wsSub;
+  Timer? _autoRefreshTimer;
   bool _isFetching = false;
   bool _pendingRefresh = false;
+
+  void _ensureAutoRefreshStarted() {
+    _autoRefreshTimer ??= Timer.periodic(const Duration(seconds: 15), (_) {
+      if (isClosed) {
+        _autoRefreshTimer?.cancel();
+        _autoRefreshTimer = null;
+        return;
+      }
+      if (!_isFetching) {
+        add(const LoadAdminOrders(page: 0, size: 50, isRefresh: true));
+      }
+    });
+  }
 
   OrderBloc({
     required this.apiClient,
@@ -38,6 +52,7 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
     LoadAdminOrders event,
     Emitter<OrderState> emit,
   ) async {
+    _ensureAutoRefreshStarted();
     if (_isFetching) {
       _pendingRefresh = true;
       return;
@@ -184,6 +199,7 @@ class OrderBloc extends Bloc<OrderEvent, OrderState> {
 
   @override
   Future<void> close() {
+    _autoRefreshTimer?.cancel();
     _wsSub?.cancel();
     return super.close();
   }

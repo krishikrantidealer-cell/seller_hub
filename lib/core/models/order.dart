@@ -65,6 +65,8 @@ class OrderItem extends Equatable {
   final double mrp;
   final double gstPercentage;
   final double totalPrice;
+  final double sellerWillGet;
+  final String imageUrl;
 
   const OrderItem({
     required this.id,
@@ -81,6 +83,8 @@ class OrderItem extends Equatable {
     required this.mrp,
     this.gstPercentage = 18.0,
     required this.totalPrice,
+    this.sellerWillGet = 0.0,
+    this.imageUrl = '',
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -220,6 +224,8 @@ class OrderAddress extends Equatable {
   final String email;
   final String addressLine;
   final String city;
+  final String taluka;
+  final String district;
   final String state;
   final String pincode;
   final String gstin;
@@ -234,6 +240,8 @@ class OrderAddress extends Equatable {
     this.email = '',
     required this.addressLine,
     required this.city,
+    this.taluka = '',
+    this.district = '',
     required this.state,
     required this.pincode,
     this.gstin = '',
@@ -355,8 +363,34 @@ class MarketplaceOrder extends Equatable {
   final bool rtoRestocked;
   final List<OrderTrackingEvent> trackingEvents;
   final List<OrderStatusEvent> statusHistory;
+  final String sellerPaymentStatus;
+  final DateTime? sellerPaymentDate;
+  final double sellerWillGet;
 
   bool get hasLabel => labelReference.trim().isNotEmpty;
+
+  DateTime? _statusTimestamp(String target) {
+    final upper = target.toUpperCase();
+    for (final ev in statusHistory.reversed) {
+      if (ev.status.trim().toUpperCase() == upper && ev.occurredAt != null) {
+        return ev.occurredAt!.toLocal();
+      }
+    }
+    return null;
+  }
+
+  DateTime? get confirmedAt => _statusTimestamp('CONFIRMED');
+  DateTime? get packedAt => _statusTimestamp('PACKED');
+
+  String get dispatchDurationFormatted {
+    final end = packedAt ?? confirmedAt;
+    if (end == null) return '00:00';
+    final diff = end.difference(orderDate);
+    if (diff.isNegative) return '00:00';
+    final hours = diff.inHours;
+    final mins = diff.inMinutes % 60;
+    return '${hours.toString().padLeft(2, '0')}:${mins.toString().padLeft(2, '0')}';
+  }
 
   const MarketplaceOrder({
     required this.id,
@@ -383,6 +417,9 @@ class MarketplaceOrder extends Equatable {
     this.rtoRestocked = false,
     this.trackingEvents = const [],
     this.statusHistory = const [],
+    this.sellerPaymentStatus = 'PENDING',
+    this.sellerPaymentDate,
+    this.sellerWillGet = 0.0,
   });
 
   factory MarketplaceOrder.fromBackendJson(Map<String, dynamic> json) {
@@ -483,6 +520,14 @@ class MarketplaceOrder extends Equatable {
           mrp: toDouble(m['listPrice']) > 0 ? toDouble(m['listPrice']) : unitPrice,
           gstPercentage: 0.0,
           totalPrice: lineTotal > 0 ? lineTotal : (unitPrice * qty),
+          sellerWillGet: toDouble(m['sellerWillGet']) > 0
+              ? toDouble(m['sellerWillGet'])
+              : (toDouble(varSnap['swg']) * qty),
+          imageUrl: prodSnap['imageUrl']?.toString() ??
+              prodSnap['thumbnailUrl']?.toString() ??
+              varSnap['imageUrl']?.toString() ??
+              m['imageUrl']?.toString() ??
+              '',
         ),
       );
     }
@@ -559,6 +604,8 @@ class MarketplaceOrder extends Equatable {
         email: customerSnap['email']?.toString() ?? m['email']?.toString() ?? '',
         addressLine: combinedLine,
         city: city,
+        taluka: m['cityTehsil']?.toString().trim() ?? m['taluka']?.toString().trim() ?? '',
+        district: m['district']?.toString().trim() ?? '',
         state: state,
         pincode: pin,
         carrier: firstShipment['courierName']?.toString() ?? firstShipment['carrier']?.toString() ?? '',
@@ -569,14 +616,19 @@ class MarketplaceOrder extends Equatable {
 
     final rawPayType = paymentMap['paymentType']?.toString().toUpperCase() ?? 'PREPAID';
     final rawPayStatus = paymentMap['status']?.toString().toUpperCase() ?? 'CREATED';
+    final isCodType = rawPayType == 'COD';
     final normalizedPayStatus = rawPayStatus == 'CAPTURED' || rawPayStatus == 'PAID'
         ? 'PAID'
         : (rawPayStatus == 'REFUNDED'
             ? 'REFUNDED'
-            : (rawPayStatus == 'FAILED' ? 'FAILED' : 'PENDING'));
-    final paymentLabel = paymentMap['provider']?.toString().isNotEmpty == true
-        ? '${paymentMap['provider']} ($rawPayType)'
-        : rawPayType;
+            : (rawPayStatus == 'FAILED'
+                ? 'FAILED'
+                : (isCodType ? 'COD' : 'PENDING')));
+    final paymentLabel = isCodType
+        ? 'Cash on Delivery (COD)'
+        : (paymentMap['provider']?.toString().isNotEmpty == true
+            ? '${paymentMap['provider']} ($rawPayType)'
+            : rawPayType);
 
     final gmv = toDouble(finMap['grossMerchandiseValue']);
     final discount = toDouble(finMap['discountTotal']);
@@ -633,6 +685,7 @@ class MarketplaceOrder extends Equatable {
         sellerId: firstGroup['sellerId']?.toString() ?? '',
         tradeName: sellerTradeName,
         gstin: sellerSnap['gstNumber']?.toString() ?? '',
+        contactEmail: sellerSnap['contactEmail']?.toString() ?? '',
         contactPhone: sellerSnap['contactPhone']?.toString() ?? '',
         pincode: sellerSnap['dispatchPincode']?.toString() ?? '',
       ),
@@ -648,6 +701,15 @@ class MarketplaceOrder extends Equatable {
       rtoRestocked: firstShipment['rtoRestocked'] == true,
       trackingEvents: parsedTrackingEvents,
       statusHistory: parsedStatusHistory,
+      sellerPaymentStatus: (firstGroup['sellerPaymentStatus']?.toString().trim().isNotEmpty ?? false)
+          ? firstGroup['sellerPaymentStatus'].toString().trim().toUpperCase()
+          : 'PENDING',
+      sellerPaymentDate: firstGroup['sellerPaymentDate'] != null
+          ? parseDate(firstGroup['sellerPaymentDate'])
+          : null,
+      sellerWillGet: toDouble(firstGroup['sellerWillGet']) > 0
+          ? toDouble(firstGroup['sellerWillGet'])
+          : parsedItems.fold<double>(0.0, (sum, it) => sum + it.sellerWillGet),
     );
   }
 
@@ -676,6 +738,9 @@ class MarketplaceOrder extends Equatable {
     bool? rtoRestocked,
     List<OrderTrackingEvent>? trackingEvents,
     List<OrderStatusEvent>? statusHistory,
+    String? sellerPaymentStatus,
+    DateTime? sellerPaymentDate,
+    double? sellerWillGet,
   }) {
     return MarketplaceOrder(
       id: id ?? this.id,
@@ -702,6 +767,9 @@ class MarketplaceOrder extends Equatable {
       rtoRestocked: rtoRestocked ?? this.rtoRestocked,
       trackingEvents: trackingEvents ?? this.trackingEvents,
       statusHistory: statusHistory ?? this.statusHistory,
+      sellerPaymentStatus: sellerPaymentStatus ?? this.sellerPaymentStatus,
+      sellerPaymentDate: sellerPaymentDate ?? this.sellerPaymentDate,
+      sellerWillGet: sellerWillGet ?? this.sellerWillGet,
     );
   }
 

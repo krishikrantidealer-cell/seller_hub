@@ -128,6 +128,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
       case 'PAID':
         return const Color(0xFF059669);
       case 'PENDING':
+      case 'COD':
         return const Color(0xFFD97706);
       case 'FAILED':
         return const Color(0xFFDC2626);
@@ -173,8 +174,18 @@ class _OrderDetailViewState extends State<OrderDetailView> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
+    final softWhiteSurface = isDark ? const Color(0xFF111827) : const Color(0xFFFAFBFD);
+    final insetSurface = isDark ? const Color(0xFF0F172A) : const Color(0xFFF4F7FB);
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
-    final cardBg = isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC);
+    final cardShadow = isDark
+        ? <BoxShadow>[]
+        : const [
+            BoxShadow(
+              color: Color(0x0A0F172A),
+              blurRadius: 14,
+              offset: Offset(0, 4),
+            ),
+          ];
 
     final payColor = _getPaymentStatusColor(order.paymentStatus);
     final statusColor = _getOrderStatusColor(order.orderStatus);
@@ -402,9 +413,9 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                         Text(
                           'Company: ${order.company} • Sold by: ${order.sellerName} • Placed on: ${_formatDate(order.orderDate)}',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
                           ),
                         ),
                       ],
@@ -418,86 +429,112 @@ class _OrderDetailViewState extends State<OrderDetailView> {
 
         const SizedBox(height: 18),
 
-        // Section 1: Order Metadata & Reference Bank Details
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.account_balance_wallet_outlined, size: 18, color: Color(0xFF059669)),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Order Commercial & Bank Settlement Terms',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Divider(height: 1, color: borderColor),
-              const SizedBox(height: 16),
+        // Section 0.5: Modern Visual Fulfillment Stepper
+        _buildFulfillmentStepper(order, isDark, softWhiteSurface, borderColor),
 
-              Wrap(
-                spacing: 24,
-                runSpacing: 16,
-                children: [
-                  _buildMetaItem('ORDER NUMBER', order.orderNumber, isDark),
-                  _buildMetaItem('ORDER DATE', _formatDate(order.orderDate), isDark),
-                  _buildMetaItem('PAID DATE', _formatDate(order.paidDate), isDark),
-                  _buildMetaItem('PAYMENT METHOD', order.paymentMethod, isDark),
-                  _buildMetaItem('PAYMENT STATUS', order.paymentStatus, isDark, highlightColor: payColor),
-                  _buildMetaItem('COMPANY', order.company, isDark),
-                  _buildMetaItem('SELLER NAME', order.sellerName, isDark, highlightColor: const Color(0xFF2563EB)),
-                ],
-              ),
+        const SizedBox(height: 18),
 
-              const SizedBox(height: 18),
-
-              // Reference Bank Detail Box
-              Container(
-                padding: const EdgeInsets.all(16),
+        // Section 1: 2-Column Modern Bento Grid (Order & Payment Overview + Delhivery One Fulfillment)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: cardBg,
-                  borderRadius: BorderRadius.circular(10),
+                  color: surfaceColor,
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: borderColor),
+                  boxShadow: cardShadow,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.local_shipping_rounded, size: 16, color: Color(0xFF059669)),
-                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.receipt_long_rounded, size: 16, color: Color(0xFF059669)),
+                        ),
+                        const SizedBox(width: 10),
                         Text(
-                          'Delhivery One Fulfillment & Gateway Settlement',
+                          'Order & Payment Overview',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.5,
+                            fontSize: 14,
                             fontWeight: FontWeight.w800,
                             color: isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+                    Divider(height: 1, color: borderColor),
+                    const SizedBox(height: 14),
                     Wrap(
-                      spacing: 24,
-                      runSpacing: 12,
+                      spacing: 28,
+                      runSpacing: 14,
+                      children: [
+                        _buildMetaItem('ORDER NUMBER', order.orderNumber, isDark),
+                        _buildMetaItem('ORDER DATE', _formatDate(order.orderDate), isDark),
+                        _buildMetaItem('PAYMENT METHOD', order.paymentMethod, isDark),
+                        _buildMetaItem('PAYMENT STATUS', order.paymentStatus, isDark, highlightColor: payColor),
+                        _buildMetaItem('PAID DATE', order.paymentStatus == 'PAID' ? _formatDate(order.paidDate) : '—', isDark),
+                        _buildMetaItem('COMPANY / CHANNEL', order.company, isDark),
+                        _buildMetaItem('GATEWAY TXN REF', order.referenceBankDetail.utrNumber, isDark, highlightColor: const Color(0xFF059669)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: softWhiteSurface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: borderColor),
+                  boxShadow: cardShadow,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.local_shipping_rounded, size: 16, color: Color(0xFF2563EB)),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Delhivery One Fulfillment & SLA',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Divider(height: 1, color: borderColor),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 28,
+                      runSpacing: 14,
                       children: [
                         _buildMetaItem(
                           'COURIER PARTNER',
-                          order.shippingAddress.carrier.isNotEmpty
-                              ? order.shippingAddress.carrier
-                              : 'DELHIVERY ONE',
+                          order.shippingAddress.carrier.isNotEmpty ? order.shippingAddress.carrier : 'DELHIVERY ONE',
                           isDark,
                         ),
                         _buildMetaItem(
@@ -516,27 +553,17 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                           isDark,
                           highlightColor: order.hasLabel ? const Color(0xFF059669) : const Color(0xFFD97706),
                         ),
-                        _buildMetaItem('GATEWAY', order.referenceBankDetail.bankName, isDark),
-                        _buildMetaItem(
-                          'GATEWAY TXN REF',
-                          order.referenceBankDetail.utrNumber,
-                          isDark,
-                          highlightColor: const Color(0xFF059669),
-                        ),
+                        _buildMetaItem('DISPATCH SLA (H:M)', order.dispatchDurationFormatted, isDark),
+                        _buildMetaItem('SELLER', order.sellerName, isDark, highlightColor: const Color(0xFF2563EB)),
                         if (order.rtoReason.isNotEmpty)
-                          _buildMetaItem(
-                            'RTO REASON',
-                            order.rtoReason,
-                            isDark,
-                            highlightColor: const Color(0xFFEA580C),
-                          ),
+                          _buildMetaItem('RTO REASON', order.rtoReason, isDark, highlightColor: const Color(0xFFEA580C)),
                       ],
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
 
         const SizedBox(height: 18),
@@ -579,8 +606,8 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                     Expanded(flex: 5, child: _buildTableHeaderText('PRODUCT & COMPOSITION', isDark)),
                     Expanded(flex: 2, child: _buildTableHeaderText('SKU & PACK', isDark)),
                     Expanded(flex: 2, child: _buildTableHeaderText('UNIT PRICE / MRP', isDark)),
-                    Expanded(flex: 2, child: _buildTableHeaderText('GST TAX', isDark)),
                     Expanded(flex: 2, child: _buildTableHeaderText('QUANTITY', isDark)),
+                    Expanded(flex: 2, child: _buildTableHeaderText('SELLER WILL GET', isDark)),
                     Expanded(flex: 2, child: _buildTableHeaderText('LINE TOTAL', isDark, alignRight: true)),
                   ],
                 ),
@@ -602,13 +629,25 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                         child: Row(
                           children: [
                             Container(
-                              width: 36,
-                              height: 36,
+                              width: 40,
+                              height: 40,
+                              clipBehavior: Clip.antiAlias,
                               decoration: BoxDecoration(
                                 color: const Color(0xFF059669).withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: borderColor),
                               ),
-                              child: const Icon(Icons.agriculture_rounded, color: Color(0xFF059669), size: 18),
+                              child: item.imageUrl.trim().isNotEmpty
+                                  ? Image.network(
+                                      item.imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => const Icon(
+                                        Icons.agriculture_rounded,
+                                        color: Color(0xFF059669),
+                                        size: 18,
+                                      ),
+                                    )
+                                  : const Icon(Icons.agriculture_rounded, color: Color(0xFF059669), size: 18),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -691,19 +730,6 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                         ),
                       ),
 
-                      // GST
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          '${item.gstPercentage.toStringAsFixed(0)}% GST',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
-                          ),
-                        ),
-                      ),
-
                       // Quantity
                       Expanded(
                         flex: 2,
@@ -713,6 +739,23 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                             color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+
+                      // Seller Will Get (SWG)
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          item.sellerWillGet > 0
+                              ? '₹${item.sellerWillGet.toStringAsFixed(2)}'
+                              : '—',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: item.sellerWillGet > 0
+                                ? const Color(0xFF059669)
+                                : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                           ),
                         ),
                       ),
@@ -743,8 +786,14 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    SizedBox(
-                      width: 320,
+                    Container(
+                      width: 360,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: insetSurface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: borderColor),
+                      ),
                       child: Column(
                         children: [
                           _buildSummaryRow('Subtotal', '₹${order.subtotal.toStringAsFixed(2)}', isDark),
@@ -762,14 +811,17 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                'Grand Total:',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900,
-                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              Flexible(
+                                child: Text(
+                                  'Grand Total:',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Text(
                                 '₹${order.grandTotal.toStringAsFixed(2)}',
                                 style: GoogleFonts.plusJakartaSans(
@@ -792,134 +844,290 @@ class _OrderDetailViewState extends State<OrderDetailView> {
 
         const SizedBox(height: 18),
 
-        // Section 3: Contact Data (1. Seller Details, 2. Shipping & Billing Address)
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Card 1: Seller Details
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.storefront_rounded, size: 18, color: Color(0xFF2563EB)),
-                        const SizedBox(width: 8),
-                        Text(
-                          '1. Seller Details',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
+        // Section 3: Contact Details (3-Column Grid: Billing Address, Shipping Address, Seller Details)
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+            boxShadow: cardShadow,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.contact_mail_outlined, size: 18, color: Color(0xFF059669)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Contact Details',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
-                    const SizedBox(height: 12),
-                    Divider(height: 1, color: borderColor),
-                    const SizedBox(height: 12),
-                    _buildContactItem('Trade Name', order.sellerDetails.tradeName, isDark, isBold: true),
-                    _buildContactItem('Legal Entity', order.sellerDetails.legalEntityName, isDark),
-                    _buildContactItem('Seller ID', order.sellerDetails.sellerId, isDark),
-                    _buildContactItem('GSTIN', order.sellerDetails.gstin, isDark),
-                    _buildContactItem('PAN', order.sellerDetails.panNumber, isDark),
-                    _buildContactItem('Dispatch Contact', order.sellerDetails.contactPhone, isDark),
-                    _buildContactItem('Support Email', order.sellerDetails.contactEmail, isDark),
-                    _buildContactItem('Warehouse Hub', '${order.sellerDetails.warehouseAddress}, ${order.sellerDetails.city}, ${order.sellerDetails.state} - ${order.sellerDetails.pincode}', isDark),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
-
-            const SizedBox(width: 16),
-
-            // Card 2: Shipping & Billing Address
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.local_shipping_rounded, size: 18, color: Color(0xFF059669)),
-                        const SizedBox(width: 8),
-                        Text(
-                          '2. Shipping & Billing Address',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+              const SizedBox(height: 12),
+              Divider(height: 1, color: borderColor),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Column 1: Billing Address
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: softWhiteSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Text(
+                              'Billing Address',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Divider(height: 1, color: borderColor),
-                    const SizedBox(height: 12),
-
-                    // Shipping Address Subsection
-                    Text(
-                      'SHIPPING ADDRESS',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        color: const Color(0xFF059669),
+                          const SizedBox(height: 10),
+                          _buildStripedAddressRow('Name :', order.billingAddress.recipientName, isDark, shaded: false, isBold: true),
+                          _buildStripedAddressRow('Address :', order.billingAddress.addressLine, isDark, shaded: true),
+                          _buildStripedAddressRow('Pincode :', order.billingAddress.pincode, isDark, shaded: false),
+                          _buildStripedAddressRow('City :', order.billingAddress.city, isDark, shaded: true),
+                          _buildStripedAddressRow('Taluka / Tehsil :', order.billingAddress.taluka, isDark, shaded: false),
+                          _buildStripedAddressRow('District :', order.billingAddress.district, isDark, shaded: true),
+                          _buildStripedAddressRow('State :', order.billingAddress.state, isDark, shaded: false, isBold: true),
+                          if (order.billingAddress.gstin.isNotEmpty)
+                            _buildStripedAddressRow('Buyer GSTIN :', order.billingAddress.gstin, isDark, shaded: true),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    _buildContactItem('Consignee', '${order.shippingAddress.recipientName} (${order.shippingAddress.companyName})', isDark, isBold: true),
-                    _buildContactItem('Delivery Phone', order.shippingAddress.phone, isDark),
-                    _buildContactItem('Address', '${order.shippingAddress.addressLine}, ${order.shippingAddress.city}, ${order.shippingAddress.state} - ${order.shippingAddress.pincode}', isDark),
-                    _buildContactItem('Logistics Carrier', '${order.shippingAddress.carrier} (AWB: ${order.shippingAddress.trackingNumber})', isDark),
-                    _buildContactItem('Shipment Status', order.shippingAddress.deliveryStatus, isDark, highlightColor: const Color(0xFF2563EB)),
+                  ),
 
-                    const SizedBox(height: 12),
-                    Divider(height: 1, color: borderColor),
-                    const SizedBox(height: 12),
+                  const SizedBox(width: 16),
 
-                    // Billing Address Subsection
-                    Text(
-                      'BILLING ADDRESS',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        color: const Color(0xFF2563EB),
+                  // Column 2: Shipping Address
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: insetSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Text(
+                              'Shipping Address',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildStripedAddressRow('Name :', order.shippingAddress.recipientName, isDark, shaded: false, isBold: true),
+                          _buildStripedAddressRow('Phone :', order.shippingAddress.phone, isDark, shaded: true),
+                          _buildStripedAddressRow('Address :', order.shippingAddress.addressLine, isDark, shaded: false),
+                          _buildStripedAddressRow('Pincode :', order.shippingAddress.pincode, isDark, shaded: true),
+                          _buildStripedAddressRow('City :', order.shippingAddress.city, isDark, shaded: false),
+                          _buildStripedAddressRow('Taluka / Tehsil :', order.shippingAddress.taluka, isDark, shaded: true),
+                          _buildStripedAddressRow('District :', order.shippingAddress.district, isDark, shaded: false),
+                          _buildStripedAddressRow('State :', order.shippingAddress.state, isDark, shaded: true, isBold: true),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    _buildContactItem('Entity Name', order.billingAddress.companyName, isDark, isBold: true),
-                    if (order.billingAddress.gstin.isNotEmpty)
-                      _buildContactItem('Buyer GSTIN', order.billingAddress.gstin, isDark),
-                    _buildContactItem('Billing Address', '${order.billingAddress.addressLine}, ${order.billingAddress.city}, ${order.billingAddress.state} - ${order.billingAddress.pincode}', isDark),
-                  ],
-                ),
+                  ),
+
+                  const SizedBox(width: 16),
+
+                  // Column 3: Seller Details
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: softWhiteSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Text(
+                              'Seller Details',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildStripedAddressRow('Name :', order.sellerDetails.tradeName, isDark, shaded: false, isBold: true),
+                          _buildStripedAddressRow('Email :', order.sellerDetails.contactEmail, isDark, shaded: true),
+                          _buildStripedAddressRow('Mobile Number :', order.sellerDetails.contactPhone, isDark, shaded: false),
+                          _buildStripedAddressRow('GSTIN :', order.sellerDetails.gstin, isDark, shaded: true),
+                          _buildStripedAddressRow('Net Amount :', '₹${order.grandTotal.toStringAsFixed(2)}', isDark, shaded: false, isBold: true),
+                          _buildStripedAddressRow('Seller Will Get :', order.sellerWillGet > 0 ? '₹${order.sellerWillGet.toStringAsFixed(2)}' : '—', isDark, shaded: true, isBold: true),
+                          _buildStripedAddressRow('Seller Payment :', order.sellerPaymentStatus, isDark, shaded: false, isBold: true),
+                          _buildStripedAddressRow('Seller Pay Date :', order.sellerPaymentDate != null ? _formatDate(order.sellerPaymentDate!) : '—', isDark, shaded: true),
+                          _buildStripedAddressRow('Courier :', order.shippingAddress.carrier.isNotEmpty ? order.shippingAddress.carrier : 'Delhivery One', isDark, shaded: false),
+                          _buildStripedAddressRow('Dispatch Pin :', order.sellerDetails.pincode, isDark, shaded: true),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-
-        const SizedBox(height: 18),
-
-        // Section 4: Live Delhivery Tracking & Order Status History Timeline
-        _buildTimelineSection(order, isDark, surfaceColor, borderColor),
 
         const SizedBox(height: 32),
       ],
+    );
+  }
+
+  Widget _buildFulfillmentStepper(
+    MarketplaceOrder order,
+    bool isDark,
+    Color surfaceColor,
+    Color borderColor,
+  ) {
+    final s = order.orderStatus.toUpperCase();
+    final isRto = s.startsWith('RTO') || s == 'RETURNED';
+    final isCancelled = s == 'CANCELLED';
+
+    int activeStep = 0;
+    if (s == 'CONFIRMED') activeStep = 1;
+    if (s == 'PACKED') activeStep = 2;
+    if (s == 'SHIPPED' || s == 'IN_TRANSIT' || s == 'IN TRANSIT' || s == 'OUT_FOR_DELIVERY') activeStep = 3;
+    if (s == 'DELIVERED' || isRto) activeStep = 4;
+
+    final steps = [
+      ('Order Placed', Icons.shopping_bag_outlined),
+      ('Confirmed', Icons.verified_outlined),
+      ('Packed & Label', Icons.inventory_2_outlined),
+      ('In Transit', Icons.local_shipping_outlined),
+      (isRto ? 'RTO' : (isCancelled ? 'Cancelled' : 'Delivered'), isRto ? Icons.assignment_return_outlined : Icons.check_circle_outline),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: List.generate(steps.length * 2 - 1, (idx) {
+          if (idx.isOdd) {
+            final stepLeft = idx ~/ 2;
+            final completed = !isCancelled && activeStep > stepLeft;
+            return Expanded(
+              child: Container(
+                height: 2.5,
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: completed
+                      ? (isRto && stepLeft >= 3 ? const Color(0xFFEA580C) : const Color(0xFF059669))
+                      : borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            );
+          }
+          final stepIndex = idx ~/ 2;
+          final (label, icon) = steps[stepIndex];
+          final isDone = !isCancelled && activeStep >= stepIndex;
+          final isCurrent = !isCancelled && activeStep == stepIndex;
+          final color = (isCancelled && stepIndex == 4)
+              ? const Color(0xFFDC2626)
+              : (isRto && stepIndex == 4)
+                  ? const Color(0xFFEA580C)
+                  : (isDone ? const Color(0xFF059669) : (isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8)));
+
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: isDone ? color.withValues(alpha: 0.14) : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color, width: isCurrent ? 2 : 1.2),
+                ),
+                child: Icon(icon, size: 15, color: color),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                  color: isDone ? (isDark ? Colors.white : const Color(0xFF0F172A)) : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildStripedAddressRow(
+    String label,
+    String value,
+    bool isDark, {
+    required bool shaded,
+    bool isBold = false,
+  }) {
+    final hairline = isDark ? const Color(0xFF1F2937) : const Color(0xFFF1F5F9);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: hairline, width: 1)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 112,
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.isNotEmpty ? value : '—',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11.5,
+                fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -991,242 +1199,6 @@ class _OrderDetailViewState extends State<OrderDetailView> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildContactItem(String label, String value, bool isDark, {bool isBold = false, Color? highlightColor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value.isNotEmpty ? value : '—',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
-                color: highlightColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimelineSection(
-    MarketplaceOrder order,
-    bool isDark,
-    Color surfaceColor,
-    Color borderColor,
-  ) {
-    final trackingEvents = order.trackingEvents.reversed.toList();
-    final statusHistory = order.statusHistory.reversed.toList();
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Card 1: Live Delhivery Tracking Scans
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.radar_rounded, size: 18, color: Color(0xFF059669)),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Live Delhivery Tracking Scans (${trackingEvents.length})',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Divider(height: 1, color: borderColor),
-                const SizedBox(height: 12),
-                if (trackingEvents.isEmpty)
-                  Text(
-                    'No Delhivery scan events yet. Scans populate automatically once dispatch books the shipment in Delhivery One.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                  )
-                else
-                  ...List.generate(trackingEvents.length, (i) {
-                    final ev = trackingEvents[i];
-                    final subtitleParts = <String>[
-                      if (ev.location.isNotEmpty) ev.location,
-                      if (ev.instructions.isNotEmpty) ev.instructions,
-                    ];
-                    return _buildTimelineRow(
-                      title: ev.statusType.isNotEmpty ? '${ev.status} (${ev.statusType})' : ev.status,
-                      subtitle: subtitleParts.join(' • '),
-                      timestamp: ev.scannedAt != null ? _formatDate(ev.scannedAt!) : '—',
-                      accentColor: const Color(0xFF059669),
-                      isLast: i == trackingEvents.length - 1,
-                      isDark: isDark,
-                    );
-                  }),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 16),
-
-        // Card 2: Order Lifecycle Status History
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.history_rounded, size: 18, color: Color(0xFF2563EB)),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Order Lifecycle Status History (${statusHistory.length})',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Divider(height: 1, color: borderColor),
-                const SizedBox(height: 12),
-                if (statusHistory.isEmpty)
-                  _buildTimelineRow(
-                    title: order.orderStatus,
-                    subtitle: 'Order placed via ${order.paymentMethod}',
-                    timestamp: _formatDate(order.orderDate),
-                    accentColor: const Color(0xFF2563EB),
-                    isLast: true,
-                    isDark: isDark,
-                  )
-                else
-                  ...List.generate(statusHistory.length, (i) {
-                    final ev = statusHistory[i];
-                    final subtitleParts = <String>[
-                      if (ev.actor.isNotEmpty) 'By ${ev.actor}',
-                      if (ev.note.isNotEmpty) ev.note,
-                    ];
-                    return _buildTimelineRow(
-                      title: ev.status,
-                      subtitle: subtitleParts.join(' • '),
-                      timestamp: ev.occurredAt != null ? _formatDate(ev.occurredAt!) : '—',
-                      accentColor: const Color(0xFF2563EB),
-                      isLast: i == statusHistory.length - 1,
-                      isDark: isDark,
-                    );
-                  }),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTimelineRow({
-    required String title,
-    required String subtitle,
-    required String timestamp,
-    required Color accentColor,
-    required bool isLast,
-    required bool isDark,
-  }) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Container(
-              width: 9,
-              height: 9,
-              decoration: BoxDecoration(
-                color: accentColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title.isNotEmpty ? title : 'UPDATE',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
-                    ),
-                    Text(
-                      timestamp,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-                if (subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

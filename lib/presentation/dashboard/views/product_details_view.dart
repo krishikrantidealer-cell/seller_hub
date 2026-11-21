@@ -3275,15 +3275,17 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         label: 'Commission (%)',
                         hint: _editIsMarketplace
                             ? 'Auto from Technical Name (editable)'
-                            : 'Auto from Seller (editable)',
+                            : 'Auto from Seller (Dealer Commission)',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
                         borderColor: borderColor,
-                        readOnly: !_isEditing,
-                        onChanged: (val) {
-                          final comm = double.tryParse(val.trim()) ?? 0.0;
-                          _applyCommissionToAllVariants(comm);
-                        },
+                        readOnly: !_isEditing || !_editIsMarketplace,
+                        onChanged: _editIsMarketplace
+                            ? (val) {
+                                final comm = double.tryParse(val.trim()) ?? 0.0;
+                                _applyCommissionToAllVariants(comm);
+                              }
+                            : null,
                       ),
                     ),
                     const SizedBox(width: 12),

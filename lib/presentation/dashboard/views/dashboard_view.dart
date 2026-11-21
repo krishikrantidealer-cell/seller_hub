@@ -50,7 +50,7 @@ class _DashboardViewState extends State<DashboardView> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Primary Navigation: 0 = Dashboard / Operations, 1 = Products, 2 = Sellers, 3 = Orders
-  int _selectedNavIndex = 1;
+  int _selectedNavIndex = 0;
   int _catalogSubTabIndex = 0; // 0 = Products, 1 = Collections, 2 = Categories
 
   // Active viewing/editing product state
@@ -516,8 +516,14 @@ class _DashboardViewState extends State<DashboardView> {
         products: products,
         sellers: sellers,
         orders: context.watch<OrderBloc>().state.orders,
-        onSelectOrder: (order) => setState(() => _viewingOrder = order),
-        onSelectSeller: (seller) => setState(() => _viewingSeller = seller),
+        onSelectOrder: (order) => setState(() {
+          _selectedNavIndex = 5;
+          _viewingOrder = order;
+        }),
+        onSelectSeller: (seller) => setState(() {
+          _selectedNavIndex = 4;
+          _viewingSeller = seller;
+        }),
         onNavigateToProducts: () => setState(() {
           _selectedNavIndex = 1;
           _viewingProduct = null;

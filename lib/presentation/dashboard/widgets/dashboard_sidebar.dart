@@ -192,7 +192,6 @@ class DashboardSidebar extends StatelessWidget {
                   else
                     const SizedBox(height: 4),
 
-                  /*
                   // Sidebar Nav Item: Dashboard
                   _buildSidebarNavItem(
                     context: context,
@@ -200,8 +199,8 @@ class DashboardSidebar extends StatelessWidget {
                     title: 'Dashboard',
                     icon: Icons.grid_view_rounded,
                     isDark: isDark,
+                    isSelected: selectedIndex == 0,
                   ),
-                  */
 
                   // Sidebar Nav Item: Catalog (Products, Collections & Categories)
                   _buildSidebarNavItem(

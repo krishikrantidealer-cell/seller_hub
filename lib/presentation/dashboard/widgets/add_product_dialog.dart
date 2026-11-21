@@ -1338,13 +1338,16 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                     _variantCommissionController,
                     _isMarketplace
                         ? 'Auto from Technical Name (editable)'
-                        : 'Auto from Seller (editable)',
+                        : 'Auto from Seller (Dealer Commission)',
                     isDark,
                     isNumber: true,
-                    onChanged: (val) {
-                      final comm = double.tryParse(val.trim()) ?? 0.0;
-                      _applyCommissionToAllVariants(comm);
-                    },
+                    readOnly: !_isMarketplace,
+                    onChanged: _isMarketplace
+                        ? (val) {
+                            final comm = double.tryParse(val.trim()) ?? 0.0;
+                            _applyCommissionToAllVariants(comm);
+                          }
+                        : null,
                   ),
                 ),
               ],

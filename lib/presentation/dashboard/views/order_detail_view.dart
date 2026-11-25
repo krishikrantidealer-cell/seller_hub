@@ -241,26 +241,6 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
-                if (order.orderStatus.toUpperCase() == 'CONFIRMED' && !order.hasLabel)
-                  ElevatedButton.icon(
-                    onPressed: _isBusy
-                        ? null
-                        : () => _runOrderPostAction(
-                              path: ApiEndpoints.adminOrderVelocityShipment(order.id),
-                              successMessage: 'Order pushed to Velocity Shipping Pending AWB queue.',
-                            ),
-                    icon: const Icon(Icons.local_shipping_rounded, size: 16),
-                    label: Text(
-                      'Push to Velocity',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
                 if (order.hasLabel)
                   ElevatedButton.icon(
                     onPressed: _isBusy ? null : _downloadLabelAndMarkPacked,

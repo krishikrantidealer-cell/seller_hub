@@ -506,7 +506,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          'Velocity Shipping Fulfillment & SLA',
+                          'Velocity Shipping Fulfillment',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
@@ -543,7 +543,6 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                           isDark,
                           highlightColor: order.hasLabel ? const Color(0xFF059669) : const Color(0xFFD97706),
                         ),
-                        _buildMetaItem('DISPATCH SLA (H:M)', order.dispatchDurationFormatted, isDark),
                         _buildMetaItem('SELLER', order.sellerName, isDark, highlightColor: const Color(0xFF2563EB)),
                         if (order.rtoReason.isNotEmpty)
                           _buildMetaItem('RTO REASON', order.rtoReason, isDark, highlightColor: const Color(0xFFEA580C)),

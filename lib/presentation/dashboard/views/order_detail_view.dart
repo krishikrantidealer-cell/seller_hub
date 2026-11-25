@@ -86,7 +86,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
 
       if (pdfBase64.isNotEmpty) {
         final pdfBytes = base64Decode(pdfBase64);
-        downloadBytes(pdfBytes, 'Delhivery_Label_${order.orderNumber}.pdf');
+        downloadBytes(pdfBytes, 'Velocity_Label_${order.orderNumber}.pdf');
       }
 
       if (!mounted) return;
@@ -94,8 +94,8 @@ class _OrderDetailViewState extends State<OrderDetailView> {
         SnackBar(
           content: Text(
             transitioned
-                ? 'Delhivery label downloaded — order marked PACKED.'
-                : 'Delhivery label opened for printing.',
+                ? 'Shipping label downloaded — order marked PACKED.'
+                : 'Shipping label opened for printing.',
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
           ),
           backgroundColor: const Color(0xFF059669),
@@ -214,7 +214,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
               ),
             ),
             const Spacer(),
-            // Progressive Delhivery One Fulfillment Action Bar
+            // Progressive Velocity Shipping Fulfillment Action Bar
             // Print/Download Label button is strictly hidden until backend has stored the label (order.hasLabel == true).
             Wrap(
               spacing: 8,
@@ -246,12 +246,12 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                     onPressed: _isBusy
                         ? null
                         : () => _runOrderPostAction(
-                              path: ApiEndpoints.adminOrderDelhiveryShipment(order.id),
-                              successMessage: 'Delhivery One AWB & shipping label generated.',
+                              path: ApiEndpoints.adminOrderVelocityShipment(order.id),
+                              successMessage: 'Order pushed to Velocity Shipping Pending AWB queue.',
                             ),
                     icon: const Icon(Icons.local_shipping_rounded, size: 16),
                     label: Text(
-                      'Book in Delhivery One',
+                      'Push to Velocity',
                       style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -286,11 +286,11 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                         ? null
                         : () => _runOrderPostAction(
                               path: ApiEndpoints.adminOrderSyncTracking(order.id),
-                              successMessage: 'Delhivery One tracking synced.',
+                              successMessage: 'Velocity Shipping tracking synced.',
                             ),
                     icon: const Icon(Icons.sync_rounded, size: 16),
                     label: Text(
-                      'Sync Delhivery Tracking',
+                      'Sync Velocity Tracking',
                       style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -434,7 +434,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
 
         const SizedBox(height: 18),
 
-        // Section 1: 2-Column Modern Bento Grid (Order & Payment Overview + Delhivery One Fulfillment)
+        // Section 1: 2-Column Modern Bento Grid (Order & Payment Overview + Velocity Shipping Fulfillment)
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -526,7 +526,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          'Delhivery One Fulfillment & SLA',
+                          'Velocity Shipping Fulfillment & SLA',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
@@ -544,7 +544,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                       children: [
                         _buildMetaItem(
                           'COURIER PARTNER',
-                          order.shippingAddress.carrier.isNotEmpty ? order.shippingAddress.carrier : 'DELHIVERY ONE',
+                          order.shippingAddress.carrier.isNotEmpty ? order.shippingAddress.carrier : 'VELOCITY SHIPPING',
                           isDark,
                         ),
                         _buildMetaItem(
@@ -994,7 +994,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                           _buildStripedAddressRow('Seller Will Get :', order.sellerWillGet > 0 ? '₹${order.sellerWillGet.toStringAsFixed(2)}' : '—', isDark, shaded: true, isBold: true),
                           _buildStripedAddressRow('Seller Payment :', order.sellerPaymentStatus, isDark, shaded: false, isBold: true),
                           _buildStripedAddressRow('Seller Pay Date :', order.sellerPaymentDate != null ? _formatDate(order.sellerPaymentDate!) : '—', isDark, shaded: true),
-                          _buildStripedAddressRow('Courier :', order.shippingAddress.carrier.isNotEmpty ? order.shippingAddress.carrier : 'Delhivery One', isDark, shaded: false),
+                          _buildStripedAddressRow('Courier :', order.shippingAddress.carrier.isNotEmpty ? order.shippingAddress.carrier : 'Velocity Shipping', isDark, shaded: false),
                           _buildStripedAddressRow('Dispatch Pin :', order.sellerDetails.pincode, isDark, shaded: true),
                         ],
                       ),

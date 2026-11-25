@@ -240,7 +240,7 @@ class _OperationsOverviewViewState extends State<OperationsOverviewView> {
                 _buildCompactKpiCard(
                   keyId: 'transit',
                   width: cardWidth,
-                  label: 'DELHIVERY TRANSIT',
+                  label: 'VELOCITY TRANSIT',
                   valueTarget: inTransitCount.toDouble(),
                   isCurrency: false,
                   meta: '$deliveredCount delivered • $rtoOrCancelledCount RTO / cancelled',
@@ -397,7 +397,7 @@ class _OperationsOverviewViewState extends State<OperationsOverviewView> {
                     _buildAlertChip('$pendingCount Pending Confirm', const Color(0xFFD97706), widget.onNavigateToOrders),
                   if (awaitingBookingCount > 0) ...[
                     const SizedBox(width: 6),
-                    _buildAlertChip('$awaitingBookingCount Awaiting Delhivery', const Color(0xFF0284C7), widget.onNavigateToOrders),
+                    _buildAlertChip('$awaitingBookingCount Awaiting Velocity', const Color(0xFF0284C7), widget.onNavigateToOrders),
                   ],
                   if (lowStockCount > 0) ...[
                     const SizedBox(width: 6),

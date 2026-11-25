@@ -14,8 +14,8 @@ class ApiEndpoints {
   static String adminCreateOrderForCustomer(String customerId) =>
       '/api/v1/admin/orders/customers/$customerId/create';
   static String adminOrderConfirm(String orderId) => '/api/v1/admin/orders/$orderId/confirm';
-  static String adminOrderDelhiveryShipment(String orderId) =>
-      '/api/v1/admin/orders/$orderId/shipment/delhivery';
+  static String adminOrderVelocityShipment(String orderId) =>
+      '/api/v1/admin/orders/$orderId/shipment/velocity';
   static String adminOrderLabel(String orderId) => '/api/v1/admin/orders/$orderId/label';
   static String adminOrderSyncTracking(String orderId) =>
       '/api/v1/admin/orders/$orderId/sync-tracking';

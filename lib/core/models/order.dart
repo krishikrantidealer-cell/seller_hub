@@ -299,7 +299,7 @@ class OrderAddress extends Equatable {
   ];
 }
 
-/// Delhivery / Courier tracking scan event on a shipment
+/// Velocity Shipping / Courier tracking scan event on a shipment
 class OrderTrackingEvent extends Equatable {
   final String status;
   final String statusType;
@@ -969,7 +969,7 @@ class MockOrders {
         city: 'Nashik',
         state: 'Maharashtra',
         pincode: '422003',
-        carrier: 'Delhivery Surface Express',
+        carrier: 'Velocity Shipping',
         trackingNumber: 'DEL9842109824',
         deliveryStatus: 'Warehouse Packed - Ready for Courier Pickup',
       ),

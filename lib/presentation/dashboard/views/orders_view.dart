@@ -272,7 +272,7 @@ class _OrdersViewState extends State<OrdersView> {
                     final s = o.orderStatus.toUpperCase();
                     return s == 'SHIPPED' || s == 'IN_TRANSIT' || s == 'IN TRANSIT' || s == 'OUT_FOR_DELIVERY';
                   }).length}',
-                  trend: 'Delhivery One active transit',
+                  trend: 'Velocity Shipping active transit',
                   icon: Icons.local_shipping_outlined,
                   iconColor: const Color(0xFF8B5CF6),
                 ),
@@ -647,7 +647,7 @@ class _OrdersViewState extends State<OrdersView> {
                     const SizedBox(width: 12),
                     SizedBox(width: 112, child: _buildColHeader('SELLER WILL GET', isDark)),
                     const SizedBox(width: 16),
-                    Expanded(flex: 2, child: _buildColHeader('DELHIVERY & AWB', isDark)),
+                    Expanded(flex: 2, child: _buildColHeader('VELOCITY & AWB', isDark)),
                     const SizedBox(width: 12),
                     SizedBox(width: 112, child: _buildColHeader('STATUS', isDark)),
                     const SizedBox(width: 12),
@@ -1342,7 +1342,7 @@ class _OrdersViewState extends State<OrdersView> {
 
                     const SizedBox(width: 16),
 
-                    // 7. Delhivery & AWB
+                    // 7. Velocity & AWB
                     Expanded(
                       flex: 2,
                       child: Column(
@@ -1375,7 +1375,7 @@ class _OrdersViewState extends State<OrdersView> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              o.hasLabel ? 'Delhivery • Label Ready' : 'Delhivery AWB',
+                              o.hasLabel ? 'Velocity • Label Ready' : 'Velocity AWB',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w700,
@@ -1392,7 +1392,7 @@ class _OrdersViewState extends State<OrdersView> {
                               ),
                             ),
                             Text(
-                              'Book in Delhivery One',
+                              'Pending AWB in Velocity',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 9,
                                 color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),

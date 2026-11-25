@@ -251,7 +251,7 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                             ),
                     icon: const Icon(Icons.local_shipping_rounded, size: 16),
                     label: Text(
-                      'Check Delhivery Label',
+                      'Book in Delhivery One',
                       style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -479,6 +479,16 @@ class _OrderDetailViewState extends State<OrderDetailView> {
                       runSpacing: 14,
                       children: [
                         _buildMetaItem('ORDER NUMBER', order.orderNumber, isDark),
+                        _buildMetaItem(
+                          'ORDER SOURCE',
+                          order.createdByName.isNotEmpty && order.isPanelOrder
+                              ? '${order.sourceLabel} (${order.createdByName})'
+                              : order.sourceLabel,
+                          isDark,
+                          highlightColor: order.orderSource == 'SALES_PANEL'
+                              ? const Color(0xFFD97706)
+                              : (order.isPanelOrder ? const Color(0xFF4F46E5) : const Color(0xFF059669)),
+                        ),
                         _buildMetaItem('ORDER DATE', _formatDate(order.orderDate), isDark),
                         _buildMetaItem('PAYMENT METHOD', order.paymentMethod, isDark),
                         _buildMetaItem('PAYMENT STATUS', order.paymentStatus, isDark, highlightColor: payColor),

@@ -22,12 +22,17 @@ import 'package:seller_hub/logic/admin_user/customer_bloc.dart';
 import 'package:seller_hub/logic/admin_user/seller_bloc.dart';
 import 'package:seller_hub/logic/admin_user/admin_user_event.dart';
 import 'package:seller_hub/logic/admin_user/admin_user_state.dart';
+import 'package:seller_hub/presentation/dashboard/views/access_management_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/admin_create_order_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/banners_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/categories_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/catalog_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/collections_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/customer_profile_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/sales_dashboard_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/customers_view.dart';
 import 'package:seller_hub/core/models/admin_user.dart';
+import 'package:seller_hub/domain/repositories/admin_user_repository.dart';
 import 'package:seller_hub/presentation/dashboard/views/operations_overview_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/order_detail_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/orders_view.dart';
@@ -68,6 +73,7 @@ class _DashboardViewState extends State<DashboardView> {
 
   // Customers management state
   AdminUser? _viewingCustomer;
+  bool _isCreatingOrderForCustomer = false;
 
   // Collapsible sidebar state (desktop)
   bool _isSidebarMinimized = false;
@@ -231,23 +237,71 @@ class _DashboardViewState extends State<DashboardView> {
                   onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 ),
 
-                // Active Section Body
+                // Active Section Body (with live RBAC route guard)
                 Expanded(
-                  child: (_selectedNavIndex >= 1 && _selectedNavIndex <= 3)
-                      ? _buildCatalogSection(
-                          isWide: isWide,
-                          totalProductsCount: totalProductsCount,
-                          collectionsCount: collectionsCount,
-                          categoriesCount: categoriesCount,
-                        )
-                      : SingleChildScrollView(
-                          physics: const ClampingScrollPhysics(),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isWide ? 32 : 16,
-                            vertical: 24,
-                          ),
-                          child: _buildActiveContent(isWide),
-                        ),
+                  child: BlocListener<AuthBloc, AuthState>(
+                    listenWhen: (prev, curr) => prev.session?.permissions != curr.session?.permissions,
+                    listener: (context, authState) {
+                      final session = authState.session;
+                      if (session == null || !session.isSalesAgent) return;
+                      final fallback = _firstPermittedNavIndex(session);
+                      if (!_isNavIndexPermitted(_selectedNavIndex, session) && fallback != null) {
+                        setState(() {
+                          _selectedNavIndex = fallback;
+                          _viewingProduct = null;
+                          _viewingSeller = null;
+                          _viewingOrder = null;
+                          _viewingCustomer = null;
+                          _isCreatingOrderForCustomer = false;
+                        });
+                      }
+                    },
+                    child: Builder(
+                      builder: (context) {
+                        final session = context.watch<AuthBloc>().state.session;
+                        if (session != null && session.isSalesAgent && !_isNavIndexPermitted(_selectedNavIndex, session)) {
+                          final fallback = _firstPermittedNavIndex(session);
+                          if (fallback == null) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Text(
+                                  'No workspace permissions assigned yet. Contact your Admin.',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted && _selectedNavIndex != fallback) {
+                              setState(() => _selectedNavIndex = fallback);
+                            }
+                          });
+                        }
+                        return (_selectedNavIndex >= 1 && _selectedNavIndex <= 3)
+                            ? _buildCatalogSection(
+                                isWide: isWide,
+                                totalProductsCount: totalProductsCount,
+                                collectionsCount: collectionsCount,
+                                categoriesCount: categoriesCount,
+                              )
+                            : SingleChildScrollView(
+                                physics: const ClampingScrollPhysics(),
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isWide ? 32 : 16,
+                                  vertical: 24,
+                                ),
+                                child: _buildActiveContent(
+                                  isWide,
+                                  customersCount: customersCount,
+                                ),
+                              );
+                      },
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -494,10 +548,11 @@ class _DashboardViewState extends State<DashboardView> {
       },
       collectionsBuilder: (_) => CollectionsView(isWide: isWide),
       categoriesBuilder: (_) => CategoriesView(isWide: isWide),
+      bannersBuilder: (_) => BannersView(isWide: isWide),
     );
   }
 
-  Widget _buildActiveContent(bool isWide) {
+  Widget _buildActiveContent(bool isWide, {required int customersCount}) {
     final pState = context.watch<ProductBloc>().state;
     final products = pState.products;
     final allProducts = pState.allCatalogProducts.isNotEmpty ? pState.allCatalogProducts : products;
@@ -509,13 +564,34 @@ class _DashboardViewState extends State<DashboardView> {
       ..._sellers.where((s) => !realSellers.any((r) => r.id == s.id)),
     ];
     final sellersCount = sellerBloc.state.totalCount > 0 ? sellerBloc.state.totalCount : sellers.length;
-    final customersCount = context.select<CustomerBloc, int>((b) => b.state.totalCount);
 
     if (_selectedNavIndex == 0) {
+      final session = context.watch<AuthBloc>().state.session;
+      final ordersList = context.watch<OrderBloc>().state.orders;
+      if (session != null && session.isSalesAgent) {
+        return SalesDashboardView(
+          session: session,
+          orders: ordersList,
+          customersCount: customersCount,
+          onSelectOrder: (order) => setState(() {
+            _selectedNavIndex = 5;
+            _viewingOrder = order;
+          }),
+          onNavigateToOrders: () => setState(() {
+            _selectedNavIndex = 5;
+            _viewingOrder = null;
+          }),
+          onNavigateToCustomers: () => setState(() {
+            _selectedNavIndex = 6;
+            _viewingCustomer = null;
+            _isCreatingOrderForCustomer = false;
+          }),
+        );
+      }
       return OperationsOverviewView(
         products: products,
         sellers: sellers,
-        orders: context.watch<OrderBloc>().state.orders,
+        orders: ordersList,
         onSelectOrder: (order) => setState(() {
           _selectedNavIndex = 5;
           _viewingOrder = order;
@@ -564,18 +640,70 @@ class _DashboardViewState extends State<DashboardView> {
             });
           },
         );
+      } else if (_selectedNavIndex == 6 && _viewingCustomer != null && _isCreatingOrderForCustomer) {
+        userChild = AdminCreateOrderView(
+          customer: _viewingCustomer!,
+          onBack: () => setState(() => _isCreatingOrderForCustomer = false),
+          onOrderCreated: (created) {
+            setState(() => _isCreatingOrderForCustomer = false);
+            if (created == null) return;
+            final messenger = ScaffoldMessenger.of(context);
+            messenger.hideCurrentSnackBar();
+            messenger.showSnackBar(
+              SnackBar(
+                duration: const Duration(seconds: 4),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: const Color(0xFF059669),
+                content: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Order ${created.orderNumber} created successfully!',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        messenger.hideCurrentSnackBar();
+                        setState(() {
+                          _selectedNavIndex = 5;
+                          _viewingCustomer = null;
+                          _isCreatingOrderForCustomer = false;
+                          _viewingOrder = created;
+                        });
+                      },
+                      child: const Text(
+                        'View Order',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
       } else if (_selectedNavIndex == 6 && _viewingCustomer != null) {
         userChild = CustomerProfileView(
+          key: ValueKey(_viewingCustomer!.id),
           customer: _viewingCustomer!,
-          allOrders: context.read<OrderBloc>().state.orders,
-          onBack: () => setState(() => _viewingCustomer = null),
+          allOrders: context.watch<OrderBloc>().state.orders,
+          onBack: () => setState(() {
+            _viewingCustomer = null;
+            _isCreatingOrderForCustomer = false;
+          }),
           onCustomerUpdated: (updated) {
             setState(() => _viewingCustomer = updated);
           },
+          onCreateOrder: () => setState(() => _isCreatingOrderForCustomer = true),
           onSelectOrder: (order) {
             setState(() {
               _selectedNavIndex = 5;
               _viewingCustomer = null;
+              _isCreatingOrderForCustomer = false;
               _viewingOrder = order;
             });
           },
@@ -583,8 +711,19 @@ class _DashboardViewState extends State<DashboardView> {
       } else if (_selectedNavIndex == 6) {
         userChild = CustomersView(
           isWide: isWide,
-          onSelectCustomer: (customer) => setState(() => _viewingCustomer = customer),
-          onOpenCreateCustomer: () => setState(() => _viewingCustomer = AdminUser.emptyCustomer()),
+          allOrders: context.watch<OrderBloc>().state.orders,
+          onSelectCustomer: (customer) => setState(() {
+            _viewingCustomer = customer;
+            _isCreatingOrderForCustomer = false;
+          }),
+          onCreateOrderForCustomer: (customer) => setState(() {
+            _viewingCustomer = customer;
+            _isCreatingOrderForCustomer = true;
+          }),
+          onOpenCreateCustomer: () => setState(() {
+            _viewingCustomer = AdminUser.emptyCustomer();
+            _isCreatingOrderForCustomer = false;
+          }),
         );
       } else {
         userChild = SellersView(
@@ -615,6 +754,7 @@ class _DashboardViewState extends State<DashboardView> {
             _selectedNavIndex = tabIndex == 1 ? 6 : 4;
             _viewingSeller = null;
             _viewingCustomer = null;
+            _isCreatingOrderForCustomer = false;
           });
         },
         sellersCount: sellersCount,
@@ -622,6 +762,14 @@ class _DashboardViewState extends State<DashboardView> {
         isWide: isWide,
         child: userChild,
       );
+    }
+
+    // Nav Index 7: Admin-Only Access Management
+    if (_selectedNavIndex == 7) {
+      final isAdmin = context.read<AuthBloc>().state.session?.isAdmin ?? false;
+      if (isAdmin) {
+        return const AccessManagementView();
+      }
     }
 
     // Nav Index 5: Orders Directory & Order Detail
@@ -649,10 +797,102 @@ class _DashboardViewState extends State<DashboardView> {
         isLoadingMore: orderState.isLoadingMore,
         onLoadMore: () => context.read<OrderBloc>().add(const LoadMoreAdminOrders()),
         onSelectOrder: (order) => setState(() => _viewingOrder = order),
+        onSelectCustomer: (order) => _openCustomerProfileForOrder(order),
       );
     }
 
     return const SizedBox.shrink();
+  }
+
+  Future<void> _openCustomerProfileForOrder(MarketplaceOrder order) async {
+    String normalizePhone(String raw) {
+      final digits = raw.replaceAll(RegExp(r'\D'), '');
+      if (digits.length >= 10) return digits.substring(digits.length - 10);
+      return digits;
+    }
+
+    AdminUser? findMatch(List<AdminUser> list) {
+      if (order.customerId.isNotEmpty) {
+        final byId = list.where((c) => c.id == order.customerId).firstOrNull;
+        if (byId != null) return byId;
+      }
+      final orderPhone = normalizePhone(order.shippingAddress.phone);
+      if (orderPhone.isNotEmpty) {
+        final byPhone = list.where((c) => normalizePhone(c.phoneNumber) == orderPhone).firstOrNull;
+        if (byPhone != null) return byPhone;
+      }
+      return null;
+    }
+
+    final customerBloc = context.read<CustomerBloc>();
+    AdminUser? match = findMatch(customerBloc.state.users);
+
+    if (match == null) {
+      try {
+        final repo = context.read<AdminUserRepository>();
+        final orderPhone = normalizePhone(order.shippingAddress.phone);
+        final page = await repo.getUsers(
+          role: 'ROLE_CUSTOMER',
+          page: 0,
+          size: 100,
+          q: orderPhone.isNotEmpty ? orderPhone : null,
+        );
+        match = findMatch(page.content);
+        if (match == null && orderPhone.isNotEmpty) {
+          final allPage = await repo.getUsers(role: 'ROLE_CUSTOMER', page: 0, size: 100);
+          match = findMatch(allPage.content);
+        }
+        if (customerBloc.state.users.isEmpty) {
+          customerBloc.add(const FetchAdminUsers());
+        }
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    if (match != null) {
+      setState(() {
+        _selectedNavIndex = 6;
+        _viewingOrder = null;
+        _viewingCustomer = match;
+        _isCreatingOrderForCustomer = false;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Customer profile not found in directory.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  bool _isNavIndexPermitted(int index, dynamic session) {
+    if (session == null || session.isAdmin == true) return true;
+    switch (index) {
+      case 0:
+        return session.hasPermission('DASHBOARD_VIEW');
+      case 1:
+      case 2:
+      case 3:
+        return session.hasAnyPermission(['CATALOG_VIEW', 'CATALOG_MANAGE']);
+      case 4:
+        return session.hasPermission('USERS_SELLERS_VIEW');
+      case 6:
+        return session.hasAnyPermission(['USERS_CUSTOMERS_VIEW', 'USERS_CUSTOMERS_MANAGE']);
+      case 5:
+        return session.hasAnyPermission(['ORDERS_VIEW', 'ORDERS_CREATE', 'ORDERS_MANAGE']);
+      case 7:
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  int? _firstPermittedNavIndex(dynamic session) {
+    for (final idx in const [0, 5, 6, 4, 1]) {
+      if (_isNavIndexPermitted(idx, session)) return idx;
+    }
+    return null;
   }
 
   void _openAddProductScreen() {
@@ -666,13 +906,18 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   void _onNavItemSelected(int index) {
-    if (index == 5) {
+    final session = context.read<AuthBloc>().state.session;
+    var targetIndex = index;
+    if (targetIndex == 4 && session != null && !session.hasPermission('USERS_SELLERS_VIEW')) {
+      targetIndex = 6;
+    }
+    if (targetIndex == 5) {
       context.read<OrderBloc>().add(const LoadAdminOrders(page: 0, size: 50, isRefresh: true));
     }
     setState(() {
-      _selectedNavIndex = index;
-      if (index >= 1 && index <= 3) {
-        _catalogSubTabIndex = index - 1;
+      _selectedNavIndex = targetIndex;
+      if (targetIndex >= 1 && targetIndex <= 3) {
+        _catalogSubTabIndex = targetIndex - 1;
       }
       _viewingProduct = null;
       _openInEditMode = false;
@@ -680,6 +925,7 @@ class _DashboardViewState extends State<DashboardView> {
       _viewingSeller = null;
       _viewingOrder = null;
       _viewingCustomer = null;
+      _isCreatingOrderForCustomer = false;
     });
   }
 

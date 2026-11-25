@@ -46,8 +46,11 @@ class AuthDataDto {
   final int expiresInMs;
   final String userId;
   final String? phoneNumber;
+  final String? email;
+  final String? fullName;
   final String role;
   final bool isProfileComplete;
+  final List<String> permissions;
 
   const AuthDataDto({
     required this.accessToken,
@@ -56,11 +59,18 @@ class AuthDataDto {
     required this.expiresInMs,
     required this.userId,
     this.phoneNumber,
+    this.email,
+    this.fullName,
     required this.role,
     required this.isProfileComplete,
+    this.permissions = const [],
   });
 
   factory AuthDataDto.fromJson(Map<String, dynamic> json) {
+    final rawPerms = json['permissions'];
+    final perms = rawPerms is List
+        ? rawPerms.map((e) => e.toString()).where((e) => e.isNotEmpty).toList()
+        : const <String>[];
     return AuthDataDto(
       accessToken: json['accessToken'] as String? ?? '',
       refreshToken: json['refreshToken'] as String? ?? '',
@@ -68,8 +78,11 @@ class AuthDataDto {
       expiresInMs: (json['expiresInMs'] as num?)?.toInt() ?? 86400000,
       userId: json['userId'] as String? ?? '',
       phoneNumber: json['phoneNumber'] as String?,
+      email: json['email'] as String?,
+      fullName: json['fullName'] as String?,
       role: json['role'] as String? ?? 'ROLE_ADMIN',
       isProfileComplete: json['isProfileComplete'] as bool? ?? true,
+      permissions: perms,
     );
   }
 
@@ -80,20 +93,26 @@ class AuthDataDto {
         'expiresInMs': expiresInMs,
         'userId': userId,
         'phoneNumber': phoneNumber,
+        'email': email,
+        'fullName': fullName,
         'role': role,
         'isProfileComplete': isProfileComplete,
+        'permissions': permissions,
       };
 
   AuthSession toDomain() {
     return AuthSession(
       userId: userId,
       phoneNumber: phoneNumber,
+      email: email,
+      fullName: fullName,
       role: role,
       accessToken: accessToken,
       refreshToken: refreshToken,
       tokenType: tokenType,
       expiresInMs: expiresInMs,
       isProfileComplete: isProfileComplete,
+      permissions: permissions,
     );
   }
 }

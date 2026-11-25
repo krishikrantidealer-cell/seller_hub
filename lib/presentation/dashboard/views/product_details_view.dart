@@ -523,13 +523,14 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     final cod = _editIsMarketplace ? LivePriceCalculation.fixedCodAndBankCharge : 0.0;
     final commission = double.tryParse(_commissionController.text.trim()) ?? 0.0;
     final st = int.tryParse(_stockController.text.trim()) ?? 0;
-    final ps = int.tryParse(_packSizeController.text.trim()) ?? 0;
+    final psDouble = double.tryParse(_packSizeController.text.trim()) ?? 0.0;
+    final ps = psDouble > 0 ? (psDouble < 1 ? 1 : psDouble.round()) : 0;
     final pq = int.tryParse(_packQuantityController.text.trim()) ?? 0;
     final unit = _normalizeUnit(_unitController.text);
     final gst = double.tryParse(_gstController.text.trim()) ?? 0.0;
     final disc = (mrp > disp) ? (mrp - disp) : 0.0;
     final discPct = mrp > 0 ? (disc / mrp * 100) : 0.0;
-    final totalBase = (ps > 0 && pq > 0) ? (ps * pq) : cur.totalBaseQuantity;
+    final totalBase = (psDouble > 0 && pq > 0) ? (psDouble * pq).round() : cur.totalBaseQuantity;
     final pricePerBase = totalBase > 0 ? (disp / totalBase) : 0.0;
 
     _workingVariants[_selectedVariantIndex] = cur.copyWith(

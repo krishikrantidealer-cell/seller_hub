@@ -114,27 +114,34 @@ class DashboardSidebar extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             BlocBuilder<AuthBloc, AuthState>(
-                              builder: (context, _) {
-                                return Text(
-                                  'SELLER HUB',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 0.5,
-                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                              builder: (context, authState) {
+                                final isSales = authState.session?.isSalesAgent ?? false;
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'SELLER HUB',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.5,
+                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      isSales ? 'SALES CONSOLE' : 'ADMIN CONSOLE',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.8,
+                                        color: const Color(0xFF059669),
+                                      ),
+                                    ),
+                                  ],
                                 );
                               },
-                            ),
-                            Text(
-                              'ADMIN CONSOLE',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                                color: const Color(0xFF059669),
-                              ),
                             ),
                           ],
                         ),
@@ -170,69 +177,94 @@ class DashboardSidebar extends StatelessWidget {
 
           // Scrollable Nav Section
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Navigation Group Label
-                  if (!effectiveMinimized)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-                      child: Text(
-                        'OPERATIONS',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.9,
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+            child: BlocBuilder<AuthBloc, AuthState>(
+              builder: (context, authState) {
+                final session = authState.session;
+                final canDashboard = session?.hasPermission('DASHBOARD_VIEW') ?? true;
+                final canCatalog = session?.hasAnyPermission(['CATALOG_VIEW', 'CATALOG_MANAGE']) ?? true;
+                final canUsers = session?.hasAnyPermission([
+                      'USERS_SELLERS_VIEW',
+                      'USERS_CUSTOMERS_VIEW',
+                      'USERS_CUSTOMERS_MANAGE',
+                    ]) ??
+                    true;
+                final canOrders = session?.hasAnyPermission([
+                      'ORDERS_VIEW',
+                      'ORDERS_CREATE',
+                      'ORDERS_MANAGE',
+                    ]) ??
+                    true;
+                final isAdmin = session?.isAdmin ?? true;
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!effectiveMinimized)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+                          child: Text(
+                            'OPERATIONS',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.9,
+                              color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(height: 4),
+                      if (canDashboard)
+                        _buildSidebarNavItem(
+                          context: context,
+                          index: 0,
+                          title: 'Dashboard',
+                          icon: Icons.grid_view_rounded,
+                          isDark: isDark,
+                          isSelected: selectedIndex == 0,
                         ),
-                      ),
-                    )
-                  else
-                    const SizedBox(height: 4),
-
-                  // Sidebar Nav Item: Dashboard
-                  _buildSidebarNavItem(
-                    context: context,
-                    index: 0,
-                    title: 'Dashboard',
-                    icon: Icons.grid_view_rounded,
-                    isDark: isDark,
-                    isSelected: selectedIndex == 0,
+                      if (canCatalog)
+                        _buildSidebarNavItem(
+                          context: context,
+                          index: 1,
+                          title: 'Catalog',
+                          icon: Icons.inventory_2_rounded,
+                          isDark: isDark,
+                          isSelected: selectedIndex == 1 || selectedIndex == 2 || selectedIndex == 3,
+                        ),
+                      if (canUsers)
+                        _buildSidebarNavItem(
+                          context: context,
+                          index: 4,
+                          title: 'Users',
+                          icon: Icons.people_alt_rounded,
+                          isDark: isDark,
+                          isSelected: selectedIndex == 4 || selectedIndex == 6,
+                        ),
+                      if (canOrders)
+                        _buildSidebarNavItem(
+                          context: context,
+                          index: 5,
+                          title: 'Orders',
+                          icon: Icons.receipt_long_rounded,
+                          isDark: isDark,
+                          badgeText: ordersCount > 0 ? '$ordersCount' : null,
+                        ),
+                      if (isAdmin)
+                        _buildSidebarNavItem(
+                          context: context,
+                          index: 7,
+                          title: 'Access Control',
+                          icon: Icons.admin_panel_settings_rounded,
+                          isDark: isDark,
+                          isSelected: selectedIndex == 7,
+                        ),
+                    ],
                   ),
-
-                  // Sidebar Nav Item: Catalog (Products, Collections & Categories)
-                  _buildSidebarNavItem(
-                    context: context,
-                    index: 1,
-                    title: 'Catalog',
-                    icon: Icons.inventory_2_rounded,
-                    isDark: isDark,
-                    isSelected: selectedIndex == 1 || selectedIndex == 2 || selectedIndex == 3,
-                  ),
-
-                  // Sidebar Nav Item: Users (Sellers & Customers)
-                  _buildSidebarNavItem(
-                    context: context,
-                    index: 4,
-                    title: 'Users',
-                    icon: Icons.people_alt_rounded,
-                    isDark: isDark,
-                    isSelected: selectedIndex == 4 || selectedIndex == 6,
-                  ),
-
-                  // Sidebar Nav Item: Orders
-                  _buildSidebarNavItem(
-                    context: context,
-                    index: 5,
-                    title: 'Orders',
-                    icon: Icons.receipt_long_rounded,
-                    isDark: isDark,
-                    badgeText: ordersCount > 0 ? '$ordersCount' : null,
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
 

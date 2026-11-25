@@ -8,6 +8,9 @@ class TokenStorage {
   static const String _keyUserId = 'auth_user_id';
   static const String _keyRole = 'auth_user_role';
   static const String _keyPhoneNumber = 'auth_phone_number';
+  static const String _keyEmail = 'auth_user_email';
+  static const String _keyFullName = 'auth_user_full_name';
+  static const String _keyPermissions = 'auth_user_permissions';
 
   final SharedPreferences? prefs;
 
@@ -23,6 +26,9 @@ class TokenStorage {
     required String userId,
     required String role,
     String? phoneNumber,
+    String? email,
+    String? fullName,
+    List<String> permissions = const [],
   }) async {
     final prefs = await _instance;
     await Future.wait([
@@ -31,7 +37,30 @@ class TokenStorage {
       prefs.setString(_keyUserId, userId),
       prefs.setString(_keyRole, role),
       if (phoneNumber != null) prefs.setString(_keyPhoneNumber, phoneNumber),
+      if (email != null) prefs.setString(_keyEmail, email),
+      if (fullName != null) prefs.setString(_keyFullName, fullName),
+      prefs.setStringList(_keyPermissions, permissions),
     ]);
+  }
+
+  Future<void> savePermissions(List<String> permissions) async {
+    final prefs = await _instance;
+    await prefs.setStringList(_keyPermissions, permissions);
+  }
+
+  Future<List<String>> getPermissions() async {
+    final prefs = await _instance;
+    return prefs.getStringList(_keyPermissions) ?? const [];
+  }
+
+  Future<String?> getEmail() async {
+    final prefs = await _instance;
+    return prefs.getString(_keyEmail);
+  }
+
+  Future<String?> getFullName() async {
+    final prefs = await _instance;
+    return prefs.getString(_keyFullName);
   }
 
   Future<String?> getAccessToken() async {

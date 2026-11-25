@@ -11,6 +11,8 @@ class ApiEndpoints {
 
   /// Orders
   static const String adminOrders = '/api/v1/admin/orders';
+  static String adminCreateOrderForCustomer(String customerId) =>
+      '/api/v1/admin/orders/customers/$customerId/create';
   static String adminOrderConfirm(String orderId) => '/api/v1/admin/orders/$orderId/confirm';
   static String adminOrderDelhiveryShipment(String orderId) =>
       '/api/v1/admin/orders/$orderId/shipment/delhivery';
@@ -55,6 +57,12 @@ class ApiEndpoints {
   static String adminCategoryImage(String categoryId) =>
       '/api/v1/admin/categories/$categoryId/image';
 
+  // Hero Banners
+  static const String adminBanners = '/api/v1/admin/banners';
+  static String adminBannerById(String bannerId) => '/api/v1/admin/banners/$bannerId';
+  static String adminBannerImage(String bannerId) => '/api/v1/admin/banners/$bannerId/image';
+  static String adminBannerToggle(String bannerId) => '/api/v1/admin/banners/$bannerId/toggle';
+
   // Technical Names
   static const String technicalNames = '/api/v1/technical-names';
   static const String sellerTechnicalNames = '/api/v1/seller/technical-names';
@@ -79,6 +87,12 @@ class ApiEndpoints {
   static String adminSellerDocuments(String userId) => '/api/v1/admin/users/$userId/kyc-documents';
   static String adminSellerDocumentDownload(String userId, String documentType, int index) =>
       '/api/v1/admin/users/$userId/kyc-documents/$documentType/$index';
+
+  /// Sales Agents & RBAC
+  static const String adminSalesAgents = '/api/v1/admin/sales-agents';
+  static String adminSalesAgentPermissions(String id) => '/api/v1/admin/sales-agents/$id/permissions';
+  static String adminSalesAgentStatus(String id) => '/api/v1/admin/sales-agents/$id/status';
+  static String adminSalesAgentById(String id) => '/api/v1/admin/sales-agents/$id';
 
   /// Locations (Indian States, Cities & PIN Code Lookup)
   static const String indiaStates = '/api/v1/locations/india/states';

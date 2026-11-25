@@ -36,6 +36,9 @@ class AuthRepositoryImpl implements AuthRepository {
       userId: session.userId,
       role: session.role,
       phoneNumber: session.phoneNumber,
+      email: session.email,
+      fullName: session.fullName,
+      permissions: session.permissions,
     );
 
     return session;
@@ -67,18 +70,24 @@ class AuthRepositoryImpl implements AuthRepository {
     final userId = await tokenStorage.getUserId();
     final role = await tokenStorage.getRole();
     final phoneNumber = await tokenStorage.getPhoneNumber();
+    final email = await tokenStorage.getEmail();
+    final fullName = await tokenStorage.getFullName();
+    final permissions = await tokenStorage.getPermissions();
 
     if (userId == null || userId.isEmpty) return null;
 
     return AuthSession(
       userId: userId,
       phoneNumber: phoneNumber,
+      email: email,
+      fullName: fullName,
       role: role ?? 'ROLE_ADMIN',
       accessToken: accessToken,
       refreshToken: refreshToken ?? '',
       tokenType: 'Bearer',
       expiresInMs: 86400000,
       isProfileComplete: true,
+      permissions: permissions,
     );
   }
 

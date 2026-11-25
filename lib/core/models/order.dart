@@ -340,6 +340,7 @@ class OrderStatusEvent extends Equatable {
 /// Main Agricultural Marketplace Order
 class MarketplaceOrder extends Equatable {
   final String id;
+  final String customerId;
   final String orderNumber;
   final String paymentMethod;
   final String paymentStatus;
@@ -366,6 +367,40 @@ class MarketplaceOrder extends Equatable {
   final String sellerPaymentStatus;
   final DateTime? sellerPaymentDate;
   final double sellerWillGet;
+  final double advancePercentage;
+  final double advanceAmountPaid;
+  final double codDue;
+  final String orderSource;
+  final String createdByRole;
+  final String createdByName;
+  final String checkoutGroupId;
+
+  bool get isPanelOrder =>
+      orderSource == 'ADMIN_PANEL' || orderSource == 'SALES_PANEL';
+
+  String get checkoutBatchKey {
+    final raw = checkoutGroupId.trim();
+    if (raw.isEmpty) return '';
+    return raw.replaceFirst(RegExp(r'-S\d+$'), '');
+  }
+
+  String get checkoutBatchShort {
+    final key = checkoutBatchKey;
+    if (key.isEmpty) return '';
+    final stripped = key.startsWith('CHK-') ? key.substring(4) : key;
+    return stripped.length > 6 ? stripped.substring(stripped.length - 6) : stripped;
+  }
+
+  String get sourceLabel {
+    switch (orderSource) {
+      case 'SALES_PANEL':
+        return 'Sales Panel';
+      case 'ADMIN_PANEL':
+        return 'Admin Panel';
+      default:
+        return 'Website';
+    }
+  }
 
   bool get hasLabel => labelReference.trim().isNotEmpty;
 
@@ -394,6 +429,7 @@ class MarketplaceOrder extends Equatable {
 
   const MarketplaceOrder({
     required this.id,
+    this.customerId = '',
     required this.orderNumber,
     required this.paymentMethod,
     required this.paymentStatus,
@@ -420,6 +456,13 @@ class MarketplaceOrder extends Equatable {
     this.sellerPaymentStatus = 'PENDING',
     this.sellerPaymentDate,
     this.sellerWillGet = 0.0,
+    this.advancePercentage = 0.0,
+    this.advanceAmountPaid = 0.0,
+    this.codDue = 0.0,
+    this.orderSource = 'WEBSITE',
+    this.createdByRole = '',
+    this.createdByName = '',
+    this.checkoutGroupId = '',
   });
 
   factory MarketplaceOrder.fromBackendJson(Map<String, dynamic> json) {
@@ -617,18 +660,33 @@ class MarketplaceOrder extends Equatable {
     final rawPayType = paymentMap['paymentType']?.toString().toUpperCase() ?? 'PREPAID';
     final rawPayStatus = paymentMap['status']?.toString().toUpperCase() ?? 'CREATED';
     final isCodType = rawPayType == 'COD';
-    final normalizedPayStatus = rawPayStatus == 'CAPTURED' || rawPayStatus == 'PAID'
-        ? 'PAID'
-        : (rawPayStatus == 'REFUNDED'
-            ? 'REFUNDED'
-            : (rawPayStatus == 'FAILED'
-                ? 'FAILED'
-                : (isCodType ? 'COD' : 'PENDING')));
+    final isPartialType = rawPayType.contains('PARTIAL');
+    final advPct = toDouble(paymentMap['advancePercentage']);
+    final advPaid = toDouble(paymentMap['advanceAmountPaid']) > 0
+        ? toDouble(paymentMap['advanceAmountPaid'])
+        : toDouble(paymentMap['amountPaid']);
+    final codBalance = toDouble(paymentMap['codDue']) > 0
+        ? toDouble(paymentMap['codDue'])
+        : toDouble(paymentMap['remainingAmount']);
+    final normalizedPayStatus = isPartialType
+        ? (codBalance > 0
+            ? ((rawPayStatus == 'CAPTURED' || rawPayStatus == 'PAID' || advPaid > 0)
+                ? 'PARTIAL'
+                : 'PENDING')
+            : (rawPayStatus == 'CAPTURED' || rawPayStatus == 'PAID' ? 'PAID' : 'PENDING'))
+        : (rawPayStatus == 'CAPTURED' || rawPayStatus == 'PAID'
+            ? 'PAID'
+            : (rawPayStatus == 'REFUNDED'
+                ? 'REFUNDED'
+                : (rawPayStatus == 'FAILED'
+                    ? 'FAILED'
+                    : (isCodType ? 'COD' : 'PENDING'))));
+    final providerName = paymentMap['provider']?.toString().trim() ?? '';
     final paymentLabel = isCodType
         ? 'Cash on Delivery (COD)'
-        : (paymentMap['provider']?.toString().isNotEmpty == true
-            ? '${paymentMap['provider']} ($rawPayType)'
-            : rawPayType);
+        : isPartialType
+            ? (providerName.isNotEmpty ? '$providerName (Partial + COD)' : 'Partial (Advance + COD)')
+            : (providerName.isNotEmpty ? '$providerName ($rawPayType)' : rawPayType);
 
     final gmv = toDouble(finMap['grossMerchandiseValue']);
     final discount = toDouble(finMap['discountTotal']);
@@ -666,6 +724,7 @@ class MarketplaceOrder extends Equatable {
 
     return MarketplaceOrder(
       id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      customerId: json['customerId']?.toString() ?? customerSnap['customerId']?.toString() ?? '',
       orderNumber: json['orderNumber']?.toString() ?? '',
       paymentMethod: paymentLabel,
       paymentStatus: normalizedPayStatus,
@@ -710,11 +769,33 @@ class MarketplaceOrder extends Equatable {
       sellerWillGet: toDouble(firstGroup['sellerWillGet']) > 0
           ? toDouble(firstGroup['sellerWillGet'])
           : parsedItems.fold<double>(0.0, (sum, it) => sum + it.sellerWillGet),
+      advancePercentage: advPct,
+      advanceAmountPaid: advPaid,
+      codDue: codBalance,
+      orderSource: () {
+        final raw = json['orderSource']?.toString().trim().toUpperCase() ?? '';
+        if (raw.isNotEmpty) return raw;
+        if (providerName.toUpperCase() == 'FASTRR') return 'WEBSITE';
+        if (parsedStatusHistory.isNotEmpty) {
+          final first = parsedStatusHistory.first;
+          if (first.note.contains('Admin') ||
+              (first.actor.isNotEmpty &&
+                  first.actor.toUpperCase() != 'CUSTOMER' &&
+                  first.actor.toUpperCase() != 'SYSTEM')) {
+            return 'ADMIN_PANEL';
+          }
+        }
+        return 'WEBSITE';
+      }(),
+      createdByRole: json['createdByRole']?.toString().trim() ?? '',
+      createdByName: json['createdByName']?.toString().trim() ?? '',
+      checkoutGroupId: json['checkoutGroupId']?.toString().trim() ?? '',
     );
   }
 
   MarketplaceOrder copyWith({
     String? id,
+    String? customerId,
     String? orderNumber,
     String? paymentMethod,
     String? paymentStatus,
@@ -741,9 +822,14 @@ class MarketplaceOrder extends Equatable {
     String? sellerPaymentStatus,
     DateTime? sellerPaymentDate,
     double? sellerWillGet,
+    String? orderSource,
+    String? createdByRole,
+    String? createdByName,
+    String? checkoutGroupId,
   }) {
     return MarketplaceOrder(
       id: id ?? this.id,
+      customerId: customerId ?? this.customerId,
       orderNumber: orderNumber ?? this.orderNumber,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paymentStatus: paymentStatus ?? this.paymentStatus,
@@ -770,6 +856,10 @@ class MarketplaceOrder extends Equatable {
       sellerPaymentStatus: sellerPaymentStatus ?? this.sellerPaymentStatus,
       sellerPaymentDate: sellerPaymentDate ?? this.sellerPaymentDate,
       sellerWillGet: sellerWillGet ?? this.sellerWillGet,
+      orderSource: orderSource ?? this.orderSource,
+      createdByRole: createdByRole ?? this.createdByRole,
+      createdByName: createdByName ?? this.createdByName,
+      checkoutGroupId: checkoutGroupId ?? this.checkoutGroupId,
     );
   }
 

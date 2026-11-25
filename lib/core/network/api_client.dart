@@ -171,12 +171,16 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool requiresAuth = false,
+    Map<String, String>? extraHeaders,
   }) async {
     try {
       final uri = _buildUri(path);
       final response = await _sendWithAuthRetry(
         () async {
           final headers = await _buildHeaders(requiresAuth: requiresAuth);
+          if (extraHeaders != null) {
+            headers.addAll(extraHeaders);
+          }
           return _client
               .post(
                 uri,

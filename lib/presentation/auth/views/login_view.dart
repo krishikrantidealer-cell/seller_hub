@@ -42,6 +42,7 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
 
   bool _obscurePassword = true;
   bool _isCapsLockOn = false;
+  bool _isSalesAgentLogin = false;
   String? _clientIdentifierError;
   String? _clientPasswordError;
   Offset _rippleOrigin = const Offset(1200, 40);
@@ -193,6 +194,7 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
       LoginSubmitted(
         identifier: identifier,
         password: password,
+        expectedRole: _isSalesAgentLogin ? 'ROLE_SALES_AGENT' : 'ROLE_ADMIN',
       ),
     );
   }
@@ -510,7 +512,7 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
                                                 const Icon(Icons.verified_user_rounded, size: 14, color: Color(0xFF059669)),
                                                 const SizedBox(width: 6),
                                                 Text(
-                                                  'ADMIN SECURE ACCESS',
+                                                  _isSalesAgentLogin ? 'SALES AGENT ACCESS' : 'ADMIN SECURE ACCESS',
                                                   style: GoogleFonts.plusJakartaSans(
                                                     fontSize: 10.5,
                                                     fontWeight: FontWeight.w800,
@@ -522,10 +524,123 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(height: 14),
+                                        const SizedBox(height: 16),
+
+                                        // Portal Mode Switcher: Admin vs Sales Agent
+                                        Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(
+                                              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: InkWell(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  onTap: () => setState(() => _isSalesAgentLogin = false),
+                                                  child: AnimatedContainer(
+                                                    duration: const Duration(milliseconds: 160),
+                                                    padding: const EdgeInsets.symmetric(vertical: 9),
+                                                    decoration: BoxDecoration(
+                                                      color: !_isSalesAgentLogin
+                                                          ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                                          : Colors.transparent,
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      boxShadow: !_isSalesAgentLogin
+                                                          ? [
+                                                              BoxShadow(
+                                                                color: Colors.black.withValues(alpha: 0.06),
+                                                                blurRadius: 4,
+                                                                offset: const Offset(0, 1),
+                                                              ),
+                                                            ]
+                                                          : null,
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      children: [
+                                                        Icon(
+                                                          Icons.admin_panel_settings_outlined,
+                                                          size: 15,
+                                                          color: !_isSalesAgentLogin
+                                                              ? const Color(0xFF059669)
+                                                              : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                                        ),
+                                                        const SizedBox(width: 6),
+                                                        Text(
+                                                          'Admin Login',
+                                                          style: GoogleFonts.plusJakartaSans(
+                                                            fontSize: 12.5,
+                                                            fontWeight: !_isSalesAgentLogin ? FontWeight.w800 : FontWeight.w600,
+                                                            color: !_isSalesAgentLogin
+                                                                ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                                                                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: InkWell(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  onTap: () => setState(() => _isSalesAgentLogin = true),
+                                                  child: AnimatedContainer(
+                                                    duration: const Duration(milliseconds: 160),
+                                                    padding: const EdgeInsets.symmetric(vertical: 9),
+                                                    decoration: BoxDecoration(
+                                                      color: _isSalesAgentLogin
+                                                          ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                                          : Colors.transparent,
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      boxShadow: _isSalesAgentLogin
+                                                          ? [
+                                                              BoxShadow(
+                                                                color: Colors.black.withValues(alpha: 0.06),
+                                                                blurRadius: 4,
+                                                                offset: const Offset(0, 1),
+                                                              ),
+                                                            ]
+                                                          : null,
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      children: [
+                                                        Icon(
+                                                          Icons.support_agent_rounded,
+                                                          size: 15,
+                                                          color: _isSalesAgentLogin
+                                                              ? const Color(0xFF059669)
+                                                              : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                                        ),
+                                                        const SizedBox(width: 6),
+                                                        Text(
+                                                          'Sales Agent',
+                                                          style: GoogleFonts.plusJakartaSans(
+                                                            fontSize: 12.5,
+                                                            fontWeight: _isSalesAgentLogin ? FontWeight.w800 : FontWeight.w600,
+                                                            color: _isSalesAgentLogin
+                                                                ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                                                                : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
 
                                         Text(
-                                          'Admin Sign In',
+                                          _isSalesAgentLogin ? 'Sales Agent Sign In' : 'Admin Sign In',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 25,
                                             fontWeight: FontWeight.w800,
@@ -535,7 +650,9 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
-                                          'Enter your admin credentials to access the Admin Management Console.',
+                                          _isSalesAgentLogin
+                                              ? 'Enter your sales agent email & password to access your assigned workspace.'
+                                              : 'Enter your admin credentials to access the Admin Management Console.',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 13,
                                             height: 1.45,
@@ -728,7 +845,7 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
 
               // Email/Username
               Text(
-                'Admin Email / Username',
+                _isSalesAgentLogin ? 'Sales Agent Email' : 'Admin Email / Username',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
@@ -752,7 +869,7 @@ class _LoginViewState extends State<LoginView> with TickerProviderStateMixin {
                   color: isDark ? Colors.white : const Color(0xFF0F172A),
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Enter your admin email',
+                  hintText: _isSalesAgentLogin ? 'Enter your sales agent email' : 'Enter your admin email',
                   errorText: identifierError,
                   errorMaxLines: 2,
                   errorStyle: GoogleFonts.plusJakartaSans(

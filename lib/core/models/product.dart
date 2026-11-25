@@ -186,6 +186,7 @@ const List<String> kShippingThroughOptions = [
 const List<String> kPaymentMethodOptions = [
   'PREPAID',
   'PARTIAL',
+  'BOTH',
 ];
 
 class ProductVariant extends Equatable {

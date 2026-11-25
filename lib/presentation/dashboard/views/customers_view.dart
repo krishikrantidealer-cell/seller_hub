@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/models/admin_user.dart';
+import '../../../core/models/order.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/admin_user_state.dart';
 import '../../../logic/admin_user/customer_bloc.dart';
@@ -10,13 +11,17 @@ import '../widgets/create_customer_dialog.dart';
 
 class CustomersView extends StatefulWidget {
   final bool isWide;
+  final List<MarketplaceOrder> allOrders;
   final ValueChanged<AdminUser>? onSelectCustomer;
+  final ValueChanged<AdminUser>? onCreateOrderForCustomer;
   final VoidCallback? onOpenCreateCustomer;
 
   const CustomersView({
     super.key,
     required this.isWide,
+    this.allOrders = const [],
     this.onSelectCustomer,
+    this.onCreateOrderForCustomer,
     this.onOpenCreateCustomer,
   });
 
@@ -699,11 +704,12 @@ class _CustomersViewState extends State<CustomersView> {
             child: Row(
               children: [
                 Expanded(flex: 3, child: _tableHeaderCell('CUSTOMER', isDark)),
-                Expanded(flex: 2, child: _tableHeaderCell('PHONE / CONTACT', isDark)),
-                Expanded(flex: 3, child: _tableHeaderCell('LOCATION / ADDRESS', isDark)),
+                Expanded(flex: 2, child: _tableHeaderCell('CONTACT', isDark)),
+                Expanded(flex: 3, child: _tableHeaderCell('LOCATION', isDark)),
+                Expanded(flex: 2, child: _tableHeaderCell('ORDERS & SPEND', isDark)),
                 Expanded(flex: 2, child: _tableHeaderCell('STATUS', isDark)),
                 Expanded(flex: 2, child: _tableHeaderCell('REGISTERED', isDark)),
-                SizedBox(width: 130, child: _tableHeaderCell('ACTIONS', isDark, alignRight: true)),
+                SizedBox(width: 108, child: _tableHeaderCell('ACTIONS', isDark, alignRight: true)),
               ],
             ),
           ),
@@ -716,6 +722,25 @@ class _CustomersViewState extends State<CustomersView> {
             separatorBuilder: (context, index) => Divider(color: borderColor, height: 1),
             itemBuilder: (context, index) {
                 final user = customers[index];
+                final custOrders = _ordersForCustomer(user);
+                final totalSpent = custOrders.fold<double>(0.0, (s, o) => s + o.grandTotal);
+                final latestOrderDate = custOrders.isNotEmpty
+                    ? custOrders.map((o) => o.orderDate).reduce((a, b) => a.isAfter(b) ? a : b)
+                    : null;
+                final savedAddrCount = user.shippingAddresses
+                    .where((a) => a.villageArea.trim().isNotEmpty || a.pincode.trim().isNotEmpty)
+                    .length;
+                final addr = user.address;
+                final cityState = [
+                  if (addr?.cityTehsil.trim().isNotEmpty == true) addr!.cityTehsil.trim(),
+                  if (addr?.state.trim().isNotEmpty == true) addr!.state.trim(),
+                ].join(', ');
+                final pin = addr?.pincode.trim() ?? '';
+                final shortLocation = [
+                  if (cityState.isNotEmpty) cityState,
+                  if (pin.isNotEmpty) pin,
+                ].join(' - ');
+
                 return InkWell(
                   onTap: () {
                     if (widget.onSelectCustomer != null) {
@@ -761,10 +786,13 @@ class _CustomersViewState extends State<CustomersView> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'ID: ${user.id}',
-                                      style: GoogleFonts.jetBrainsMono(
-                                        fontSize: 10,
-                                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                      user.shopName != null && user.shopName!.trim().isNotEmpty
+                                          ? user.shopName!.trim()
+                                          : 'Registered Buyer',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -867,14 +895,62 @@ class _CustomersViewState extends State<CustomersView> {
                               ),
                               const SizedBox(width: 5),
                               Expanded(
-                                child: Text(
-                                  user.fullAddress.isNotEmpty ? user.fullAddress : 'No address provided',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11.5,
-                                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      shortLocation.isNotEmpty ? shortLocation : 'No address provided',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.5,
+                                        color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (savedAddrCount > 0) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '+$savedAddrCount saved delivery address${savedAddrCount == 1 ? '' : 'es'}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF059669),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Orders & Spend Column
+                        Expanded(
+                          flex: 2,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                custOrders.isEmpty
+                                    ? '0 Orders'
+                                    : '${custOrders.length} Order${custOrders.length == 1 ? '' : 's'} • ₹${totalSpent.toStringAsFixed(0)}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: custOrders.isEmpty
+                                      ? (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8))
+                                      : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                latestOrderDate != null
+                                    ? 'Last: ${latestOrderDate.day.toString().padLeft(2, '0')}/${latestOrderDate.month.toString().padLeft(2, '0')}/${latestOrderDate.year}'
+                                    : 'No orders yet',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10.5,
+                                  color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                                 ),
                               ),
                             ],
@@ -892,14 +968,10 @@ class _CustomersViewState extends State<CustomersView> {
                                 _statusBadge('IN TRASH', const Color(0xFFE11D48), isDark)
                               else if (user.isBlocked)
                                 _statusBadge('BLOCKED', const Color(0xFFDC2626), isDark)
-                              else ...[
-                                if (user.isVerified)
-                                  _statusBadge('VERIFIED', const Color(0xFF059669), isDark),
-                                if (user.isProfileComplete)
-                                  _statusBadge('PROFILE OK', const Color(0xFF2563EB), isDark)
-                                else
-                                  _statusBadge('INCOMPLETE', const Color(0xFFD97706), isDark),
-                              ],
+                              else if (user.isVerified)
+                                _statusBadge('ACTIVE', const Color(0xFF059669), isDark)
+                              else
+                                _statusBadge('UNVERIFIED', const Color(0xFFD97706), isDark),
                             ],
                           ),
                         ),
@@ -921,81 +993,46 @@ class _CustomersViewState extends State<CustomersView> {
 
                         // Actions Column
                         SizedBox(
-                          width: _showTrash ? 110 : 130,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.visibility_outlined, size: 16),
-                                  tooltip: 'View details',
-                                  padding: const EdgeInsets.all(6),
-                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                  onPressed: () {
-                                    if (widget.onSelectCustomer != null) {
-                                      widget.onSelectCustomer!(user);
-                                    } else {
-                                      _showCustomerDetailsDialog(
-                                        context,
-                                        user,
-                                        isDark,
-                                        surfaceColor,
-                                        borderColor,
-                                      );
-                                    }
-                                  },
+                          width: 108,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (user.isDeleted) ...[
+                                _tableActionButton(
+                                  icon: Icons.restore_from_trash_rounded,
+                                  color: const Color(0xFF059669),
+                                  tooltip: 'Restore customer account',
+                                  isDark: isDark,
+                                  onPressed: () => _confirmToggleDelete(context, user),
                                 ),
-                                if (user.isDeleted) ...[
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.restore_from_trash_rounded,
-                                      size: 16,
-                                      color: Color(0xFF059669),
-                                    ),
-                                    tooltip: 'Restore customer account',
-                                    padding: const EdgeInsets.all(6),
-                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                    onPressed: () => _confirmToggleDelete(context, user),
+                                const SizedBox(width: 8),
+                                _tableActionButton(
+                                  icon: Icons.delete_forever_rounded,
+                                  color: const Color(0xFFDC2626),
+                                  tooltip: 'Permanently delete customer',
+                                  isDark: isDark,
+                                  onPressed: () => _confirmPermanentDelete(context, user),
+                                ),
+                              ] else ...[
+                                if (!user.isBlocked && widget.onCreateOrderForCustomer != null) ...[
+                                  _tableActionButton(
+                                    icon: Icons.add_shopping_cart_rounded,
+                                    color: const Color(0xFF059669),
+                                    tooltip: 'Create order for customer',
+                                    isDark: isDark,
+                                    onPressed: () => widget.onCreateOrderForCustomer!(user),
                                   ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_forever_rounded,
-                                      size: 16,
-                                      color: Color(0xFFDC2626),
-                                    ),
-                                    tooltip: 'Permanently delete customer',
-                                    padding: const EdgeInsets.all(6),
-                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                    onPressed: () => _confirmPermanentDelete(context, user),
-                                  ),
-                                ] else ...[
-                                  IconButton(
-                                    icon: Icon(
-                                      user.isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
-                                      size: 16,
-                                      color: user.isBlocked ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                                    ),
-                                    tooltip: user.isBlocked ? 'Unblock customer' : 'Block customer',
-                                    padding: const EdgeInsets.all(6),
-                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                    onPressed: () => _confirmToggleBlock(context, user),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_outline_rounded,
-                                      size: 16,
-                                      color: Color(0xFFE11D48),
-                                    ),
-                                    tooltip: 'Move to Trash (Deactivate)',
-                                    padding: const EdgeInsets.all(6),
-                                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                    onPressed: () => _confirmToggleDelete(context, user),
-                                  ),
+                                  const SizedBox(width: 8),
                                 ],
+                                _tableActionButton(
+                                  icon: Icons.delete_outline_rounded,
+                                  color: const Color(0xFFE11D48),
+                                  tooltip: 'Move to Trash (Deactivate)',
+                                  isDark: isDark,
+                                  onPressed: () => _confirmToggleDelete(context, user),
+                                ),
                               ],
-                            ),
+                            ],
                           ),
                         ),
                     ],
@@ -1162,15 +1199,16 @@ class _CustomersViewState extends State<CustomersView> {
                           onPressed: () => _confirmPermanentDelete(context, user),
                         ),
                       ] else ...[
-                        IconButton(
-                          icon: Icon(
-                            user.isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
-                            size: 16,
-                            color: user.isBlocked ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                        if (!user.isBlocked && widget.onCreateOrderForCustomer != null)
+                          IconButton(
+                            icon: const Icon(
+                              Icons.add_shopping_cart_rounded,
+                              size: 17,
+                              color: Color(0xFF059669),
+                            ),
+                            tooltip: 'Create order for customer',
+                            onPressed: () => widget.onCreateOrderForCustomer!(user),
                           ),
-                          tooltip: user.isBlocked ? 'Unblock customer' : 'Block customer',
-                          onPressed: () => _confirmToggleBlock(context, user),
-                        ),
                         IconButton(
                           icon: const Icon(
                             Icons.delete_outline_rounded,
@@ -1189,6 +1227,50 @@ class _CustomersViewState extends State<CustomersView> {
           ),
         );
       },
+    );
+  }
+
+  List<MarketplaceOrder> _ordersForCustomer(AdminUser user) {
+    if (user.id.isEmpty || widget.allOrders.isEmpty) return const [];
+    String normalizePhone(String raw) {
+      final digits = raw.replaceAll(RegExp(r'\D'), '');
+      if (digits.length >= 10) return digits.substring(digits.length - 10);
+      return digits;
+    }
+
+    final custPhone = normalizePhone(user.phoneNumber);
+    return widget.allOrders.where((o) {
+      if (o.customerId.isNotEmpty) return o.customerId == user.id;
+      final orderPhone = normalizePhone(o.shippingAddress.phone);
+      return custPhone.isNotEmpty && orderPhone.isNotEmpty && orderPhone == custPhone;
+    }).toList();
+  }
+
+  Widget _tableActionButton({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required bool isDark,
+    required VoidCallback onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: isDark ? 0.16 : 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: color.withValues(alpha: isDark ? 0.35 : 0.25),
+            ),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+      ),
     );
   }
 

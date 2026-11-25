@@ -7,6 +7,7 @@ import 'package:seller_hub/presentation/dashboard/widgets/pagination_footer.dart
 class OrdersView extends StatefulWidget {
   final List<MarketplaceOrder> orders;
   final ValueChanged<MarketplaceOrder> onSelectOrder;
+  final ValueChanged<MarketplaceOrder>? onSelectCustomer;
   final bool isLoading;
   final String? errorMessage;
   final VoidCallback? onRetry;
@@ -18,6 +19,7 @@ class OrdersView extends StatefulWidget {
     super.key,
     required this.orders,
     required this.onSelectOrder,
+    this.onSelectCustomer,
     this.isLoading = false,
     this.errorMessage,
     this.onRetry,
@@ -37,6 +39,7 @@ class _OrdersViewState extends State<OrdersView> {
   String _selectedStatus = 'All Statuses';
   // ignore: prefer_final_fields
   String _selectedPaymentStatus = 'All Payments';
+  String _selectedSource = 'All Sources';
   DateTime? _fromDate;
   DateTime? _toDate;
 
@@ -59,6 +62,57 @@ class _OrdersViewState extends State<OrdersView> {
     );
   }
 
+  Widget _buildSourceBadge(MarketplaceOrder o, bool isDark) {
+    final Color badgeColor;
+    final IconData icon;
+    if (o.orderSource == 'SALES_PANEL') {
+      badgeColor = const Color(0xFFD97706);
+      icon = Icons.support_agent_rounded;
+    } else if (o.orderSource == 'ADMIN_PANEL') {
+      badgeColor = const Color(0xFF4F46E5);
+      icon = Icons.admin_panel_settings_rounded;
+    } else {
+      badgeColor = const Color(0xFF059669);
+      icon = Icons.language_rounded;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: isDark ? 0.16 : 0.1),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10.5, color: badgeColor),
+          const SizedBox(width: 4),
+          Text(
+            o.sourceLabel,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              color: badgeColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static const List<Color> _batchPalette = [
+    Color(0xFF7C3AED),
+    Color(0xFF0284C7),
+    Color(0xFFD97706),
+    Color(0xFFDB2777),
+    Color(0xFF0D9488),
+  ];
+
+  Color _batchColorFor(String batchKey) {
+    final idx = batchKey.hashCode.abs() % _batchPalette.length;
+    return _batchPalette[idx];
+  }
+
   String _formatDate(DateTime dt) {
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     final hour12 = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
@@ -71,6 +125,8 @@ class _OrdersViewState extends State<OrdersView> {
     switch (status.toUpperCase()) {
       case 'PAID':
         return const Color(0xFF059669);
+      case 'PARTIAL':
+        return const Color(0xFF2563EB);
       case 'PENDING':
       case 'COD':
         return const Color(0xFFD97706);
@@ -128,10 +184,19 @@ class _OrdersViewState extends State<OrdersView> {
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
 
+    final batchGroups = <String, List<MarketplaceOrder>>{};
+    for (final ord in widget.orders) {
+      final bKey = ord.checkoutBatchKey;
+      if (bKey.isNotEmpty) {
+        batchGroups.putIfAbsent(bKey, () => []).add(ord);
+      }
+    }
+
     // Filtering logic
     final filtered = widget.orders.where((o) {
       final matchesSearch = _searchQuery.isEmpty ||
           o.orderNumber.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          o.checkoutGroupId.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           o.shippingAddress.recipientName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           o.shippingAddress.city.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           o.sellerName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
@@ -141,11 +206,12 @@ class _OrdersViewState extends State<OrdersView> {
       final matchesSeller = _selectedSeller == 'All Sellers' || o.sellerName == _selectedSeller;
       final matchesStatus = _selectedStatus == 'All Statuses' || o.orderStatus.toLowerCase() == _selectedStatus.toLowerCase();
       final matchesPayment = _selectedPaymentStatus == 'All Payments' || o.paymentStatus.toLowerCase() == _selectedPaymentStatus.toLowerCase();
+      final matchesSource = _selectedSource == 'All Sources' || o.sourceLabel == _selectedSource;
       final orderDay = DateTime(o.orderDate.year, o.orderDate.month, o.orderDate.day);
       final matchesFrom = _fromDate == null || !orderDay.isBefore(DateTime(_fromDate!.year, _fromDate!.month, _fromDate!.day));
       final matchesTo = _toDate == null || !orderDay.isAfter(DateTime(_toDate!.year, _toDate!.month, _toDate!.day));
 
-      return matchesSearch && matchesSeller && matchesStatus && matchesPayment && matchesFrom && matchesTo;
+      return matchesSearch && matchesSeller && matchesStatus && matchesPayment && matchesSource && matchesFrom && matchesTo;
     }).toList();
 
     // Pagination calculations
@@ -307,6 +373,42 @@ class _OrdersViewState extends State<OrdersView> {
                     if (val != null) {
                       setState(() {
                         _selectedSeller = val;
+                        _currentPage = 1;
+                      });
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Source Filter Dropdown
+            Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: borderColor),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedSource,
+                  isDense: true,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  dropdownColor: surfaceColor,
+                  items: const ['All Sources', 'Website', 'Admin Panel', 'Sales Panel'].map((s) {
+                    return DropdownMenuItem(value: s, child: Text(s));
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _selectedSource = val;
                         _currentPage = 1;
                       });
                     }
@@ -518,26 +620,6 @@ class _OrdersViewState extends State<OrdersView> {
                         ),
                       ),
                     ],
-                    if (widget.onRetry != null) ...[
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: widget.onRetry,
-                        icon: const Icon(Icons.refresh_rounded, size: 14),
-                        label: Text(
-                          'Refresh',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          minimumSize: const Size(0, 30),
-                          side: BorderSide(color: borderColor),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -598,6 +680,7 @@ class _OrdersViewState extends State<OrdersView> {
                   isDark,
                   surfaceColor,
                   borderColor,
+                  batchGroups,
                 ),
               ),
               // Pagination Footer
@@ -743,6 +826,7 @@ class _OrdersViewState extends State<OrdersView> {
     bool isDark,
     Color surfaceColor,
     Color borderColor,
+    Map<String, List<MarketplaceOrder>> batchGroups,
   ) {
     final rowKey = o.id.isNotEmpty ? o.id : o.orderNumber;
     final isHovered = _hoveredOrderId == rowKey;
@@ -752,9 +836,15 @@ class _OrdersViewState extends State<OrdersView> {
     final payCol = _getPaymentStatusColor(o.paymentStatus);
     final statCol = _getOrderStatusColor(o.orderStatus);
 
-    final zebraBg = rowIndex.isOdd
-        ? (isDark ? const Color(0xFF111827).withValues(alpha: 0.45) : const Color(0xFFF8FAFC))
-        : surfaceColor;
+    final batch = batchGroups[o.checkoutBatchKey];
+    final isLinkedBatch = batch != null && batch.length > 1;
+    final batchCol = isLinkedBatch ? _batchColorFor(o.checkoutBatchKey) : null;
+
+    final zebraBg = isLinkedBatch
+        ? batchCol!.withValues(alpha: isDark ? 0.07 : 0.035)
+        : (rowIndex.isOdd
+            ? (isDark ? const Color(0xFF111827).withValues(alpha: 0.45) : const Color(0xFFF8FAFC))
+            : surfaceColor);
     final hoverBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF0FDF4);
 
     final totalQty = o.items.fold<int>(0, (s, i) => s + i.quantity);
@@ -773,7 +863,7 @@ class _OrdersViewState extends State<OrdersView> {
           color: isHovered ? hoverBg : zebraBg,
           border: Border(
             bottom: BorderSide(color: borderColor, width: 0.9),
-            left: BorderSide(color: statCol, width: 3.5),
+            left: BorderSide(color: batchCol ?? statCol, width: 4),
           ),
         ),
         child: Column(
@@ -839,25 +929,108 @@ class _OrdersViewState extends State<OrdersView> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 5),
+                          Wrap(
+                            spacing: 5,
+                            runSpacing: 4,
+                            children: [
+                              _buildSourceBadge(o, isDark),
+                              if (isLinkedBatch) ...() {
+                                final pos = batch.indexWhere(
+                                        (x) => x.orderNumber == o.orderNumber) +
+                                    1;
+                                final combinedTotal = batch.fold<double>(
+                                    0.0, (sum, x) => sum + x.grandTotal);
+                                final totalStr = combinedTotal % 1 == 0
+                                    ? combinedTotal.toStringAsFixed(0)
+                                    : combinedTotal.toStringAsFixed(2);
+                                return [
+                                  Tooltip(
+                                    message:
+                                        'Same customer checkout #${o.checkoutBatchShort} • Shipment $pos of ${batch.length} • Combined ₹$totalStr',
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: batchCol!.withValues(
+                                            alpha: isDark ? 0.18 : 0.1),
+                                        borderRadius: BorderRadius.circular(5),
+                                        border: Border.all(
+                                            color: batchCol.withValues(alpha: 0.35)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            pos == 1
+                                                ? Icons.call_split_rounded
+                                                : Icons.subdirectory_arrow_right_rounded,
+                                            size: 11,
+                                            color: batchCol,
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Flexible(
+                                            child: Text(
+                                              'Split $pos/${batch.length}',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: batchCol,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ];
+                              }(),
+                            ],
+                          ),
                         ],
                       ),
                     ),
 
                     const SizedBox(width: 12),
 
-                    // 2. Customer (name only)
+                    // 2. Customer (clickable link to customer profile)
                     Expanded(
                       flex: 2,
-                      child: Text(
-                        o.shippingAddress.recipientName.isNotEmpty
-                            ? o.shippingAddress.recipientName
-                            : 'Customer',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
+                      child: widget.onSelectCustomer != null
+                          ? Tooltip(
+                              message: 'Open customer profile',
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(4),
+                                onTap: () => widget.onSelectCustomer!(o),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  child: Text(
+                                    o.shippingAddress.recipientName.isNotEmpty
+                                        ? o.shippingAddress.recipientName
+                                        : 'Customer',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF059669),
+                                      decoration: TextDecoration.underline,
+                                      decorationStyle: TextDecorationStyle.dotted,
+                                      decorationColor: const Color(0xFF059669),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Text(
+                              o.shippingAddress.recipientName.isNotEmpty
+                                  ? o.shippingAddress.recipientName
+                                  : 'Customer',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
                     ),
 
                     const SizedBox(width: 12),
@@ -1084,6 +1257,17 @@ class _OrdersViewState extends State<OrdersView> {
                               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                             ),
                           ),
+                          if (o.paymentStatus == 'PARTIAL' && o.codDue > 0) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Adv ₹${o.advanceAmountPaid % 1 == 0 ? o.advanceAmountPaid.toStringAsFixed(0) : o.advanceAmountPaid.toStringAsFixed(2)} • COD ₹${o.codDue % 1 == 0 ? o.codDue.toStringAsFixed(0) : o.codDue.toStringAsFixed(2)}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF2563EB),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

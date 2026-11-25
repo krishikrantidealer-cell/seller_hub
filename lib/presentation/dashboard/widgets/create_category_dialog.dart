@@ -111,6 +111,7 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
         Navigator.of(context).pop(newCategory);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            duration: const Duration(seconds: 4),
             content: Row(
               children: [
                 const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
@@ -402,73 +403,14 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: cardBgColor,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String?>(
-                            isExpanded: true,
-                            value: _selectedParentId,
-                            dropdownColor: surfaceColor,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: textPrimary,
-                            ),
-                            items: [
-                              DropdownMenuItem<String?>(
-                                value: null,
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.folder_special_rounded, size: 16, color: Color(0xFF2563EB)),
-                                    const SizedBox(width: 8),
-                                    const Text('None (Creates Level 0 Major Root)'),
-                                  ],
-                                ),
-                              ),
-                              ...eligibleParents.map((c) {
-                                final isRoot = c.level == 0;
-                                final prefix = isRoot ? '📁 [Root]' : '   ↳ [Sub]';
-                                final nextLabel = isRoot ? 'Creates Level 1' : 'Creates Level 2';
-                                final iconColor = isRoot ? const Color(0xFF2563EB) : const Color(0xFF7C3AED);
-
-                                return DropdownMenuItem<String?>(
-                                  value: c.id,
-                                  child: Row(
-                                    children: [
-                                      Icon(isRoot ? Icons.folder_rounded : Icons.subdirectory_arrow_right_rounded, size: 15, color: iconColor),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          '$prefix ${c.name}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      Text(
-                                        nextLabel,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: iconColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            ],
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedParentId = val;
-                              });
-                            },
-                          ),
-                        ),
+                      _buildSearchableParentPicker(
+                        eligibleParents: eligibleParents,
+                        isDark: isDark,
+                        cardBgColor: cardBgColor,
+                        surfaceColor: surfaceColor,
+                        borderColor: borderColor,
+                        textPrimary: textPrimary,
+                        textSecondary: textSecondary,
                       ),
                       const SizedBox(height: 16),
 
@@ -643,6 +585,189 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
           fontSize: 10.5,
           fontWeight: FontWeight.w700,
           color: fg,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchableParentPicker({
+    required List<CategoryItem> eligibleParents,
+    required bool isDark,
+    required Color cardBgColor,
+    required Color surfaceColor,
+    required Color borderColor,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    final selectedParent = _selectedParentId == null
+        ? null
+        : eligibleParents.where((c) => c.id == _selectedParentId).firstOrNull;
+    final displayText = selectedParent == null
+        ? 'None (Creates Level 0 Major Root)'
+        : '${selectedParent.level == 0 ? '[Root]' : '[Sub]'} ${selectedParent.name}';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () async {
+        final picked = await showDialog<String?>(
+          context: context,
+          builder: (dlgCtx) {
+            var search = '';
+            return StatefulBuilder(
+              builder: (ctx, setDlgState) {
+                final q = search.trim().toLowerCase();
+                final filtered = q.isEmpty
+                    ? eligibleParents
+                    : eligibleParents
+                        .where((c) =>
+                            c.name.toLowerCase().contains(q) ||
+                            c.slug.toLowerCase().contains(q))
+                        .toList();
+                return AlertDialog(
+                  backgroundColor: surfaceColor,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  title: Text(
+                    'Select Parent Category',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: textPrimary,
+                    ),
+                  ),
+                  content: SizedBox(
+                    width: 440,
+                    height: 360,
+                    child: Column(
+                      children: [
+                        TextField(
+                          autofocus: true,
+                          onChanged: (v) => setDlgState(() => search = v),
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13, color: textPrimary),
+                          decoration: InputDecoration(
+                            hintText: 'Search categories...',
+                            prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                            filled: true,
+                            fillColor: cardBgColor,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: borderColor),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Expanded(
+                          child: ListView(
+                            children: [
+                              if (q.isEmpty ||
+                                  'none root level 0'.contains(q))
+                                ListTile(
+                                  dense: true,
+                                  selected: _selectedParentId == null,
+                                  leading: const Icon(
+                                    Icons.folder_special_rounded,
+                                    size: 18,
+                                    color: Color(0xFF2563EB),
+                                  ),
+                                  title: Text(
+                                    'None (Creates Level 0 Major Root)',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: textPrimary,
+                                    ),
+                                  ),
+                                  onTap: () => Navigator.of(dlgCtx).pop('__ROOT__'),
+                                ),
+                              ...filtered.map((c) {
+                                final isRoot = c.level == 0;
+                                final iconColor = isRoot
+                                    ? const Color(0xFF2563EB)
+                                    : const Color(0xFF7C3AED);
+                                return ListTile(
+                                  dense: true,
+                                  selected: _selectedParentId == c.id,
+                                  leading: Icon(
+                                    isRoot
+                                        ? Icons.folder_rounded
+                                        : Icons.subdirectory_arrow_right_rounded,
+                                    size: 17,
+                                    color: iconColor,
+                                  ),
+                                  title: Text(
+                                    c.name,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: textPrimary,
+                                    ),
+                                  ),
+                                  trailing: Text(
+                                    isRoot ? 'Creates Level 1' : 'Creates Level 2',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: iconColor,
+                                    ),
+                                  ),
+                                  onTap: () => Navigator.of(dlgCtx).pop(c.id),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+        if (picked != null && mounted) {
+          setState(() {
+            _selectedParentId = picked == '__ROOT__' ? null : picked;
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: cardBgColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selectedParent == null
+                  ? Icons.folder_special_rounded
+                  : (selectedParent.level == 0
+                      ? Icons.folder_rounded
+                      : Icons.subdirectory_arrow_right_rounded),
+              size: 16,
+              color: selectedParent != null && selectedParent.level != 0
+                  ? const Color(0xFF7C3AED)
+                  : const Color(0xFF2563EB),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                displayText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: textPrimary,
+                ),
+              ),
+            ),
+            Icon(Icons.search_rounded, size: 16, color: textSecondary),
+          ],
         ),
       ),
     );

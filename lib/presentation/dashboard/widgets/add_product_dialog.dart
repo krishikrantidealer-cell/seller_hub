@@ -265,7 +265,8 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
     final cod = _isMarketplace ? LivePriceCalculation.fixedCodAndBankCharge : 0.0;
     final swgVal = double.tryParse(_variantSwgController.text.trim()) ?? cur.swg;
     final st = int.tryParse(_variantStockController.text.trim()) ?? cur.stock;
-    final ps = int.tryParse(_variantPackSizeController.text.trim()) ?? cur.packSize;
+    final psDouble = double.tryParse(_variantPackSizeController.text.trim());
+    final ps = psDouble != null && psDouble > 0 ? (psDouble < 1 ? 1 : psDouble.round()) : cur.packSize;
     final pq = int.tryParse(_variantPackQuantityController.text.trim()) ?? cur.packQuantity;
     final disc = (mrp > disp) ? (mrp - disp) : 0.0;
     final discPct = (mrp > 0 && disc > 0) ? ((disc / mrp) * 100) : 0.0;

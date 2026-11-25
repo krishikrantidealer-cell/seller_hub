@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/di/injection_container.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/network/websocket_service.dart';
 import '../../domain/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -9,6 +10,7 @@ import 'auth_state.dart';
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository authRepository;
   StreamSubscription<void>? _sessionExpiredSub;
+  StreamSubscription<Map<String, dynamic>>? _salesPermSub;
 
   AuthBloc({
     required this.authRepository,
@@ -16,6 +18,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }) : super(const AuthState()) {
     on<CheckAuthStatus>(_onCheckAuthStatus);
     on<LoginSubmitted>(_onLoginSubmitted);
+    on<SalesPermissionsUpdated>(_onSalesPermissionsUpdated);
     on<LogoutRequested>(_onLogoutRequested);
 
     try {
@@ -25,6 +28,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (!isClosed && state.status == AuthStatus.authenticated) {
           add(LogoutRequested());
         }
+      });
+      _salesPermSub = WebSocketService().salesPermissionUpdates.listen((payload) {
+        if (isClosed || state.status != AuthStatus.authenticated || state.session == null) {
+          return;
+        }
+        final data = payload['data'] is Map ? Map<String, dynamic>.from(payload['data'] as Map) : payload;
+        final targetId = data['userId']?.toString() ?? '';
+        if (targetId.isNotEmpty && targetId != state.session!.userId) {
+          return;
+        }
+        final rawPerms = data['permissions'];
+        final perms = rawPerms is List
+            ? rawPerms.map((e) => e.toString()).where((e) => e.isNotEmpty).toList()
+            : const <String>[];
+        final active = data['active'] != false;
+        add(SalesPermissionsUpdated(permissions: perms, active: active));
       });
     } catch (_) {}
   }
@@ -92,6 +111,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         password: cleanPassword,
       );
 
+      if (event.expectedRole == 'ROLE_SALES_AGENT' && !session.isSalesAgent) {
+        await authRepository.logout();
+        emit(state.copyWith(
+          status: AuthStatus.error,
+          errorMessage: 'Please use a Sales Agent account for Sales Portal login.',
+          validationErrors: null,
+        ));
+        return;
+      }
+      if (event.expectedRole == 'ROLE_ADMIN' && !session.isAdmin) {
+        await authRepository.logout();
+        emit(state.copyWith(
+          status: AuthStatus.error,
+          errorMessage: 'Please switch to Sales Agent Login to sign in with a Sales account.',
+          validationErrors: null,
+        ));
+        return;
+      }
+
       emit(state.copyWith(
         status: AuthStatus.authenticated,
         session: session,
@@ -113,6 +151,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
+  Future<void> _onSalesPermissionsUpdated(
+    SalesPermissionsUpdated event,
+    Emitter<AuthState> emit,
+  ) async {
+    final current = state.session;
+    if (current == null) return;
+    if (!event.active) {
+      add(LogoutRequested());
+      return;
+    }
+    try {
+      await InjectionContainer.instance.tokenStorage.savePermissions(event.permissions);
+    } catch (_) {}
+    emit(state.copyWith(
+      session: current.copyWith(permissions: event.permissions),
+    ));
+  }
+
   Future<void> _onLogoutRequested(
     LogoutRequested event,
     Emitter<AuthState> emit,
@@ -126,6 +182,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   @override
   Future<void> close() {
     _sessionExpiredSub?.cancel();
+    _salesPermSub?.cancel();
     return super.close();
   }
 }

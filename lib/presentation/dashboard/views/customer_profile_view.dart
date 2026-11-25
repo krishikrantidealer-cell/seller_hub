@@ -9,6 +9,7 @@ import '../../../core/utils/india_location_helper.dart';
 import '../../../domain/repositories/admin_user_repository.dart';
 import '../../../logic/admin_user/admin_user_event.dart';
 import '../../../logic/admin_user/customer_bloc.dart';
+import '../widgets/admin_create_order_dialog.dart';
 
 class CustomerProfileView extends StatefulWidget {
   final AdminUser customer;
@@ -16,6 +17,7 @@ class CustomerProfileView extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<AdminUser> onCustomerUpdated;
   final ValueChanged<MarketplaceOrder>? onSelectOrder;
+  final VoidCallback? onCreateOrder;
   final bool isCreateMode;
   final ValueChanged<AdminUser>? onCustomerCreated;
 
@@ -26,6 +28,7 @@ class CustomerProfileView extends StatefulWidget {
     required this.onBack,
     required this.onCustomerUpdated,
     this.onSelectOrder,
+    this.onCreateOrder,
     this.isCreateMode = false,
     this.onCustomerCreated,
   });
@@ -312,14 +315,25 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
     final isWide = MediaQuery.of(context).size.width >= 960;
 
-    // Filter orders belonging to this customer
-    final customerOrders = widget.allOrders.where((o) {
-      final matchesPhone = o.shippingAddress.phone.contains(_currentCustomer.phoneNumber) ||
-          _currentCustomer.phoneNumber.contains(o.shippingAddress.phone);
-      final matchesName = o.company.toLowerCase().contains(_currentCustomer.fullName.toLowerCase()) ||
-          o.shippingAddress.recipientName.toLowerCase().contains(_currentCustomer.fullName.toLowerCase());
-      return matchesPhone || matchesName;
-    }).toList();
+    // Filter orders belonging strictly to this customer
+    String normalizePhone(String raw) {
+      final digits = raw.replaceAll(RegExp(r'\D'), '');
+      if (digits.length >= 10) return digits.substring(digits.length - 10);
+      return digits;
+    }
+
+    final custPhone = normalizePhone(_currentCustomer.phoneNumber);
+    final customerOrders = (_isCreating || _currentCustomer.id.isEmpty)
+        ? <MarketplaceOrder>[]
+        : widget.allOrders.where((o) {
+            if (o.customerId.isNotEmpty) {
+              return o.customerId == _currentCustomer.id;
+            }
+            final orderPhone = normalizePhone(o.shippingAddress.phone);
+            return custPhone.isNotEmpty &&
+                orderPhone.isNotEmpty &&
+                orderPhone == custPhone;
+          }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,6 +681,48 @@ class _CustomerProfileViewState extends State<CustomerProfileView> with SingleTi
                   color: const Color(0xFFDC2626).withValues(alpha: 0.6),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+          if (!_currentCustomer.isDeleted && !_currentCustomer.isBlocked) ...[
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (widget.onCreateOrder != null) {
+                  widget.onCreateOrder!();
+                  return;
+                }
+                final created = await AdminCreateOrderDialog.show(
+                  context,
+                  customer: _currentCustomer,
+                );
+                if (!context.mounted || created == null) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Order ${created.orderNumber} created successfully!',
+                    ),
+                    backgroundColor: const Color(0xFF059669),
+                    action: widget.onSelectOrder != null
+                        ? SnackBarAction(
+                            label: 'View Order',
+                            textColor: Colors.white,
+                            onPressed: () => widget.onSelectOrder!(created),
+                          )
+                        : null,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
+              label: Text(
+                'Create Order',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),

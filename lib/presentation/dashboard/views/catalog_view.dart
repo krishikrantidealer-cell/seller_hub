@@ -9,13 +9,12 @@ import 'package:google_fonts/google_fonts.dart';
 /// making tab switches O(1) instant while preserving scroll position, filters,
 /// search queries, and expanded tree state.
 class CatalogView extends StatefulWidget {
-  final int activeSubTabIndex; // 0 = Products, 1 = Collections, 2 = Categories, 3 = Banners, 4 = Arrange Storefront
+  final int activeSubTabIndex; // 0 = Products, 1 = Collections, 2 = Categories, 3 = Banners
   final ValueChanged<int> onSubTabChanged;
   final WidgetBuilder productsBuilder;
   final WidgetBuilder collectionsBuilder;
   final WidgetBuilder categoriesBuilder;
   final WidgetBuilder bannersBuilder;
-  final WidgetBuilder arrangeBuilder;
   final Widget? detailOverlay;
   final int productsCount;
   final int collectionsCount;
@@ -30,7 +29,6 @@ class CatalogView extends StatefulWidget {
     required this.collectionsBuilder,
     required this.categoriesBuilder,
     required this.bannersBuilder,
-    required this.arrangeBuilder,
     this.detailOverlay,
     required this.productsCount,
     required this.collectionsCount,
@@ -48,13 +46,13 @@ class _CatalogViewState extends State<CatalogView> {
   @override
   void initState() {
     super.initState();
-    _mountedTabs.add(widget.activeSubTabIndex.clamp(0, 4));
+    _mountedTabs.add(widget.activeSubTabIndex.clamp(0, 3));
   }
 
   @override
   void didUpdateWidget(covariant CatalogView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final idx = widget.activeSubTabIndex.clamp(0, 4);
+    final idx = widget.activeSubTabIndex.clamp(0, 3);
     if (!_mountedTabs.contains(idx)) {
       _mountedTabs.add(idx);
     }
@@ -66,7 +64,7 @@ class _CatalogViewState extends State<CatalogView> {
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
     final borderColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0);
     final horizontalPad = widget.isWide ? 32.0 : 16.0;
-    final activeIndex = widget.activeSubTabIndex.clamp(0, 4);
+    final activeIndex = widget.activeSubTabIndex.clamp(0, 3);
     final showOverlay = widget.detailOverlay != null;
 
     return Column(
@@ -127,17 +125,6 @@ class _CatalogViewState extends State<CatalogView> {
                     onTap: () => widget.onSubTabChanged(3),
                   ),
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: _buildSegmentButton(
-                    title: 'Arrange Storefront',
-                    count: 0,
-                    icon: Icons.reorder_rounded,
-                    isSelected: activeIndex == 4,
-                    isDark: isDark,
-                    onTap: () => widget.onSubTabChanged(4),
-                  ),
-                ),
               ],
             ),
           ),
@@ -185,13 +172,6 @@ class _CatalogViewState extends State<CatalogView> {
                       builder: (ctx) => Padding(
                         padding: EdgeInsets.symmetric(horizontal: widget.isWide ? 12 : 0),
                         child: widget.bannersBuilder(ctx),
-                      ),
-                    ),
-                    _buildLazyTab(
-                      index: 4,
-                      builder: (ctx) => Padding(
-                        padding: EdgeInsets.symmetric(horizontal: widget.isWide ? 12 : 0),
-                        child: widget.arrangeBuilder(ctx),
                       ),
                     ),
                   ],

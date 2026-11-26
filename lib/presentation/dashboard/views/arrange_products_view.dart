@@ -13,8 +13,15 @@ enum _ArrangeScope { global, category, collection }
 
 class ArrangeProductsView extends StatefulWidget {
   final bool isWide;
+  final bool embedded;
+  final List<Product>? initialProducts;
 
-  const ArrangeProductsView({super.key, this.isWide = true});
+  const ArrangeProductsView({
+    super.key,
+    this.isWide = true,
+    this.embedded = false,
+    this.initialProducts,
+  });
 
   @override
   State<ArrangeProductsView> createState() => _ArrangeProductsViewState();
@@ -37,14 +44,20 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialProducts != null && widget.initialProducts!.isNotEmpty) {
+      _isLoading = false;
+      _rebuildScopedList(widget.initialProducts!);
+    }
     _loadScopeData();
   }
 
   Future<void> _loadScopeData() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (widget.initialProducts == null || widget.initialProducts!.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
     try {
       final api = context.read<OrderBloc>().apiClient;
       final futures = await Future.wait([
@@ -53,10 +66,10 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
       ]);
 
       final prodData = futures[0]['data'];
-      final rawItems = prodData is Map ? prodData['items'] : null;
+      final rawItems = prodData is Map ? (prodData['content'] ?? prodData['items'] ?? prodData['products']) : null;
       final loadedProducts = rawItems is List
           ? rawItems.whereType<Map>().map((e) => Product.fromJson(Map<String, dynamic>.from(e))).toList()
-          : <Product>[];
+          : (widget.initialProducts ?? <Product>[]);
 
       final colData = futures[1]['data'];
       final loadedCols = colData is List
@@ -236,8 +249,11 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
     final catState = context.watch<CategoryBloc>().state;
     final categories = catState.rootCategories;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: widget.isWide ? 20 : 12, vertical: 8),
+    final content = Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.embedded ? 0 : (widget.isWide ? 20 : 12),
+        vertical: widget.embedded ? 4 : 8,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -518,5 +534,6 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
         ],
       ),
     );
+    return widget.embedded ? content : SingleChildScrollView(child: content);
   }
 }

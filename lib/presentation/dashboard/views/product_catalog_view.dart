@@ -18,6 +18,7 @@ import 'package:seller_hub/logic/product/product_state.dart';
 import 'package:seller_hub/logic/admin_user/seller_bloc.dart';
 import 'package:seller_hub/logic/admin_user/admin_user_event.dart';
 import 'package:seller_hub/logic/admin_user/admin_user_state.dart';
+import 'package:seller_hub/presentation/dashboard/views/arrange_products_view.dart';
 
 class _SellerFilterOption {
   final String key;
@@ -69,6 +70,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
 
   // Multi-Selection & Sorting State
   final Set<String> _selectedProductCodes = {};
+  bool _isArrangeMode = false;
   String _sortColumn = 'default';
   bool _sortAscending = true;
 
@@ -1206,6 +1208,33 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
             ),
             const SizedBox(width: 8),
 
+            // Arrange Storefront Order Toggle Button
+            SizedBox(
+              height: 36,
+              child: OutlinedButton.icon(
+                onPressed: () => setState(() => _isArrangeMode = !_isArrangeMode),
+                icon: Icon(
+                  _isArrangeMode ? Icons.table_rows_rounded : Icons.reorder_rounded,
+                  size: 15,
+                ),
+                label: Text(
+                  _isArrangeMode ? 'Back to Table' : 'Arrange Order',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _isArrangeMode ? Colors.white : const Color(0xFF059669),
+                  backgroundColor: _isArrangeMode ? const Color(0xFF0F172A) : Colors.transparent,
+                  side: BorderSide(color: _isArrangeMode ? const Color(0xFF0F172A) : const Color(0xFF059669)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
             // Add Product Button
             SizedBox(
               height: 36,
@@ -1815,6 +1844,16 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                 Divider(height: 1, color: borderColor),
               ],
 
+        if (_isArrangeMode)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: ArrangeProductsView(
+              isWide: widget.isWide,
+              embedded: true,
+              initialProducts: widget.products,
+            ),
+          )
+        else ...[
               // Table Column Headers (For Wide/Desktop screens)
               if (widget.isWide)
                 Container(
@@ -2130,6 +2169,7 @@ class _ProductCatalogViewState extends State<ProductCatalogView> {
                     }
                   },
                 ),
+            ],
             ],
           ),
         ),

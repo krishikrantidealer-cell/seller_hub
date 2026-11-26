@@ -26,6 +26,7 @@ class ApiEndpoints {
   /// Products
   static const String products = '/api/v1/products';
   static const String adminProducts = '/api/v1/admin/products';
+  static const String adminProductsReorder = '/api/v1/admin/products/reorder';
   static const String adminProductsPermanent = '/api/v1/admin/products/permanent';
   static String adminProduct(String productId) => '/api/v1/admin/products/$productId';
   static String adminProductPermanent(String productId) =>

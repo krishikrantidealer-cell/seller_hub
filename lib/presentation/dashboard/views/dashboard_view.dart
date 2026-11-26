@@ -24,6 +24,7 @@ import 'package:seller_hub/logic/admin_user/admin_user_event.dart';
 import 'package:seller_hub/logic/admin_user/admin_user_state.dart';
 import 'package:seller_hub/presentation/dashboard/views/access_management_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/admin_create_order_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/arrange_products_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/banners_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/categories_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/catalog_view.dart';
@@ -549,6 +550,7 @@ class _DashboardViewState extends State<DashboardView> {
       collectionsBuilder: (_) => CollectionsView(isWide: isWide),
       categoriesBuilder: (_) => CategoriesView(isWide: isWide),
       bannersBuilder: (_) => BannersView(isWide: isWide),
+      arrangeBuilder: (_) => ArrangeProductsView(isWide: isWide),
     );
   }
 

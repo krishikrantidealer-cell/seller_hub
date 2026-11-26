@@ -491,6 +491,9 @@ class Product extends Equatable {
   final List<String> assignedCollections;
   final bool isAvailable;
   final bool isFeatured;
+  final int displayOrder;
+  final Map<String, int> categorySortOrders;
+  final Map<String, int> collectionSortOrders;
   final bool isMarketplace;
   final List<ProductVariant> variants;
   final double ratings;
@@ -558,6 +561,9 @@ class Product extends Equatable {
     this.assignedCollections = const [],
     this.isAvailable = false,
     this.isFeatured = false,
+    this.displayOrder = 999999,
+    this.categorySortOrders = const {},
+    this.collectionSortOrders = const {},
     this.isMarketplace = true,
     this.variants = const [],
     this.ratings = 0.0,
@@ -901,6 +907,9 @@ class Product extends Equatable {
 
     final isAvailable = json['isAvailable'] as bool? ?? json['Is_Available'] as bool? ?? true;
     final isFeatured = json['isFeatured'] as bool? ?? json['Is_featured'] as bool? ?? false;
+    final displayOrder = _parseInt(json['displayOrder'], 999999);
+    final categorySortOrders = _parseSortOrderMap(json['categorySortOrders']);
+    final collectionSortOrders = _parseSortOrderMap(json['collectionSortOrders']);
     final isMarketplace = json['isMarketplace'] as bool? ?? true;
 
     final ratings = _parseDouble(json['averageRating'] ?? json['ratings'] ?? json['Ratings']);
@@ -991,6 +1000,9 @@ class Product extends Equatable {
           : [...collectionIds, ...subCollectionIds],
       isAvailable: isAvailable,
       isFeatured: isFeatured,
+      displayOrder: displayOrder,
+      categorySortOrders: categorySortOrders,
+      collectionSortOrders: collectionSortOrders,
       isMarketplace: isMarketplace,
       variants: parsedVariants,
       ratings: ratings,
@@ -1430,6 +1442,17 @@ double _parseDouble(dynamic val, [double defaultVal = 0.0]) {
   final s = val.toString();
   final clean = s.replaceAll(RegExp(r'[^0-9.-]'), '');
   return double.tryParse(clean) ?? defaultVal;
+}
+
+Map<String, int> _parseSortOrderMap(dynamic raw) {
+  if (raw is! Map) return const {};
+  final out = <String, int>{};
+  raw.forEach((k, v) {
+    if (k != null && v is num) {
+      out[k.toString()] = v.toInt();
+    }
+  });
+  return out;
 }
 
 int _parseInt(dynamic val, [int defaultVal = 0]) {

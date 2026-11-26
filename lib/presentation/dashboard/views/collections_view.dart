@@ -2,11 +2,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/constants/api_endpoints.dart';
 import '../../../core/models/collection.dart';
 import '../../../core/models/product.dart';
 import '../../../logic/collection/collection_bloc.dart';
 import '../../../logic/collection/collection_event.dart';
 import '../../../logic/collection/collection_state.dart';
+import '../../../logic/order/order_bloc.dart';
 import '../widgets/app_product_image.dart';
 import '../widgets/create_collection_dialog.dart';
 import '../widgets/edit_collection_dialog.dart';
@@ -346,6 +348,109 @@ class _CollectionsViewState extends State<CollectionsView> {
       _editingCollection = item;
       _isCreatingCollection = false;
     });
+  }
+
+  void _openReorderSubCollectionsDialog(BuildContext context, CollectionItem item) {
+    final subs = List<SubCollectionItem>.from(item.subCollections);
+    if (subs.length < 2) return;
+    bool saving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: Text('Arrange Sub-Collections — ${item.name}'),
+          content: SizedBox(
+            width: 480,
+            height: 440,
+            child: ReorderableListView.builder(
+              buildDefaultDragHandles: false,
+              itemCount: subs.length,
+              onReorderItem: (oldIdx, newIdx) {
+                if (saving || oldIdx == newIdx) return;
+                setDlgState(() {
+                  final moved = subs.removeAt(oldIdx);
+                  subs.insert(newIdx, moved);
+                });
+              },
+              itemBuilder: (_, index) {
+                final sub = subs[index];
+                return ListTile(
+                  key: ValueKey(sub.id),
+                  leading: ReorderableDragStartListener(
+                    index: index,
+                    child: const Icon(Icons.drag_indicator_rounded),
+                  ),
+                  title: Text('#${index + 1}  ${sub.name}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Move Up',
+                        onPressed: (saving || index == 0)
+                            ? null
+                            : () => setDlgState(() {
+                                  final m = subs.removeAt(index);
+                                  subs.insert(index - 1, m);
+                                }),
+                        icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                      ),
+                      IconButton(
+                        tooltip: 'Move Down',
+                        onPressed: (saving || index == subs.length - 1)
+                            ? null
+                            : () => setDlgState(() {
+                                  final m = subs.removeAt(index);
+                                  subs.insert(index + 1, m);
+                                }),
+                        icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: saving ? null : () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      setDlgState(() => saving = true);
+                      try {
+                        final api = context.read<OrderBloc>().apiClient;
+                        await api.put(
+                          ApiEndpoints.adminSubCollectionsReorder(item.id),
+                          body: {'orderedIds': subs.map((s) => s.id).toList()},
+                          requiresAuth: true,
+                        );
+                        if (!ctx.mounted) return;
+                        context.read<CollectionBloc>().add(const FetchCollections());
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Sub-collections reordered & synced live!'),
+                            backgroundColor: Color(0xFF059669),
+                          ),
+                        );
+                      } catch (e) {
+                        setDlgState(() => saving = false);
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to reorder: $e'), backgroundColor: const Color(0xFFDC2626)),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
+              child: Text(saving ? 'Saving...' : 'Save Order Live'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _openAddSubCollectionDialog(BuildContext context, CollectionItem item) {
@@ -1560,6 +1665,23 @@ class _CollectionsViewState extends State<CollectionsView> {
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
                                 ),
+                              ),
+                            ),
+                          if (hasSubs)
+                            TextButton.icon(
+                              onPressed: () => _openReorderSubCollectionsDialog(context, item),
+                              icon: const Icon(Icons.reorder_rounded, size: 15),
+                              label: Text(
+                                'Arrange Sub-Collections',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF059669),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                minimumSize: const Size(0, 30),
                               ),
                             ),
                           TextButton.icon(

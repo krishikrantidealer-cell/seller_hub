@@ -51,6 +51,8 @@ class ApiEndpoints {
       '/api/v1/admin/collections/$collectionId/subcollections/$subCollectionId/image';
   static const String adminCollectionUploadImage =
       '/api/v1/admin/collections/upload-image';
+  static String adminSubCollectionsReorder(String collectionId) =>
+      '/api/v1/admin/collections/$collectionId/subcollections/reorder';
 
   /// Categories
   static const String categories = '/api/v1/categories';

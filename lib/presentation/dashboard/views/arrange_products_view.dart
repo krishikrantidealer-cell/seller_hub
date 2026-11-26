@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:seller_hub/core/constants/api_endpoints.dart';
+import 'package:seller_hub/core/models/category.dart';
 import 'package:seller_hub/core/models/product.dart';
 import 'package:seller_hub/logic/auth/auth_bloc.dart';
 import 'package:seller_hub/logic/category/category_bloc.dart';
@@ -31,6 +32,7 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
   _ArrangeScope _scope = _ArrangeScope.global;
   String? _selectedCategoryId;
   String? _selectedCollectionKey;
+  String? _selectedSubCollectionKey;
   String _highlightQuery = '';
 
   List<Map<String, dynamic>> _collections = const [];
@@ -92,11 +94,35 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
     }
   }
 
+  void _collectCategorySubtree(CategoryItem node, Set<String> ids, Set<String> names) {
+    if (node.id.isNotEmpty) ids.add(node.id);
+    if (node.name.isNotEmpty) names.add(node.name.toLowerCase());
+    if (node.slug.isNotEmpty) ids.add(node.slug.toLowerCase());
+    for (final child in node.children) {
+      _collectCategorySubtree(child, ids, names);
+    }
+  }
+
   void _rebuildScopedList(List<Product> allProducts) {
     final active = allProducts.where((p) => !p.isDeleted && p.status.toUpperCase() == 'ACTIVE').toList();
+    final categories = context.read<CategoryBloc>().state.rootCategories;
     List<Product> filtered;
+
     if (_scope == _ArrangeScope.category && (_selectedCategoryId?.isNotEmpty ?? false)) {
-      filtered = active.where((p) => p.categoryId == _selectedCategoryId || p.subCategoryIds.contains(_selectedCategoryId)).toList();
+      final catIds = <String>{_selectedCategoryId!};
+      final catNames = <String>{};
+      for (final root in categories) {
+        if (root.id == _selectedCategoryId) {
+          _collectCategorySubtree(root, catIds, catNames);
+          break;
+        }
+      }
+      filtered = active.where((p) {
+        if (catIds.contains(p.categoryId)) return true;
+        if (p.subCategoryIds.any(catIds.contains)) return true;
+        if (catNames.contains(p.category.trim().toLowerCase())) return true;
+        return false;
+      }).toList();
       filtered.sort((a, b) {
         final ao = a.categorySortOrders[_selectedCategoryId!] ?? a.displayOrder;
         final bo = b.categorySortOrders[_selectedCategoryId!] ?? b.displayOrder;
@@ -104,13 +130,54 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
         return cmp != 0 ? cmp : a.title.toLowerCase().compareTo(b.title.toLowerCase());
       });
     } else if (_scope == _ArrangeScope.collection && (_selectedCollectionKey?.isNotEmpty ?? false)) {
-      filtered = active.where((p) =>
-          p.assignedCollections.contains(_selectedCollectionKey) ||
-          p.collectionIds.contains(_selectedCollectionKey) ||
-          p.subCollectionIds.contains(_selectedCollectionKey)).toList();
+      final matchTokens = <String>{_selectedCollectionKey!.toLowerCase()};
+      final selectedCol = _collections.where((c) => c['id']?.toString() == _selectedCollectionKey).firstOrNull;
+      if (selectedCol != null) {
+        void addColTokens(Map<String, dynamic> m) {
+          for (final k in ['id', 'slug', 'name']) {
+            final v = m[k]?.toString().trim().toLowerCase();
+            if (v != null && v.isNotEmpty) matchTokens.add(v);
+          }
+        }
+        final subs = selectedCol['subCollections'] is List
+            ? (selectedCol['subCollections'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+            : <Map<String, dynamic>>[];
+
+        if (_selectedSubCollectionKey != null && _selectedSubCollectionKey!.isNotEmpty) {
+          matchTokens.clear();
+          final sub = subs.where((s) => (s['id'] ?? s['_id'])?.toString() == _selectedSubCollectionKey).firstOrNull;
+          if (sub != null) {
+            for (final k in ['id', '_id', 'slug', 'name']) {
+              final v = sub[k]?.toString().trim().toLowerCase();
+              if (v != null && v.isNotEmpty) matchTokens.add(v);
+            }
+          }
+        } else {
+          addColTokens(selectedCol);
+          for (final sub in subs) {
+            for (final k in ['id', '_id', 'slug', 'name']) {
+              final v = sub[k]?.toString().trim().toLowerCase();
+              if (v != null && v.isNotEmpty) matchTokens.add(v);
+            }
+          }
+        }
+      }
+
+      final sortKey = (_selectedSubCollectionKey != null && _selectedSubCollectionKey!.isNotEmpty)
+          ? _selectedSubCollectionKey!
+          : _selectedCollectionKey!;
+
+      filtered = active.where((p) {
+        final prodTokens = <String>{
+          ...p.assignedCollections.map((e) => e.trim().toLowerCase()),
+          ...p.collectionIds.map((e) => e.trim().toLowerCase()),
+          ...p.subCollectionIds.map((e) => e.trim().toLowerCase()),
+        };
+        return prodTokens.any(matchTokens.contains);
+      }).toList();
       filtered.sort((a, b) {
-        final ao = a.collectionSortOrders[_selectedCollectionKey!] ?? a.displayOrder;
-        final bo = b.collectionSortOrders[_selectedCollectionKey!] ?? b.displayOrder;
+        final ao = a.collectionSortOrders[sortKey] ?? a.displayOrder;
+        final bo = b.collectionSortOrders[sortKey] ?? b.displayOrder;
         final cmp = ao.compareTo(bo);
         return cmp != 0 ? cmp : a.title.toLowerCase().compareTo(b.title.toLowerCase());
       });
@@ -202,7 +269,9 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
       if (_scope == _ArrangeScope.category && (_selectedCategoryId?.isNotEmpty ?? false)) {
         body['categoryId'] = _selectedCategoryId;
       } else if (_scope == _ArrangeScope.collection && (_selectedCollectionKey?.isNotEmpty ?? false)) {
-        body['collectionKey'] = _selectedCollectionKey;
+        body['collectionKey'] = (_selectedSubCollectionKey != null && _selectedSubCollectionKey!.isNotEmpty)
+            ? _selectedSubCollectionKey
+            : _selectedCollectionKey;
       }
 
       await api.put(ApiEndpoints.adminProductsReorder, body: body, requiresAuth: true);
@@ -346,7 +415,7 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
                       _loadScopeData();
                     },
                   ),
-                if (_scope == _ArrangeScope.collection && _collections.isNotEmpty)
+                if (_scope == _ArrangeScope.collection && _collections.isNotEmpty) ...[
                   DropdownButton<String>(
                     value: _collections.any((c) => c['id']?.toString() == _selectedCollectionKey)
                         ? _selectedCollectionKey
@@ -355,10 +424,42 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
                         .map((c) => DropdownMenuItem(value: c['id'].toString(), child: Text(c['name']?.toString() ?? 'Collection')))
                         .toList(),
                     onChanged: (val) {
-                      setState(() => _selectedCollectionKey = val);
+                      setState(() {
+                        _selectedCollectionKey = val;
+                        _selectedSubCollectionKey = null;
+                      });
                       _loadScopeData();
                     },
                   ),
+                  Builder(
+                    builder: (_) {
+                      final col = _collections.where((c) => c['id']?.toString() == _selectedCollectionKey).firstOrNull;
+                      final subs = col != null && col['subCollections'] is List
+                          ? (col['subCollections'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+                          : <Map<String, dynamic>>[];
+                      if (subs.isEmpty) return const SizedBox.shrink();
+                      return DropdownButton<String?>(
+                        value: subs.any((s) => (s['id'] ?? s['_id'])?.toString() == _selectedSubCollectionKey)
+                            ? _selectedSubCollectionKey
+                            : null,
+                        items: [
+                          const DropdownMenuItem<String?>(value: null, child: Text('All Sub-Collections')),
+                          ...subs.map((s) {
+                            final sid = (s['id'] ?? s['_id'])?.toString() ?? '';
+                            return DropdownMenuItem<String?>(
+                              value: sid,
+                              child: Text(s['name']?.toString() ?? 'Sub-Collection'),
+                            );
+                          }),
+                        ],
+                        onChanged: (val) {
+                          setState(() => _selectedSubCollectionKey = val);
+                          _loadScopeData();
+                        },
+                      );
+                    },
+                  ),
+                ],
                 SizedBox(
                   width: 240,
                   child: TextField(

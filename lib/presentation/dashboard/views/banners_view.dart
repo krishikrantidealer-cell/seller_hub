@@ -19,6 +19,7 @@ class BannersView extends StatefulWidget {
 
 class _BannersViewState extends State<BannersView> {
   bool _isLoading = true;
+  bool _isReordering = false;
   String? _errorMessage;
   List<Map<String, dynamic>> _banners = const [];
 
@@ -60,6 +61,68 @@ class _BannersViewState extends State<BannersView> {
           _errorMessage = e.toString();
         });
       }
+    }
+  }
+
+  Future<void> _applyReorder(int oldIndex, int newIndex) async {
+    if (_isReordering || _banners.length < 2) return;
+    if (oldIndex < newIndex) newIndex -= 1;
+    if (oldIndex == newIndex ||
+        oldIndex < 0 ||
+        oldIndex >= _banners.length ||
+        newIndex < 0 ||
+        newIndex >= _banners.length) {
+      return;
+    }
+
+    final previous = _banners.map((e) => Map<String, dynamic>.from(e)).toList();
+    final updated = _banners.map((e) => Map<String, dynamic>.from(e)).toList();
+    final moved = updated.removeAt(oldIndex);
+    updated.insert(newIndex, moved);
+    for (var i = 0; i < updated.length; i++) {
+      updated[i]['sortOrder'] = i + 1;
+    }
+
+    setState(() {
+      _banners = updated;
+      _isReordering = true;
+    });
+
+    try {
+      final api = context.read<OrderBloc>().apiClient;
+      final orderedIds = updated.map((b) => b['id'].toString()).toList();
+      final res = await api.put(
+        ApiEndpoints.adminBannersReorder,
+        body: {'orderedIds': orderedIds},
+        requiresAuth: true,
+      );
+      final data = res['data'];
+      if (mounted && data is List) {
+        setState(() {
+          _banners = data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        });
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            duration: Duration(seconds: 2),
+            content: Text('Banner order saved & synced live to website!'),
+            backgroundColor: Color(0xFF059669),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _banners = previous);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save banner order: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isReordering = false);
     }
   }
 
@@ -474,119 +537,172 @@ class _BannersViewState extends State<BannersView> {
               ),
             )
           else
-            ..._banners.map((b) {
-              final id = b['id'].toString();
-              final active = b['active'] == true;
-              final imageUrl = b['imageUrl']?.toString() ?? '';
-              final title = b['title']?.toString() ?? '';
-              final subtitle = b['subtitle']?.toString() ?? '';
-              final sortOrder = b['sortOrder'] ?? 0;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 14),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: surface,
+            ReorderableListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              itemCount: _banners.length,
+              onReorder: (oldIndex, newIndex) {
+                if (canManage) _applyReorder(oldIndex, newIndex);
+              },
+              proxyDecorator: (child, index, animation) {
+                return Material(
+                  color: Colors.transparent,
+                  elevation: 8,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: border),
-                ),
-                child: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: imageUrl.isNotEmpty
-                          ? Image.network(
-                              imageUrl,
-                              width: 180,
-                              height: 82,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
+                  child: child,
+                );
+              },
+              itemBuilder: (context, index) {
+                final b = _banners[index];
+                final id = b['id'].toString();
+                final active = b['active'] == true;
+                final imageUrl = b['imageUrl']?.toString() ?? '';
+                final title = b['title']?.toString() ?? '';
+                final subtitle = b['subtitle']?.toString() ?? '';
+                final displayPos = index + 1;
+
+                return Container(
+                  key: ValueKey(id),
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: border),
+                  ),
+                  child: Row(
+                    children: [
+                      if (canManage)
+                        ReorderableDragStartListener(
+                          index: index,
+                          enabled: !_isReordering,
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.grab,
+                            child: Tooltip(
+                              message: 'Drag to reorder',
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: Icon(
+                                  Icons.drag_indicator_rounded,
+                                  color: textSecondary,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: imageUrl.isNotEmpty
+                            ? Image.network(
+                                imageUrl,
                                 width: 180,
                                 height: 82,
-                                color: const Color(0xFFF1F5F9),
-                                child: const Icon(Icons.broken_image_outlined),
-                              ),
-                            )
-                          : Container(
-                              width: 180,
-                              height: 82,
-                              color: const Color(0xFFECFDF5),
-                              alignment: Alignment.center,
-                              child: const Icon(Icons.image_outlined, color: Color(0xFF059669)),
-                            ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: (active ? const Color(0xFF059669) : const Color(0xFF64748B))
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(5),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Container(
+                                  width: 180,
+                                  height: 82,
+                                  color: const Color(0xFFF1F5F9),
+                                  child: const Icon(Icons.broken_image_outlined),
                                 ),
-                                child: Text(
-                                  active ? 'LIVE • #$sortOrder' : 'HIDDEN • #$sortOrder',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: active ? const Color(0xFF059669) : const Color(0xFF64748B),
+                              )
+                            : Container(
+                                width: 180,
+                                height: 82,
+                                color: const Color(0xFFECFDF5),
+                                alignment: Alignment.center,
+                                child: const Icon(Icons.image_outlined, color: Color(0xFF059669)),
+                              ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: (active ? const Color(0xFF059669) : const Color(0xFF64748B))
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    active ? 'LIVE • #$displayPos' : 'HIDDEN • #$displayPos',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: active ? const Color(0xFF059669) : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              title.isNotEmpty ? title : 'Image Banner #$displayPos',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                color: textPrimary,
+                              ),
+                            ),
+                            if (subtitle.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(fontSize: 12, color: textSecondary),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            title.isNotEmpty ? title : 'Image Banner #$sortOrder',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w800,
-                              color: textPrimary,
-                            ),
-                          ),
-                          if (subtitle.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: textSecondary),
-                            ),
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    if (canManage) ...[
-                      Switch(
-                        value: active,
-                        onChanged: (_) => _toggleBanner(id),
-                        activeThumbColor: const Color(0xFF059669),
-                      ),
-                      IconButton(
-                        tooltip: 'Upload / Replace Image',
-                        onPressed: () => _pickAndUploadImage(id),
-                        icon: const Icon(Icons.upload_file_rounded, color: Color(0xFF0284C7)),
-                      ),
-                      IconButton(
-                        tooltip: 'Edit Banner',
-                        onPressed: () => _openBannerDialog(existing: b),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Delete Banner',
-                        onPressed: () => _deleteBanner(id),
-                        icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
-                      ),
+                      if (canManage) ...[
+                        IconButton(
+                          tooltip: 'Move Up',
+                          onPressed: (_isReordering || index == 0)
+                              ? null
+                              : () => _applyReorder(index, index - 1),
+                          icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                        ),
+                        IconButton(
+                          tooltip: 'Move Down',
+                          onPressed: (_isReordering || index == _banners.length - 1)
+                              ? null
+                              : () => _applyReorder(index, index + 2),
+                          icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                        ),
+                        const SizedBox(width: 4),
+                        Switch(
+                          value: active,
+                          onChanged: (_) => _toggleBanner(id),
+                          activeThumbColor: const Color(0xFF059669),
+                        ),
+                        IconButton(
+                          tooltip: 'Upload / Replace Image',
+                          onPressed: () => _pickAndUploadImage(id),
+                          icon: const Icon(Icons.upload_file_rounded, color: Color(0xFF0284C7)),
+                        ),
+                        IconButton(
+                          tooltip: 'Edit Banner',
+                          onPressed: () => _openBannerDialog(existing: b),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Delete Banner',
+                          onPressed: () => _deleteBanner(id),
+                          icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              );
-            }),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );

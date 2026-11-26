@@ -59,6 +59,7 @@ class ApiEndpoints {
 
   // Hero Banners
   static const String adminBanners = '/api/v1/admin/banners';
+  static const String adminBannersReorder = '/api/v1/admin/banners/reorder';
   static String adminBannerById(String bannerId) => '/api/v1/admin/banners/$bannerId';
   static String adminBannerImage(String bannerId) => '/api/v1/admin/banners/$bannerId/image';
   static String adminBannerToggle(String bannerId) => '/api/v1/admin/banners/$bannerId/toggle';

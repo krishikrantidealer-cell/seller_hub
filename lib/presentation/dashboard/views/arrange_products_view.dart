@@ -31,11 +31,13 @@ class ArrangeProductsView extends StatefulWidget {
 class _ArrangeProductsViewState extends State<ArrangeProductsView> {
   _ArrangeScope _scope = _ArrangeScope.global;
   String? _selectedCategoryId;
+  String? _selectedSubCategoryId;
   String? _selectedCollectionKey;
   String? _selectedSubCollectionKey;
   String _highlightQuery = '';
 
   List<Map<String, dynamic>> _collections = const [];
+  List<Product> _allProductsCache = const [];
   List<Product> _workingList = [];
   List<Product> _originalList = [];
   bool _isLoading = true;
@@ -47,8 +49,9 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
   void initState() {
     super.initState();
     if (widget.initialProducts != null && widget.initialProducts!.isNotEmpty) {
+      _allProductsCache = widget.initialProducts!;
       _isLoading = false;
-      _rebuildScopedList(widget.initialProducts!);
+      _rebuildScopedList(_allProductsCache);
     }
     _loadScopeData();
   }
@@ -74,13 +77,20 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
           : (widget.initialProducts ?? <Product>[]);
 
       final colData = futures[1]['data'];
-      final loadedCols = colData is List
-          ? colData.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+      final rawCols = colData is List
+          ? colData
+          : (colData is Map ? (colData['items'] ?? colData['collections'] ?? colData['content']) : null);
+      final loadedCols = rawCols is List
+          ? rawCols.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
           : <Map<String, dynamic>>[];
 
       if (!mounted) return;
       setState(() {
         _collections = loadedCols;
+        _allProductsCache = loadedProducts;
+        if (_selectedCollectionKey == null && loadedCols.isNotEmpty) {
+          _selectedCollectionKey = loadedCols.first['id']?.toString();
+        }
         _isLoading = false;
       });
       _rebuildScopedList(loadedProducts);
@@ -94,28 +104,65 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
     }
   }
 
-  void _collectCategorySubtree(CategoryItem node, Set<String> ids, Set<String> names) {
+  void _collectCategorySubtree(
+    CategoryItem node,
+    Map<String, List<CategoryItem>> childrenByParent,
+    Set<String> ids,
+    Set<String> names,
+  ) {
     if (node.id.isNotEmpty) ids.add(node.id);
     if (node.name.isNotEmpty) names.add(node.name.toLowerCase());
     if (node.slug.isNotEmpty) ids.add(node.slug.toLowerCase());
-    for (final child in node.children) {
-      _collectCategorySubtree(child, ids, names);
+    final kids = <CategoryItem>{
+      ...node.children,
+      ...(childrenByParent[node.id] ?? const []),
+    };
+    for (final child in kids) {
+      _collectCategorySubtree(child, childrenByParent, ids, names);
     }
+  }
+
+  List<CategoryItem> _descendantsOf(
+    String rootId,
+    Map<String, List<CategoryItem>> childrenByParent,
+    Map<String, CategoryItem> byId,
+  ) {
+    final result = <CategoryItem>[];
+    final seen = <String>{};
+    void walk(CategoryItem parent) {
+      final kids = <CategoryItem>{
+        ...parent.children,
+        ...(childrenByParent[parent.id] ?? const []),
+      };
+      for (final k in kids) {
+        if (seen.add(k.id)) {
+          result.add(k);
+          walk(k);
+        }
+      }
+    }
+    final root = byId[rootId];
+    if (root != null) walk(root);
+    return result;
   }
 
   void _rebuildScopedList(List<Product> allProducts) {
     final active = allProducts.where((p) => !p.isDeleted && p.status.toUpperCase() == 'ACTIVE').toList();
-    final categories = context.read<CategoryBloc>().state.rootCategories;
+    final catState = context.read<CategoryBloc>().state;
+    final categories = catState.rootCategories;
     List<Product> filtered;
 
-    if (_scope == _ArrangeScope.category && (_selectedCategoryId?.isNotEmpty ?? false)) {
-      final catIds = <String>{_selectedCategoryId!};
+    final activeCategoryId = (_selectedSubCategoryId != null && _selectedSubCategoryId!.isNotEmpty)
+        ? _selectedSubCategoryId
+        : _selectedCategoryId;
+
+    if (_scope == _ArrangeScope.category && (activeCategoryId?.isNotEmpty ?? false)) {
+      final catIds = <String>{activeCategoryId!};
       final catNames = <String>{};
-      for (final root in categories) {
-        if (root.id == _selectedCategoryId) {
-          _collectCategorySubtree(root, catIds, catNames);
-          break;
-        }
+      final startNode = catState.categoryById[activeCategoryId] ??
+          categories.where((r) => r.id == activeCategoryId).firstOrNull;
+      if (startNode != null) {
+        _collectCategorySubtree(startNode, catState.childrenByParentId, catIds, catNames);
       }
       filtered = active.where((p) {
         if (catIds.contains(p.categoryId)) return true;
@@ -124,8 +171,8 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
         return false;
       }).toList();
       filtered.sort((a, b) {
-        final ao = a.categorySortOrders[_selectedCategoryId!] ?? a.displayOrder;
-        final bo = b.categorySortOrders[_selectedCategoryId!] ?? b.displayOrder;
+        final ao = a.categorySortOrders[activeCategoryId] ?? a.displayOrder;
+        final bo = b.categorySortOrders[activeCategoryId] ?? b.displayOrder;
         final cmp = ao.compareTo(bo);
         return cmp != 0 ? cmp : a.title.toLowerCase().compareTo(b.title.toLowerCase());
       });
@@ -267,7 +314,9 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
       final orderedIds = _workingList.map((p) => p.id).toList();
       final body = <String, dynamic>{'orderedIds': orderedIds};
       if (_scope == _ArrangeScope.category && (_selectedCategoryId?.isNotEmpty ?? false)) {
-        body['categoryId'] = _selectedCategoryId;
+        body['categoryId'] = (_selectedSubCategoryId != null && _selectedSubCategoryId!.isNotEmpty)
+            ? _selectedSubCategoryId
+            : _selectedCategoryId;
       } else if (_scope == _ArrangeScope.collection && (_selectedCollectionKey?.isNotEmpty ?? false)) {
         body['collectionKey'] = (_selectedSubCollectionKey != null && _selectedSubCollectionKey!.isNotEmpty)
             ? _selectedSubCollectionKey
@@ -375,7 +424,7 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
                   selected: _scope == _ArrangeScope.global,
                   onSelected: (_) {
                     setState(() => _scope = _ArrangeScope.global);
-                    _loadScopeData();
+                    _rebuildScopedList(_allProductsCache);
                   },
                 ),
                 ChoiceChip(
@@ -386,9 +435,10 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
                       _scope = _ArrangeScope.category;
                       if (_selectedCategoryId == null && categories.isNotEmpty) {
                         _selectedCategoryId = categories.first.id;
+                        _selectedSubCategoryId = null;
                       }
                     });
-                    _loadScopeData();
+                    _rebuildScopedList(_allProductsCache);
                   },
                 ),
                 ChoiceChip(
@@ -399,22 +449,51 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
                       _scope = _ArrangeScope.collection;
                       if (_selectedCollectionKey == null && _collections.isNotEmpty) {
                         _selectedCollectionKey = _collections.first['id']?.toString();
+                        _selectedSubCollectionKey = null;
                       }
                     });
-                    _loadScopeData();
+                    _rebuildScopedList(_allProductsCache);
                   },
                 ),
-                if (_scope == _ArrangeScope.category && categories.isNotEmpty)
+                if (_scope == _ArrangeScope.category && categories.isNotEmpty) ...[
                   DropdownButton<String>(
                     value: categories.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : categories.first.id,
                     items: categories
                         .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
                         .toList(),
                     onChanged: (val) {
-                      setState(() => _selectedCategoryId = val);
-                      _loadScopeData();
+                      setState(() {
+                        _selectedCategoryId = val;
+                        _selectedSubCategoryId = null;
+                      });
+                      _rebuildScopedList(_allProductsCache);
                     },
                   ),
+                  Builder(
+                    builder: (_) {
+                      final catState = context.read<CategoryBloc>().state;
+                      final rootId = categories.any((c) => c.id == _selectedCategoryId)
+                          ? _selectedCategoryId!
+                          : categories.first.id;
+                      final subs = _descendantsOf(rootId, catState.childrenByParentId, catState.categoryById);
+                      if (subs.isEmpty) return const SizedBox.shrink();
+                      return DropdownButton<String?>(
+                        value: subs.any((s) => s.id == _selectedSubCategoryId) ? _selectedSubCategoryId : null,
+                        items: [
+                          const DropdownMenuItem<String?>(value: null, child: Text('All Sub-Categories')),
+                          ...subs.map((s) => DropdownMenuItem<String?>(
+                                value: s.id,
+                                child: Text(s.level == 2 ? '  ↳ ${s.name}' : s.name),
+                              )),
+                        ],
+                        onChanged: (val) {
+                          setState(() => _selectedSubCategoryId = val);
+                          _rebuildScopedList(_allProductsCache);
+                        },
+                      );
+                    },
+                  ),
+                ],
                 if (_scope == _ArrangeScope.collection && _collections.isNotEmpty) ...[
                   DropdownButton<String>(
                     value: _collections.any((c) => c['id']?.toString() == _selectedCollectionKey)
@@ -428,7 +507,7 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
                         _selectedCollectionKey = val;
                         _selectedSubCollectionKey = null;
                       });
-                      _loadScopeData();
+                      _rebuildScopedList(_allProductsCache);
                     },
                   ),
                   Builder(
@@ -454,7 +533,7 @@ class _ArrangeProductsViewState extends State<ArrangeProductsView> {
                         ],
                         onChanged: (val) {
                           setState(() => _selectedSubCollectionKey = val);
-                          _loadScopeData();
+                          _rebuildScopedList(_allProductsCache);
                         },
                       );
                     },

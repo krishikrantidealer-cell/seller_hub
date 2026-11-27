@@ -253,33 +253,6 @@ class _CategoriesViewState extends State<CategoriesView> {
     }
   }
 
-  void _confirmDeleteCategoryImage(BuildContext context, CategoryItem category) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          'Remove Image',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-        ),
-        content: Text('Are you sure you want to remove the image for "${category.name}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.read<CategoryBloc>().add(DeleteCategoryItemImage(category.id));
-            },
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _confirmDeleteCategory(BuildContext context, CategoryItem category) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xFF161E2E) : Colors.white;
@@ -1050,13 +1023,6 @@ class _CategoriesViewState extends State<CategoriesView> {
                           color: textSecondary,
                           onPressed: () => _pickAndUploadCategoryImage(context, root),
                         ),
-                        if (root.categoryImageUrl != null)
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                            tooltip: 'Remove Category Image',
-                            color: const Color(0xFFEF4444),
-                            onPressed: () => _confirmDeleteCategoryImage(context, root),
-                          ),
                         IconButton(
                           icon: const Icon(Icons.delete_forever_rounded, size: 18),
                           tooltip: 'Delete Category',

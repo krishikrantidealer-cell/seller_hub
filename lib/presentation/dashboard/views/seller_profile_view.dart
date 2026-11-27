@@ -2611,25 +2611,116 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF059669), Color(0xFF10B981)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF059669).withValues(alpha: 0.28),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InkWell(
+                        onTap: _isUploadingLogo ? null : _pickAndUploadSellerLogo,
+                        borderRadius: BorderRadius.circular(14),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: 54,
+                              height: 54,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF059669), Color(0xFF10B981)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF059669).withValues(alpha: 0.28),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: _isUploadingLogo
+                                  ? const Center(
+                                      child: SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : (_pendingLogoUrl != null && _pendingLogoUrl!.trim().isNotEmpty)
+                                      ? Image.network(
+                                          _pendingLogoUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, _, _) => const Icon(
+                                            Icons.storefront_rounded,
+                                            color: Colors.white,
+                                            size: 28,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.storefront_rounded,
+                                          color: Colors.white,
+                                          size: 28,
+                                        ),
+                            ),
+                            Positioned(
+                              right: -4,
+                              bottom: -4,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF059669),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 1.5),
+                                ),
+                                child: const Icon(Icons.camera_alt_rounded, size: 11, color: Colors.white),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
+                      ),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: _isUploadingLogo ? null : _pickAndUploadSellerLogo,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.35)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                (_pendingLogoUrl != null && _pendingLogoUrl!.trim().isNotEmpty)
+                                    ? Icons.edit_rounded
+                                    : Icons.upload_rounded,
+                                size: 13,
+                                color: const Color(0xFF10B981),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isUploadingLogo
+                                    ? 'Uploading...'
+                                    : ((_pendingLogoUrl != null && _pendingLogoUrl!.trim().isNotEmpty)
+                                        ? 'Change Logo'
+                                        : 'Upload Logo'),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF10B981),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(width: 16),
                   Column(

@@ -76,6 +76,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
     int? sortOrder,
     String? iconUrl,
     bool isActive = true,
+    bool isFeatured = false,
   }) async {
     final created = await remoteDataSource.createCategory(
       name: name,
@@ -84,6 +85,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
       sortOrder: sortOrder,
       iconUrl: iconUrl,
       isActive: isActive,
+      isFeatured: isFeatured,
     );
     // Refresh cache
     _syncInBackground();
@@ -99,6 +101,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
     int? sortOrder,
     String? iconUrl,
     bool isActive = true,
+    bool isFeatured = false,
   }) async {
     final updated = await remoteDataSource.updateCategory(
       id: id,
@@ -108,6 +111,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
       sortOrder: sortOrder,
       iconUrl: iconUrl,
       isActive: isActive,
+      isFeatured: isFeatured,
     );
     _syncInBackground();
     return updated;

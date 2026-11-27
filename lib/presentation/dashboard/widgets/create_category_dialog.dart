@@ -29,6 +29,7 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
 
   String? _selectedParentId;
   bool _isActive = true;
+  bool _isFeatured = false;
   bool _manualSlugEdited = false;
   bool _isSubmitting = false;
   String? _errorMessage;
@@ -102,6 +103,7 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
         parentId: _selectedParentId,
         sortOrder: sortOrder,
         isActive: _isActive,
+        isFeatured: _isFeatured,
       );
 
       if (mounted) {
@@ -483,6 +485,51 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
                               value: _isActive,
                               activeThumbColor: const Color(0xFF059669),
                               onChanged: (val) => setState(() => _isActive = val),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Featured Toggle Card
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: cardBgColor,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Featured Sub-Category',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Highlight as the large featured card in Shop by Category on the website',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      color: textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Switch(
+                              value: _isFeatured,
+                              activeThumbColor: const Color(0xFFD97706),
+                              onChanged: (val) => setState(() => _isFeatured = val),
                             ),
                           ],
                         ),

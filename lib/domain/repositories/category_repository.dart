@@ -23,6 +23,7 @@ abstract class CategoryRepository {
     int? sortOrder,
     String? iconUrl,
     bool isActive = true,
+    bool isFeatured = false,
   });
 
   /// Updates a category
@@ -34,6 +35,7 @@ abstract class CategoryRepository {
     int? sortOrder,
     String? iconUrl,
     bool isActive = true,
+    bool isFeatured = false,
   });
 
   /// Deactivates a category

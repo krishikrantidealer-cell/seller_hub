@@ -188,6 +188,7 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         sortOrder: event.sortOrder,
         iconUrl: event.iconUrl,
         isActive: event.isActive,
+        isFeatured: event.isFeatured,
       );
       add(const FetchCategories(isRefresh: true));
     } catch (e) {
@@ -208,6 +209,7 @@ class CategoryBloc extends Bloc<CategoryEvent, CategoryState> {
         sortOrder: event.sortOrder,
         iconUrl: event.iconUrl,
         isActive: event.isActive,
+        isFeatured: event.isFeatured,
       );
       add(const FetchCategories(isRefresh: true));
     } catch (e) {

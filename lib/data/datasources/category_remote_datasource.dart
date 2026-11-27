@@ -18,6 +18,7 @@ abstract class CategoryRemoteDataSource {
     int? sortOrder,
     String? iconUrl,
     bool isActive = true,
+    bool isFeatured = false,
   });
 
   /// Updates a category via admin API
@@ -29,6 +30,7 @@ abstract class CategoryRemoteDataSource {
     int? sortOrder,
     String? iconUrl,
     bool isActive = true,
+    bool isFeatured = false,
   });
 
   /// Deactivates a category via admin API
@@ -135,11 +137,13 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     int? sortOrder,
     String? iconUrl,
     bool isActive = true,
+    bool isFeatured = false,
   }) async {
     final body = <String, dynamic>{
       'name': name,
       'slug': slug,
       'isActive': isActive,
+      'isFeatured': isFeatured,
       'displayOrder': sortOrder ?? 0,
       'sortOrder': sortOrder ?? 0,
     };
@@ -169,11 +173,13 @@ class CategoryRemoteDataSourceImpl implements CategoryRemoteDataSource {
     int? sortOrder,
     String? iconUrl,
     bool isActive = true,
+    bool isFeatured = false,
   }) async {
     final body = <String, dynamic>{
       'name': name,
       'slug': slug,
       'isActive': isActive,
+      'isFeatured': isFeatured,
       'displayOrder': sortOrder ?? 0,
       'sortOrder': sortOrder ?? 0,
     };

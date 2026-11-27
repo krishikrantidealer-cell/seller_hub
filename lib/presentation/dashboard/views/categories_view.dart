@@ -1188,8 +1188,53 @@ class _CategoriesViewState extends State<CategoriesView> {
                                                   color: textSecondary,
                                                 ),
                                               ),
+                                              if (sub.isFeatured) ...[
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFFEF3C7),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    border: Border.all(color: const Color(0xFFF59E0B)),
+                                                  ),
+                                                  child: Text(
+                                                    'FEATURED',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: const Color(0xFFB45309),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ],
                                           ),
+                                        ),
+
+                                        // Featured Toggle Star
+                                        IconButton(
+                                          icon: Icon(
+                                            sub.isFeatured ? Icons.star_rounded : Icons.star_border_rounded,
+                                            size: 18,
+                                          ),
+                                          tooltip: sub.isFeatured ? 'Remove Featured' : 'Mark as Featured Sub-Category',
+                                          color: sub.isFeatured ? const Color(0xFFF59E0B) : textSecondary,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                          onPressed: () {
+                                            context.read<CategoryBloc>().add(
+                                              UpdateCategory(
+                                                id: sub.id,
+                                                name: sub.name,
+                                                slug: sub.slug,
+                                                parentId: sub.parentId,
+                                                sortOrder: sub.sortOrder,
+                                                iconUrl: sub.iconUrl,
+                                                isActive: sub.isActive,
+                                                isFeatured: !sub.isFeatured,
+                                              ),
+                                            );
+                                          },
                                         ),
 
                                         // L2 Leaf Count Badge

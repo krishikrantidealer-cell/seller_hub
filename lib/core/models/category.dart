@@ -12,6 +12,7 @@ class CategoryItem extends Equatable {
   final int level;
   final int sortOrder;
   final bool isActive;
+  final bool isFeatured;
   final String? iconUrl;
   final String? categoryImageUrl;
   final String? bannerImage;
@@ -29,6 +30,7 @@ class CategoryItem extends Equatable {
     this.level = 0,
     this.sortOrder = 0,
     this.isActive = true,
+    this.isFeatured = false,
     this.iconUrl,
     this.categoryImageUrl,
     this.bannerImage,
@@ -143,6 +145,7 @@ class CategoryItem extends Equatable {
       level: parseInt(json['level'], 0),
       sortOrder: parsedOrder,
       isActive: parseBool(json['isActive'], true),
+      isFeatured: parseBool(json['isFeatured'], false),
       iconUrl: parseString(json['iconUrl']) ?? parsedIcon,
       categoryImageUrl: parseString(json['categoryImageUrl']) ??
           (parsedIcon != null && (parsedIcon.startsWith('http') || parsedIcon.startsWith('/')) ? parsedIcon : null),
@@ -165,6 +168,7 @@ class CategoryItem extends Equatable {
       'displayOrder': sortOrder,
       'sortOrder': sortOrder,
       'isActive': isActive,
+      'isFeatured': isFeatured,
       'iconUrl': iconUrl ?? categoryImageUrl,
       'categoryImageUrl': categoryImageUrl,
       'bannerImage': bannerImage,
@@ -185,6 +189,7 @@ class CategoryItem extends Equatable {
     int? sortOrder,
     int? displayOrder,
     bool? isActive,
+    bool? isFeatured,
     String? iconUrl,
     String? categoryImageUrl,
     String? bannerImage,
@@ -202,6 +207,7 @@ class CategoryItem extends Equatable {
       level: level ?? this.level,
       sortOrder: displayOrder ?? sortOrder ?? this.sortOrder,
       isActive: isActive ?? this.isActive,
+      isFeatured: isFeatured ?? this.isFeatured,
       iconUrl: iconUrl ?? this.iconUrl,
       categoryImageUrl: categoryImageUrl ?? this.categoryImageUrl,
       bannerImage: bannerImage ?? this.bannerImage,
@@ -222,6 +228,7 @@ class CategoryItem extends Equatable {
         level,
         sortOrder,
         isActive,
+        isFeatured,
         iconUrl,
         categoryImageUrl,
         bannerImage,

@@ -1207,8 +1207,54 @@ class _CategoriesViewState extends State<CategoriesView> {
                                                   ),
                                                 ),
                                               ],
+                                              if (sub.showOnHome) ...[
+                                                const SizedBox(width: 6),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFD1FAE5),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    border: Border.all(color: const Color(0xFF059669)),
+                                                  ),
+                                                  child: Text(
+                                                    'HOME',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: const Color(0xFF047857),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ],
                                           ),
+                                        ),
+
+                                        // Show on Home Toggle
+                                        IconButton(
+                                          icon: Icon(
+                                            sub.showOnHome ? Icons.home_rounded : Icons.home_outlined,
+                                            size: 18,
+                                          ),
+                                          tooltip: sub.showOnHome ? 'Remove from Home Shop by Category' : 'Show on Home (Shop by Category)',
+                                          color: sub.showOnHome ? const Color(0xFF059669) : textSecondary,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                          onPressed: () {
+                                            context.read<CategoryBloc>().add(
+                                              UpdateCategory(
+                                                id: sub.id,
+                                                name: sub.name,
+                                                slug: sub.slug,
+                                                parentId: sub.parentId,
+                                                sortOrder: sub.sortOrder,
+                                                iconUrl: sub.iconUrl,
+                                                isActive: sub.isActive,
+                                                isFeatured: sub.isFeatured,
+                                                showOnHome: !sub.showOnHome,
+                                              ),
+                                            );
+                                          },
                                         ),
 
                                         // Featured Toggle Star
@@ -1232,6 +1278,7 @@ class _CategoriesViewState extends State<CategoriesView> {
                                                 iconUrl: sub.iconUrl,
                                                 isActive: sub.isActive,
                                                 isFeatured: !sub.isFeatured,
+                                                showOnHome: sub.showOnHome,
                                               ),
                                             );
                                           },

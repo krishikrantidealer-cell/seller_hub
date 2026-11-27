@@ -24,6 +24,7 @@ abstract class CategoryRepository {
     String? iconUrl,
     bool isActive = true,
     bool isFeatured = false,
+    bool showOnHome = false,
   });
 
   /// Updates a category
@@ -36,6 +37,7 @@ abstract class CategoryRepository {
     String? iconUrl,
     bool isActive = true,
     bool isFeatured = false,
+    bool showOnHome = false,
   });
 
   /// Deactivates a category

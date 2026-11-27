@@ -13,6 +13,7 @@ class CategoryItem extends Equatable {
   final int sortOrder;
   final bool isActive;
   final bool isFeatured;
+  final bool showOnHome;
   final String? iconUrl;
   final String? categoryImageUrl;
   final String? bannerImage;
@@ -31,6 +32,7 @@ class CategoryItem extends Equatable {
     this.sortOrder = 0,
     this.isActive = true,
     this.isFeatured = false,
+    this.showOnHome = false,
     this.iconUrl,
     this.categoryImageUrl,
     this.bannerImage,
@@ -146,6 +148,7 @@ class CategoryItem extends Equatable {
       sortOrder: parsedOrder,
       isActive: parseBool(json['isActive'], true),
       isFeatured: parseBool(json['isFeatured'], false),
+      showOnHome: parseBool(json['showOnHome'], false),
       iconUrl: parseString(json['iconUrl']) ?? parsedIcon,
       categoryImageUrl: parseString(json['categoryImageUrl']) ??
           (parsedIcon != null && (parsedIcon.startsWith('http') || parsedIcon.startsWith('/')) ? parsedIcon : null),
@@ -169,6 +172,7 @@ class CategoryItem extends Equatable {
       'sortOrder': sortOrder,
       'isActive': isActive,
       'isFeatured': isFeatured,
+      'showOnHome': showOnHome,
       'iconUrl': iconUrl ?? categoryImageUrl,
       'categoryImageUrl': categoryImageUrl,
       'bannerImage': bannerImage,
@@ -190,6 +194,7 @@ class CategoryItem extends Equatable {
     int? displayOrder,
     bool? isActive,
     bool? isFeatured,
+    bool? showOnHome,
     String? iconUrl,
     String? categoryImageUrl,
     String? bannerImage,
@@ -208,6 +213,7 @@ class CategoryItem extends Equatable {
       sortOrder: displayOrder ?? sortOrder ?? this.sortOrder,
       isActive: isActive ?? this.isActive,
       isFeatured: isFeatured ?? this.isFeatured,
+      showOnHome: showOnHome ?? this.showOnHome,
       iconUrl: iconUrl ?? this.iconUrl,
       categoryImageUrl: categoryImageUrl ?? this.categoryImageUrl,
       bannerImage: bannerImage ?? this.bannerImage,
@@ -229,6 +235,7 @@ class CategoryItem extends Equatable {
         sortOrder,
         isActive,
         isFeatured,
+        showOnHome,
         iconUrl,
         categoryImageUrl,
         bannerImage,

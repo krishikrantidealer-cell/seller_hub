@@ -75,6 +75,7 @@ class CreateCategory extends CategoryEvent {
   final String? iconUrl;
   final bool isActive;
   final bool isFeatured;
+  final bool showOnHome;
 
   const CreateCategory({
     required this.name,
@@ -84,10 +85,11 @@ class CreateCategory extends CategoryEvent {
     this.iconUrl,
     this.isActive = true,
     this.isFeatured = false,
+    this.showOnHome = false,
   });
 
   @override
-  List<Object?> get props => [name, slug, parentId, sortOrder, iconUrl, isActive, isFeatured];
+  List<Object?> get props => [name, slug, parentId, sortOrder, iconUrl, isActive, isFeatured, showOnHome];
 }
 
 /// Updates an existing category
@@ -100,6 +102,7 @@ class UpdateCategory extends CategoryEvent {
   final String? iconUrl;
   final bool isActive;
   final bool isFeatured;
+  final bool showOnHome;
 
   const UpdateCategory({
     required this.id,
@@ -110,10 +113,11 @@ class UpdateCategory extends CategoryEvent {
     this.iconUrl,
     this.isActive = true,
     this.isFeatured = false,
+    this.showOnHome = false,
   });
 
   @override
-  List<Object?> get props => [id, name, slug, parentId, sortOrder, iconUrl, isActive, isFeatured];
+  List<Object?> get props => [id, name, slug, parentId, sortOrder, iconUrl, isActive, isFeatured, showOnHome];
 }
 
 /// Permanently deletes a category and its descendants

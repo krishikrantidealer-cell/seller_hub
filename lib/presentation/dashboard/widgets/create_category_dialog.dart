@@ -30,6 +30,7 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
   String? _selectedParentId;
   bool _isActive = true;
   bool _isFeatured = false;
+  bool _showOnHome = false;
   bool _manualSlugEdited = false;
   bool _isSubmitting = false;
   String? _errorMessage;
@@ -104,6 +105,7 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
         sortOrder: sortOrder,
         isActive: _isActive,
         isFeatured: _isFeatured,
+        showOnHome: _showOnHome,
       );
 
       if (mounted) {
@@ -530,6 +532,49 @@ class _CreateCategoryDialogState extends State<CreateCategoryDialog> {
                               value: _isFeatured,
                               activeThumbColor: const Color(0xFFD97706),
                               onChanged: (val) => setState(() => _isFeatured = val),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Show on Home (Shop by Category)',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Include this sub-category in the 5 dynamic slots of Shop by Category',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      color: textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Switch(
+                              value: _showOnHome,
+                              activeThumbColor: const Color(0xFF059669),
+                              onChanged: (val) => setState(() => _showOnHome = val),
                             ),
                           ],
                         ),

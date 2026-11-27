@@ -97,6 +97,11 @@ class AdminUserRepositoryImpl implements AdminUserRepository {
   }
 
   @override
+  Future<String> uploadSellerLogo(PlatformFile file) async {
+    return await remoteDataSource.uploadSellerLogo(file);
+  }
+
+  @override
   Future<AdminUser> updateUser({
     required String userId,
     required Map<String, dynamic> data,

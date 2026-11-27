@@ -1119,26 +1119,96 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Seller Avatar / Logo Icon
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF059669), Color(0xFF10B981)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF059669).withValues(alpha: 0.25),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+          InkWell(
+            onTap: _isEditing
+                ? () async {
+                    final repo = context.read<AdminUserRepository>();
+                    final sellerBloc = context.read<SellerBloc>();
+                    final messenger = ScaffoldMessenger.of(context);
+                    final res = await FilePicker.pickFiles(type: FileType.image);
+                    if (res.isEmpty || !mounted) return;
+                    try {
+                      final logoUrl = await repo.uploadSellerLogo(res.first);
+                      if (!mounted) return;
+                      final savedUser = await repo.updateUser(
+                        userId: _currentSeller.id,
+                        data: {'shopImage': logoUrl},
+                      );
+                      if (!mounted) return;
+                      sellerBloc.add(UpdateLocalAdminUser(savedUser));
+                      final updated = SellerProfile.fromAdminUser(savedUser);
+                      setState(() => _currentSeller = updated);
+                      widget.onSellerUpdated(updated);
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Seller logo updated successfully!'),
+                          backgroundColor: Color(0xFF059669),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text('Failed to update logo: $e'),
+                          backgroundColor: const Color(0xFFE11D48),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  }
+                : null,
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF059669), Color(0xFF10B981)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF059669).withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: (_currentSeller.shopImage != null &&
+                          _currentSeller.shopImage!.trim().isNotEmpty)
+                      ? Image.network(
+                          _currentSeller.shopImage!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const Center(
+                            child: Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
+                          ),
+                        )
+                      : const Center(
+                          child: Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
+                        ),
                 ),
+                if (_isEditing)
+                  Positioned(
+                    right: -4,
+                    bottom: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF059669),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
+                    ),
+                  ),
               ],
-            ),
-            child: const Center(
-              child: Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
             ),
           ),
           const SizedBox(width: 18),

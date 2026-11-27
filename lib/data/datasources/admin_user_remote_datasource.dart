@@ -35,6 +35,8 @@ abstract class AdminUserRemoteDataSource {
 
   Future<AdminUser> createSeller(Map<String, dynamic> data);
 
+  Future<String> uploadSellerLogo(PlatformFile file);
+
   Future<AdminUser> updateUser({
     required String userId,
     required Map<String, dynamic> data,
@@ -204,6 +206,39 @@ class AdminUserRemoteDataSourceImpl implements AdminUserRemoteDataSource {
     }
 
     return AdminUser.fromJson(resData);
+  }
+
+  @override
+  Future<String> uploadSellerLogo(PlatformFile file) async {
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) {
+      throw const ApiException(message: 'Selected logo file is empty');
+    }
+    final ext = file.name.split('.').last.toLowerCase();
+    final contentType = ext == 'png'
+        ? 'image/png'
+        : (ext == 'webp' ? 'image/webp' : 'image/jpeg');
+
+    final response = await _apiClient.postMultipart(
+      ApiEndpoints.adminSellerUploadLogo,
+      fileFieldName: 'file',
+      fileBytes: bytes,
+      fileName: file.name,
+      contentType: contentType,
+      requiresAuth: true,
+    );
+
+    final resData = response['data'];
+    if (response['success'] == true && resData is Map) {
+      final url = (resData['shopImage'] ?? resData['imageUrl'] ?? resData['url'])
+          ?.toString()
+          .trim();
+      if (url != null && url.isNotEmpty) return url;
+    }
+    throw ApiException(
+      message: response['message']?.toString() ?? 'Failed to upload seller logo',
+      details: response,
+    );
   }
 
   @override

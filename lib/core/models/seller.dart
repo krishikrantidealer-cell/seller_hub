@@ -114,6 +114,7 @@ class SellerProfile extends Equatable {
   final String? notes;
   final int? monthlyTarget;
   final String? preferredLanguage;
+  final String? shopImage;
 
   const SellerProfile({
     required this.id,
@@ -158,6 +159,7 @@ class SellerProfile extends Equatable {
     this.notes,
     this.monthlyTarget,
     this.preferredLanguage,
+    this.shopImage,
   });
 
   String get phoneNumber => phone;
@@ -241,6 +243,7 @@ class SellerProfile extends Equatable {
       notes: u.notes,
       monthlyTarget: u.monthlyTarget,
       preferredLanguage: u.preferredLanguage,
+      shopImage: u.shopImage,
       pricingModel: u.pricingModel,
       commissionPercentage: u.commissionPercentage,
     );

@@ -42,6 +42,10 @@ abstract class AdminUserRepository {
   /// POST /api/v1/admin/users/sellers
   Future<AdminUser> createSeller(Map<String, dynamic> data);
 
+  /// Uploads a seller shop logo image and returns its public URL
+  /// POST /api/v1/admin/users/sellers/upload-logo
+  Future<String> uploadSellerLogo(PlatformFile file);
+
   /// Updates an existing customer/seller profile
   /// PATCH /api/v1/admin/users/{userId}
   Future<AdminUser> updateUser({

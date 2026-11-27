@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -45,6 +46,20 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
   bool _isLookingUpPincode = false;
   bool _isLoadingCities = false;
   List<String> _extraPincodeCities = const [];
+  PlatformFile? _logoFile;
+  Uint8List? _logoBytes;
+
+  Future<void> _pickLogo() async {
+    final res = await FilePicker.pickFiles(type: FileType.image);
+    if (res.isEmpty) return;
+    final picked = res.first;
+    final bytes = await picked.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _logoFile = picked;
+      _logoBytes = bytes;
+    });
+  }
 
   Future<void> _onStateSelected(String val) async {
     setState(() {
@@ -141,6 +156,10 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
 
     try {
       final repository = context.read<AdminUserRepository>();
+      if (_logoFile != null) {
+        final logoUrl = await repository.uploadSellerLogo(_logoFile!);
+        payload['shopImage'] = logoUrl;
+      }
       final createdUser = await repository.createSeller(payload);
 
       if (mounted) {
@@ -297,6 +316,105 @@ class _CreateSellerDialogState extends State<CreateSellerDialog> {
                           ),
                           const SizedBox(height: 16),
                         ],
+
+                        // Seller Logo Picker
+                        _buildFieldLabel('Seller Logo (Optional)', textPrimary),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cardBgColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: surfaceColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: borderColor),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: _logoBytes != null
+                                    ? Image.memory(_logoBytes!, fit: BoxFit.cover)
+                                    : Icon(
+                                        Icons.storefront_rounded,
+                                        color: textSecondary,
+                                        size: 26,
+                                      ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _logoFile != null
+                                          ? _logoFile!.name
+                                          : 'Upload Seller / Brand Logo',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'PNG, JPG or WEBP (max 5 MB)',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.5,
+                                        color: textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (_logoFile != null)
+                                IconButton(
+                                  tooltip: 'Remove logo',
+                                  onPressed: _isSubmitting
+                                      ? null
+                                      : () => setState(() {
+                                            _logoFile = null;
+                                            _logoBytes = null;
+                                          }),
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: Color(0xFFE11D48),
+                                    size: 20,
+                                  ),
+                                ),
+                              OutlinedButton.icon(
+                                onPressed: _isSubmitting ? null : _pickLogo,
+                                icon: const Icon(Icons.upload_rounded, size: 16),
+                                label: Text(
+                                  _logoFile != null ? 'Change' : 'Upload Logo',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF059669),
+                                  side: const BorderSide(color: Color(0xFF059669)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
 
                         // Shop / Trade Name
                         _buildFieldLabel('Shop / Trade Name *', textPrimary),

@@ -84,6 +84,7 @@ class ApiEndpoints {
   static const String adminUsers = '/api/v1/admin/users';
   static const String adminCreateCustomer = '/api/v1/admin/users/customers';
   static const String adminCreateSeller = '/api/v1/admin/users/sellers';
+  static const String adminSellerUploadLogo = '/api/v1/admin/users/sellers/upload-logo';
   static String adminUserBlock(String userId) => '/api/v1/admin/users/$userId/block';
   static String adminUserById(String userId) => '/api/v1/admin/users/$userId';
   static String adminUserDeletion(String userId) => '/api/v1/admin/users/$userId/deletion';

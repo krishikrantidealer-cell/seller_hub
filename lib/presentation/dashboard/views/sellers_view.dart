@@ -370,9 +370,26 @@ class _SellersViewState extends State<SellersView> {
                         color: const Color(0xFF059669).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Center(
-                        child: Icon(Icons.storefront_rounded, color: Color(0xFF059669), size: 18),
-                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: (s.shopImage != null && s.shopImage!.trim().isNotEmpty)
+                          ? Image.network(
+                              s.shopImage!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const Center(
+                                child: Icon(
+                                  Icons.storefront_rounded,
+                                  color: Color(0xFF059669),
+                                  size: 18,
+                                ),
+                              ),
+                            )
+                          : const Center(
+                              child: Icon(
+                                Icons.storefront_rounded,
+                                color: Color(0xFF059669),
+                                size: 18,
+                              ),
+                            ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(

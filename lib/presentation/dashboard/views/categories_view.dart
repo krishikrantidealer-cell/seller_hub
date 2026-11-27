@@ -1271,15 +1271,6 @@ class _CategoriesViewState extends State<CategoriesView> {
                                           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                                           onPressed: () => _pickAndUploadCategoryImage(context, sub),
                                         ),
-                                        if (sub.categoryImageUrl != null)
-                                          IconButton(
-                                            icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                                            tooltip: 'Remove Sub-Category Image',
-                                            color: const Color(0xFFEF4444),
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-                                            onPressed: () => _confirmDeleteCategoryImage(context, sub),
-                                          ),
                                         IconButton(
                                           icon: const Icon(Icons.delete_forever_rounded, size: 16),
                                           tooltip: 'Delete Sub-Category',

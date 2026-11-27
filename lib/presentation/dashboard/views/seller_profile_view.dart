@@ -47,6 +47,8 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
   late bool _isCreating;
   bool _isEditing = false;
   bool _isSubmitting = false;
+  bool _isUploadingLogo = false;
+  String? _pendingLogoUrl;
   String? _createErrorMessage;
   bool _isLookingUpPincode = false;
   bool _isLoadingCities = false;
@@ -233,6 +235,7 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         if (panNumber.isNotEmpty) 'panNumber': panNumber,
         if (licenceNo.isNotEmpty) 'licenceNo': licenceNo,
         if (password.trim().isNotEmpty) 'password': password.trim(),
+        if (_pendingLogoUrl != null && _pendingLogoUrl!.isNotEmpty) 'shopImage': _pendingLogoUrl,
         'pricingModel': _pricingModel,
         'commissionPercentage': _pricingModel == 'DEALER_COMMISSION' ? (dealerCommission ?? 0.0) : 0.0,
       };
@@ -1092,6 +1095,63 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
     );
   }
 
+  Future<void> _pickAndUploadSellerLogo() async {
+    final repo = context.read<AdminUserRepository>();
+    final sellerBloc = context.read<SellerBloc>();
+    final messenger = ScaffoldMessenger.of(context);
+    final res = await FilePicker.pickFiles(type: FileType.image);
+    if (res.isEmpty || !mounted) return;
+    setState(() => _isUploadingLogo = true);
+    try {
+      final logoUrl = await repo.uploadSellerLogo(res.first);
+      if (!mounted) return;
+      if (_isCreating) {
+        setState(() {
+          _pendingLogoUrl = logoUrl;
+          _isUploadingLogo = false;
+        });
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Seller logo uploaded! It will be saved when you create the seller.'),
+            backgroundColor: Color(0xFF059669),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      final savedUser = await repo.updateUser(
+        userId: _currentSeller.id,
+        data: {'shopImage': logoUrl},
+      );
+      if (!mounted) return;
+      sellerBloc.add(UpdateLocalAdminUser(savedUser));
+      final updated = SellerProfile.fromAdminUser(savedUser);
+      setState(() {
+        _currentSeller = updated;
+        _pendingLogoUrl = null;
+        _isUploadingLogo = false;
+      });
+      widget.onSellerUpdated(updated);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Seller logo updated successfully!'),
+          backgroundColor: Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingLogo = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Failed to update logo: $e'),
+          backgroundColor: const Color(0xFFE11D48),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   // --- SELLER HEADER CARD ---
   Widget _buildSellerHeaderCard(
     BuildContext context,
@@ -1119,97 +1179,118 @@ class _SellerProfileViewState extends State<SellerProfileView> with SingleTicker
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Seller Avatar / Logo Icon
-          InkWell(
-            onTap: _isEditing
-                ? () async {
-                    final repo = context.read<AdminUserRepository>();
-                    final sellerBloc = context.read<SellerBloc>();
-                    final messenger = ScaffoldMessenger.of(context);
-                    final res = await FilePicker.pickFiles(type: FileType.image);
-                    if (res.isEmpty || !mounted) return;
-                    try {
-                      final logoUrl = await repo.uploadSellerLogo(res.first);
-                      if (!mounted) return;
-                      final savedUser = await repo.updateUser(
-                        userId: _currentSeller.id,
-                        data: {'shopImage': logoUrl},
-                      );
-                      if (!mounted) return;
-                      sellerBloc.add(UpdateLocalAdminUser(savedUser));
-                      final updated = SellerProfile.fromAdminUser(savedUser);
-                      setState(() => _currentSeller = updated);
-                      widget.onSellerUpdated(updated);
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Seller logo updated successfully!'),
-                          backgroundColor: Color(0xFF059669),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to update logo: $e'),
-                          backgroundColor: const Color(0xFFE11D48),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  }
-                : null,
-            borderRadius: BorderRadius.circular(14),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF059669), Color(0xFF10B981)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF059669).withValues(alpha: 0.25),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: (_currentSeller.shopImage != null &&
-                          _currentSeller.shopImage!.trim().isNotEmpty)
-                      ? Image.network(
-                          _currentSeller.shopImage!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const Center(
-                            child: Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
-                          ),
-                        )
-                      : const Center(
-                          child: Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
-                        ),
-                ),
-                if (_isEditing)
-                  Positioned(
-                    right: -4,
-                    bottom: -4,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                onTap: _isEditing && !_isUploadingLogo ? _pickAndUploadSellerLogo : null,
+                borderRadius: BorderRadius.circular(14),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF059669),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF059669), Color(0xFF10B981)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF059669).withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
+                      clipBehavior: Clip.antiAlias,
+                      child: _isUploadingLogo
+                          ? const Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          : ((_isCreating ? _pendingLogoUrl : (_pendingLogoUrl ?? _currentSeller.shopImage)) != null &&
+                                  (_isCreating ? _pendingLogoUrl : (_pendingLogoUrl ?? _currentSeller.shopImage))!.trim().isNotEmpty)
+                              ? Image.network(
+                                  (_isCreating ? _pendingLogoUrl : (_pendingLogoUrl ?? _currentSeller.shopImage))!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => const Center(
+                                    child: Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
+                                  ),
+                                )
+                              : const Center(
+                                  child: Icon(Icons.storefront_rounded, color: Colors.white, size: 28),
+                                ),
+                    ),
+                    if (_isEditing)
+                      Positioned(
+                        right: -4,
+                        bottom: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF059669),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, size: 12, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (_isEditing) ...[
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: _isUploadingLogo ? null : _pickAndUploadSellerLogo,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF059669).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.35)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          ((_isCreating ? _pendingLogoUrl : (_pendingLogoUrl ?? _currentSeller.shopImage)) != null &&
+                                  (_isCreating ? _pendingLogoUrl : (_pendingLogoUrl ?? _currentSeller.shopImage))!.trim().isNotEmpty)
+                              ? Icons.edit_rounded
+                              : Icons.upload_rounded,
+                          size: 13,
+                          color: const Color(0xFF059669),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isUploadingLogo
+                              ? 'Uploading...'
+                              : (((_isCreating ? _pendingLogoUrl : (_pendingLogoUrl ?? _currentSeller.shopImage)) != null &&
+                                      (_isCreating ? _pendingLogoUrl : (_pendingLogoUrl ?? _currentSeller.shopImage))!.trim().isNotEmpty)
+                                  ? 'Change Logo'
+                                  : 'Upload Logo'),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF059669),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ),
               ],
-            ),
+            ],
           ),
           const SizedBox(width: 18),
 

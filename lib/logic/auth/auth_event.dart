@@ -12,7 +12,7 @@ class CheckAuthStatus extends AuthEvent {}
 class LoginSubmitted extends AuthEvent {
   final String identifier;
   final String password;
-  final String? expectedRole; // 'ROLE_ADMIN' | 'ROLE_SALES_AGENT'
+  final String? expectedRole; // 'ROLE_ADMIN' | 'ROLE_SALES_AGENT' | 'ROLE_MARKETING'
 
   const LoginSubmitted({
     required this.identifier,

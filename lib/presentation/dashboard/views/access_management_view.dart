@@ -25,6 +25,10 @@ const List<PermissionMeta> kAllSalesPermissions = [
   PermissionMeta('ORDERS_VIEW', 'View Orders & Tracking', 'Orders & Dispatch'),
   PermissionMeta('ORDERS_CREATE', 'Create Orders for Customers', 'Orders & Dispatch'),
   PermissionMeta('ORDERS_MANAGE', 'Confirm, Label, Pack & Cancel Orders', 'Orders & Dispatch'),
+  PermissionMeta('MARKETING_VIEW', 'View Marketing Tab, Blogs & Banners', 'Marketing & Growth'),
+  PermissionMeta('MARKETING_MANAGE', 'Launch Campaigns, Blogs, Banners & Collections', 'Marketing & Growth'),
+  PermissionMeta('ENGAGEMENT_VIEW', 'View Engagement Tab, Reviews & Webhooks', 'Engagement & Telemetry'),
+  PermissionMeta('ENGAGEMENT_MANAGE', 'Manage Engagement Campaigns & Moderate Reviews', 'Engagement & Telemetry'),
 ];
 
 class AccessManagementView extends StatefulWidget {
@@ -97,6 +101,7 @@ class _AccessManagementViewState extends State<AccessManagementView> {
     final emailCtrl = TextEditingController(text: _generateRandomEmail('agent'));
     final phoneCtrl = TextEditingController();
     final passCtrl = TextEditingController(text: _generateRandomPassword());
+    String selectedRole = 'ROLE_SALES_AGENT';
     final selectedPerms = <String>{
       'DASHBOARD_VIEW',
       'USERS_CUSTOMERS_VIEW',
@@ -237,6 +242,43 @@ class _AccessManagementViewState extends State<AccessManagementView> {
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedRole,
+                              decoration: const InputDecoration(
+                                labelText: 'Staff Role *',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'ROLE_SALES_AGENT', child: Text('Sales Agent (ROLE_SALES_AGENT)')),
+                                DropdownMenuItem(value: 'ROLE_MARKETING', child: Text('Marketing & Engagement (ROLE_MARKETING)')),
+                              ],
+                              onChanged: (val) {
+                                if (val == null) return;
+                                setDialogState(() {
+                                  selectedRole = val;
+                                  selectedPerms.clear();
+                                  if (val == 'ROLE_MARKETING') {
+                                    selectedPerms.addAll([
+                                      'MARKETING_VIEW',
+                                      'MARKETING_MANAGE',
+                                      'ENGAGEMENT_VIEW',
+                                      'ENGAGEMENT_MANAGE',
+                                      'CATALOG_VIEW',
+                                    ]);
+                                  } else {
+                                    selectedPerms.addAll([
+                                      'DASHBOARD_VIEW',
+                                      'USERS_CUSTOMERS_VIEW',
+                                      'USERS_CUSTOMERS_MANAGE',
+                                      'ORDERS_VIEW',
+                                      'ORDERS_CREATE',
+                                    ]);
+                                  }
+                                });
+                              },
+                            ),
                             const SizedBox(height: 16),
                             Text(
                               'ASSIGNED TABS & PERMISSIONS',
@@ -322,6 +364,7 @@ class _AccessManagementViewState extends State<AccessManagementView> {
                                           'phoneNumber': phoneCtrl.text.trim(),
                                         if (passCtrl.text.trim().isNotEmpty)
                                           'password': passCtrl.text.trim(),
+                                        'role': selectedRole,
                                         'permissions': selectedPerms.toList(),
                                       },
                                       requiresAuth: true,
@@ -706,6 +749,27 @@ class _AccessManagementViewState extends State<AccessManagementView> {
                                       fontSize: 10,
                                       fontWeight: FontWeight.w800,
                                       color: isBlocked ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: ((agent['role'] == 'ROLE_MARKETING')
+                                            ? const Color(0xFF7C3AED)
+                                            : const Color(0xFF2563EB))
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Text(
+                                    agent['role'] == 'ROLE_MARKETING' ? 'MARKETING' : 'SALES AGENT',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: (agent['role'] == 'ROLE_MARKETING')
+                                          ? const Color(0xFF7C3AED)
+                                          : const Color(0xFF2563EB),
                                     ),
                                   ),
                                 ),

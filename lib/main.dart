@@ -9,6 +9,8 @@ import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/category_repository.dart';
 import 'domain/repositories/collection_repository.dart';
 import 'domain/repositories/product_repository.dart';
+import 'data/repositories/marketing_repository.dart';
+import 'logic/marketing/marketing_bloc.dart';
 import 'logic/admin_user/admin_user_event.dart';
 import 'logic/admin_user/customer_bloc.dart';
 import 'logic/admin_user/seller_bloc.dart';
@@ -100,6 +102,11 @@ class SellerHubApp extends StatelessWidget {
             create: (_) => OrderBloc(
               apiClient: InjectionContainer.instance.apiClient,
             )..add(const LoadAdminOrders(page: 0, size: 50)),
+          ),
+          BlocProvider<MarketingBloc>(
+            create: (_) => MarketingBloc(
+              repository: MarketingRepository(InjectionContainer.instance.apiClient),
+            ),
           ),
         ],
         child: BlocBuilder<ThemeBloc, ThemeState>(

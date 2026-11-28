@@ -29,6 +29,8 @@ class AuthSession extends Equatable {
 
   bool get isAdmin => role == 'ROLE_ADMIN' || role == 'ADMIN';
   bool get isSalesAgent => role == 'ROLE_SALES_AGENT' || role == 'SALES_AGENT';
+  bool get isMarketing => role == 'ROLE_MARKETING' || role == 'MARKETING';
+  bool get isStaff => isSalesAgent || isMarketing;
 
   bool hasPermission(String permission) => isAdmin || permissions.contains(permission);
   bool hasAnyPermission(List<String> keys) => isAdmin || keys.any(permissions.contains);

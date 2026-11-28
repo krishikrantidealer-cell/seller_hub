@@ -99,6 +99,13 @@ class ApiEndpoints {
   static String adminSalesAgentStatus(String id) => '/api/v1/admin/sales-agents/$id/status';
   static String adminSalesAgentById(String id) => '/api/v1/admin/sales-agents/$id';
 
+  /// Marketing & Engagement
+  static const String adminMarketingOverview = '/api/v1/admin/marketing/overview';
+  static const String adminMarketingCampaigns = '/api/v1/admin/marketing/campaigns';
+  static String adminMarketingCampaignStatus(String id) => '/api/v1/admin/marketing/campaigns/$id/status';
+  static const String adminBlogs = '/api/v1/admin/blogs';
+  static const String adminReviews = '/api/v1/admin/reviews';
+
   /// Locations (Indian States, Cities & PIN Code Lookup)
   static const String indiaStates = '/api/v1/locations/india/states';
   static String indiaCities(String state) =>

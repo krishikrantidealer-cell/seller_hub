@@ -23,6 +23,8 @@ import 'package:seller_hub/logic/admin_user/seller_bloc.dart';
 import 'package:seller_hub/logic/admin_user/admin_user_event.dart';
 import 'package:seller_hub/logic/admin_user/admin_user_state.dart';
 import 'package:seller_hub/presentation/dashboard/views/access_management_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/engagement_view.dart';
+import 'package:seller_hub/presentation/dashboard/views/marketing_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/admin_create_order_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/banners_view.dart';
 import 'package:seller_hub/presentation/dashboard/views/categories_view.dart';
@@ -243,7 +245,7 @@ class _DashboardViewState extends State<DashboardView> {
                     listenWhen: (prev, curr) => prev.session?.permissions != curr.session?.permissions,
                     listener: (context, authState) {
                       final session = authState.session;
-                      if (session == null || !session.isSalesAgent) return;
+                      if (session == null || !session.isStaff) return;
                       final fallback = _firstPermittedNavIndex(session);
                       if (!_isNavIndexPermitted(_selectedNavIndex, session) && fallback != null) {
                         setState(() {
@@ -259,7 +261,7 @@ class _DashboardViewState extends State<DashboardView> {
                     child: Builder(
                       builder: (context) {
                         final session = context.watch<AuthBloc>().state.session;
-                        if (session != null && session.isSalesAgent && !_isNavIndexPermitted(_selectedNavIndex, session)) {
+                        if (session != null && session.isStaff && !_isNavIndexPermitted(_selectedNavIndex, session)) {
                           final fallback = _firstPermittedNavIndex(session);
                           if (fallback == null) {
                             return Center(
@@ -772,6 +774,23 @@ class _DashboardViewState extends State<DashboardView> {
       }
     }
 
+    if (_selectedNavIndex == 8) {
+      return MarketingView(
+        onOpenCatalogCollections: () => setState(() {
+          _selectedNavIndex = 2;
+          _catalogSubTabIndex = 1;
+        }),
+        onOpenCatalogBanners: () => setState(() {
+          _selectedNavIndex = 1;
+          _catalogSubTabIndex = 3;
+        }),
+      );
+    }
+
+    if (_selectedNavIndex == 9) {
+      return const EngagementView();
+    }
+
     // Nav Index 5: Orders Directory & Order Detail
     if (_selectedNavIndex == 5) {
       final orderState = context.watch<OrderBloc>().state;
@@ -883,13 +902,17 @@ class _DashboardViewState extends State<DashboardView> {
         return session.hasAnyPermission(['ORDERS_VIEW', 'ORDERS_CREATE', 'ORDERS_MANAGE']);
       case 7:
         return false;
+      case 8:
+        return session.hasAnyPermission(['MARKETING_VIEW', 'MARKETING_MANAGE']);
+      case 9:
+        return session.hasAnyPermission(['ENGAGEMENT_VIEW', 'ENGAGEMENT_MANAGE']);
       default:
         return false;
     }
   }
 
   int? _firstPermittedNavIndex(dynamic session) {
-    for (final idx in const [0, 5, 6, 4, 1]) {
+    for (final idx in const [0, 8, 9, 5, 6, 4, 1]) {
       if (_isNavIndexPermitted(idx, session)) return idx;
     }
     return null;

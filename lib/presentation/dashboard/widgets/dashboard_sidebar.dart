@@ -115,12 +115,7 @@ class DashboardSidebar extends StatelessWidget {
                           children: [
                             BlocBuilder<AuthBloc, AuthState>(
                               builder: (context, authState) {
-                                final session = authState.session;
-                                final consoleLabel = (session?.isMarketing ?? false)
-                                    ? 'MARKETING CONSOLE'
-                                    : ((session?.isSalesAgent ?? false)
-                                        ? 'SALES CONSOLE'
-                                        : 'ADMIN CONSOLE');
+                                final isSales = authState.session?.isSalesAgent ?? false;
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
@@ -136,7 +131,7 @@ class DashboardSidebar extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      consoleLabel,
+                                      isSales ? 'SALES CONSOLE' : 'ADMIN CONSOLE',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 8.5,
                                         fontWeight: FontWeight.w800,
@@ -199,16 +194,6 @@ class DashboardSidebar extends StatelessWidget {
                       'ORDERS_MANAGE',
                     ]) ??
                     true;
-                final canMarketing = session?.hasAnyPermission([
-                      'MARKETING_VIEW',
-                      'MARKETING_MANAGE',
-                    ]) ??
-                    true;
-                final canEngagement = session?.hasAnyPermission([
-                      'ENGAGEMENT_VIEW',
-                      'ENGAGEMENT_MANAGE',
-                    ]) ??
-                    true;
                 final isAdmin = session?.isAdmin ?? true;
 
                 return SingleChildScrollView(
@@ -266,24 +251,6 @@ class DashboardSidebar extends StatelessWidget {
                           icon: Icons.receipt_long_rounded,
                           isDark: isDark,
                           badgeText: ordersCount > 0 ? '$ordersCount' : null,
-                        ),
-                      if (canMarketing)
-                        _buildSidebarNavItem(
-                          context: context,
-                          index: 8,
-                          title: 'Marketing',
-                          icon: Icons.campaign_rounded,
-                          isDark: isDark,
-                          isSelected: selectedIndex == 8,
-                        ),
-                      if (canEngagement)
-                        _buildSidebarNavItem(
-                          context: context,
-                          index: 9,
-                          title: 'Engagement',
-                          icon: Icons.insights_rounded,
-                          isDark: isDark,
-                          isSelected: selectedIndex == 9,
                         ),
                       if (isAdmin)
                         _buildSidebarNavItem(

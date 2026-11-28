@@ -120,20 +120,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ));
         return;
       }
-      if (event.expectedRole == 'ROLE_MARKETING' && !session.isMarketing) {
-        await authRepository.logout();
-        emit(state.copyWith(
-          status: AuthStatus.error,
-          errorMessage: 'Please use a Marketing account for Marketing Portal login.',
-          validationErrors: null,
-        ));
-        return;
-      }
       if (event.expectedRole == 'ROLE_ADMIN' && !session.isAdmin) {
         await authRepository.logout();
         emit(state.copyWith(
           status: AuthStatus.error,
-          errorMessage: 'Please switch to Sales Agent or Marketing Login to sign in with a staff account.',
+          errorMessage: 'Please switch to Sales Agent Login to sign in with a Sales account.',
           validationErrors: null,
         ));
         return;

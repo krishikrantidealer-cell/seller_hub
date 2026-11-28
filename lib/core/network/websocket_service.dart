@@ -28,7 +28,6 @@ class WebSocketService {
   final _orderUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
   final _userUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
   final _salesPermissionUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
-  final _marketingUpdatesController = StreamController<Map<String, dynamic>>.broadcast();
   final _authRevokedController = StreamController<Map<String, dynamic>>.broadcast();
   final _connectionStateController = StreamController<bool>.broadcast();
 
@@ -38,7 +37,6 @@ class WebSocketService {
   Stream<Map<String, dynamic>> get orderUpdates => _orderUpdatesController.stream;
   Stream<Map<String, dynamic>> get userUpdates => _userUpdatesController.stream;
   Stream<Map<String, dynamic>> get salesPermissionUpdates => _salesPermissionUpdatesController.stream;
-  Stream<Map<String, dynamic>> get marketingUpdates => _marketingUpdatesController.stream;
   Stream<bool> get connectionStatus => _connectionStateController.stream;
   bool get isConnected => _isConnected;
 
@@ -194,10 +192,8 @@ class WebSocketService {
           _orderUpdatesController.add(decoded);
         } else if (event.startsWith('users:')) {
           _userUpdatesController.add(decoded);
-        } else if (event == 'sales:permissions_updated' || event == 'staff:permissions_updated') {
+        } else if (event == 'sales:permissions_updated') {
           _salesPermissionUpdatesController.add(decoded);
-        } else if (event.startsWith('marketing:') || event.startsWith('engagement:')) {
-          _marketingUpdatesController.add(decoded);
         } else if (event == 'auth:session_revoked') {
           _authRevokedController.add(decoded);
         }

@@ -231,7 +231,9 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
         ? v.paymentMethod
         : '';
     _variantCommissionController.text = v.commissionPercentage > 0
-        ? v.commissionPercentage.round().toString()
+        ? (v.commissionPercentage == v.commissionPercentage.roundToDouble()
+            ? v.commissionPercentage.round().toString()
+            : v.commissionPercentage.toStringAsFixed(2))
         : '';
     _variantSwgController.text = v.swg > 0
         ? v.swg.round().toString()
@@ -291,7 +293,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
       courierCharges: courier,
       codCharge: cod,
       paymentMethod: _selectedPaymentMethod,
-      commissionPercentage: double.tryParse(_variantCommissionController.text.trim()) ?? cur.commissionPercentage,
+      commissionPercentage: (double.tryParse(_variantCommissionController.text.trim()) ?? 0.0).clamp(0.0, 100.0),
       swg: swgVal,
       discountRs: disc,
       discountPercentage: discPct,
@@ -327,8 +329,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
         printedMrp: 1000.0,
         discountRs: 150.0,
         gstPercentage: 5.0,
-        commissionPercentage: double.tryParse(_variantCommissionController.text.trim()) ??
-            _defaultTechnicalCommission,
+        commissionPercentage: _defaultTechnicalCommission,
         discountPercentage: 15.0,
         stock: 50,
       );
@@ -1019,52 +1020,18 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
     }
   }
 
-  void _applyCommissionToAllVariants(double comm) {
+  void _applyCommissionToCurrentVariant(double comm) {
     final normalized = comm.clamp(0.0, 100.0);
     if (_isMarketplace) {
-      _defaultTechnicalCommission = normalized;
       _recalculateSellingRate();
     } else {
       _recalculateSwgFromSellingRate();
     }
     _syncCurrentVariantFromControllers();
-
-    for (int i = 0; i < _variants.length; i++) {
-      final v = _variants[i];
-      if (i == _activeVariantIndex) {
-        _variants[i] = v.copyWith(commissionPercentage: normalized);
-        continue;
-      }
-      if (_isMarketplace) {
-        final newCourier = v.courierCharges > 0
-            ? v.courierCharges
-            : LivePriceCalculation.computeCourierChargeFromWeightGrams(v.productWeight);
-        final newCod = v.codCharge > 0 ? v.codCharge : LivePriceCalculation.fixedCodAndBankCharge;
-        final newRate = v.swg > 0
-            ? LivePriceCalculation.computeSellingRate(
-                swg: v.swg,
-                commissionPercentage: normalized,
-                courierCharges: newCourier,
-                codCharge: newCod,
-                isMarketplace: true,
-              ).roundToDouble()
-            : v.displayRate;
-        _variants[i] = v.copyWith(
-          commissionPercentage: normalized,
-          displayRate: newRate,
-        );
-      } else {
-        final newSwg = v.displayRate > 0
-            ? LivePriceCalculation.computeSwgFromSellingRate(
-                sellingRate: v.displayRate,
-                commissionPercentage: normalized,
-              ).roundToDouble()
-            : v.swg;
-        _variants[i] = v.copyWith(
-          commissionPercentage: normalized,
-          swg: newSwg,
-        );
-      }
+    if (_activeVariantIndex >= 0 && _activeVariantIndex < _variants.length) {
+      _variants[_activeVariantIndex] = _variants[_activeVariantIndex].copyWith(
+        commissionPercentage: normalized,
+      );
     }
     setState(() {});
   }
@@ -1338,7 +1305,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                     'Commission (%)',
                     _variantCommissionController,
                     _isMarketplace
-                        ? 'Auto from Technical Name (editable)'
+                        ? 'Per-variant % (default from Technical Name)'
                         : 'Auto from Seller (Dealer Commission)',
                     isDark,
                     isNumber: true,
@@ -1346,7 +1313,7 @@ class _AddProductDialogState extends State<AddProductDialog> with SingleTickerPr
                     onChanged: _isMarketplace
                         ? (val) {
                             final comm = double.tryParse(val.trim()) ?? 0.0;
-                            _applyCommissionToAllVariants(comm);
+                            _applyCommissionToCurrentVariant(comm);
                           }
                         : null,
                   ),

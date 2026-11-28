@@ -75,15 +75,6 @@ class DashboardTopAppBar extends StatelessWidget {
         title = 'Customers & Buyer Directory';
         subtitle = 'Registered farmers, buyer accounts, delivery addresses & verification';
       }
-    } else if (selectedNavIndex == 7) {
-      title = 'Staff Access Control & RBAC';
-      subtitle = 'Manage Sales Agents, Marketing Managers & live WebSocket permissions';
-    } else if (selectedNavIndex == 8) {
-      title = 'Marketing & Storefront Growth';
-      subtitle = 'Multi-channel campaigns, storefront merchandising & live WebSocket sync';
-    } else if (selectedNavIndex == 9) {
-      title = 'Engagement & Live Webhook Telemetry';
-      subtitle = 'Campaign funnel performance & real-time inbound webhook stream';
     } else {
       if (viewingOrder != null) {
         title = 'Order ${viewingOrder!.orderNumber} • ${viewingOrder!.company}';

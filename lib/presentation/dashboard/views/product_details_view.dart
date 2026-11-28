@@ -634,53 +634,18 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
     }
   }
 
-  void _applyCommissionToAllVariants(double comm) {
+  void _applyCommissionToCurrentVariant(double comm) {
     final normalized = comm.clamp(0.0, 100.0);
     if (_editIsMarketplace) {
-      _defaultTechnicalCommission = normalized;
       _recalculateSellingRate();
     } else {
-      _dealerCommission = normalized;
       _recalculateSwgFromSellingRate();
     }
     _syncCurrentVariantFromControllers();
-
-    for (int i = 0; i < _workingVariants.length; i++) {
-      final v = _workingVariants[i];
-      if (i == _selectedVariantIndex) {
-        _workingVariants[i] = v.copyWith(commissionPercentage: normalized);
-        continue;
-      }
-      if (_editIsMarketplace) {
-        final newCourier = v.courierCharges > 0
-            ? v.courierCharges
-            : LivePriceCalculation.computeCourierChargeFromWeightGrams(v.productWeight);
-        final newCod = v.codCharge > 0 ? v.codCharge : LivePriceCalculation.fixedCodAndBankCharge;
-        final newRate = v.swg > 0
-            ? LivePriceCalculation.computeSellingRate(
-                swg: v.swg,
-                commissionPercentage: normalized,
-                courierCharges: newCourier,
-                codCharge: newCod,
-                isMarketplace: true,
-              ).roundToDouble()
-            : v.displayRate;
-        _workingVariants[i] = v.copyWith(
-          commissionPercentage: normalized,
-          displayRate: newRate,
-        );
-      } else {
-        final newSwg = v.displayRate > 0
-            ? LivePriceCalculation.computeSwgFromSellingRate(
-                sellingRate: v.displayRate,
-                commissionPercentage: normalized,
-              ).roundToDouble()
-            : v.swg;
-        _workingVariants[i] = v.copyWith(
-          commissionPercentage: normalized,
-          swg: newSwg,
-        );
-      }
+    if (_selectedVariantIndex >= 0 && _selectedVariantIndex < _workingVariants.length) {
+      _workingVariants[_selectedVariantIndex] = _workingVariants[_selectedVariantIndex].copyWith(
+        commissionPercentage: normalized,
+      );
     }
     _onVariantFieldChanged();
   }
@@ -808,7 +773,9 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
           ? v.shippingThrough
           : '';
       _commissionController.text = v.commissionPercentage > 0
-          ? v.commissionPercentage.round().toString()
+          ? (v.commissionPercentage == v.commissionPercentage.roundToDouble()
+              ? v.commissionPercentage.round().toString()
+              : v.commissionPercentage.toStringAsFixed(2))
           : '';
       _swgController.text = v.swg > 0
           ? v.swg.round().toString()
@@ -3275,7 +3242,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         controller: _commissionController,
                         label: 'Commission (%)',
                         hint: _editIsMarketplace
-                            ? 'Auto from Technical Name (editable)'
+                            ? 'Per-variant % (default from Technical Name)'
                             : 'Auto from Seller (Dealer Commission)',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         isDark: isDark,
@@ -3284,7 +3251,7 @@ class _ProductDetailsViewState extends State<ProductDetailsView> {
                         onChanged: _editIsMarketplace
                             ? (val) {
                                 final comm = double.tryParse(val.trim()) ?? 0.0;
-                                _applyCommissionToAllVariants(comm);
+                                _applyCommissionToCurrentVariant(comm);
                               }
                             : null,
                       ),

@@ -355,7 +355,7 @@ class ProductVariant extends Equatable {
       if (paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
       'discountRs': (effectiveMrp > effectiveDisplayRate) ? (effectiveMrp - effectiveDisplayRate) : 0.0,
       'gstPercentage': gstPercentage >= 0 ? gstPercentage : 5.0,
-      if (commissionPercentage > 0) 'commissionPercentage': commissionPercentage,
+      'commissionPercentage': commissionPercentage >= 0 ? commissionPercentage : 0.0,
       'discountPercentage': effectiveMrp > 0 ? ((effectiveMrp - effectiveDisplayRate) / effectiveMrp * 100) : 0.0,
       'stock': stock >= 0 ? stock : 0,
       if (swg > 0) 'swg': swg,
